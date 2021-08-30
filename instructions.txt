@@ -1,0 +1,85 @@
+SYSCALL CALLING CONVENTION
+rdi rsi rdx r10 r8 r9
+return value placed in rax
+
+
+mov rax, imm64
+>48 b8 IMM64
+mov rdest, rsrc
+ax	bx	cx	dx	sp	bp	si	di
+0	3	1	2	4	5	6	7
+>48 89 (dest | src << 3 | 0xc0)
+mov r8, rax (for syscalls)
+>49 89 c0
+mov r9, rax (for syscalls)
+>49 89 c1
+mov r10, rax (for syscalls)
+>49 89 c2
+xchg rax, rbx
+>48 93
+mov qword [rsp], rax
+>48 89 04 24
+mov rax, qword [rsp]
+>48 8b 04 24
+mov qword [rbx], rax
+>48 89 03
+mov rax, qword [rbx]
+>48 8b 03
+neg rax
+>48 f7 d8
+add rax, rbx
+>48 01 d8
+imul rbx
+>48 f7 eb
+idiv rbx
+>48 f7 fb
+mul rbx
+>48 f7 e3
+div rbx
+>48 f7 f3
+not rax
+>48 f7 d0
+and rax, rbx
+>48 21 d8
+or rax, rbx
+>48 09 d8
+xor rax, rbx
+>48 31 d8
+shl rax, cl
+>48 d3 e0
+shl rax, imm8
+>48 c1 e0 IMM8
+shr rax, cl
+>48 d3 e8
+shr rax, imm8
+>48 c1 e8 IMM8
+sar rax, cl
+>f8 d3 f8
+sar rax, imm8
+>48 c1 f8 IMM8
+sub rsp, imm32
+>48 81 ec IMM32
+cmp rax, rbx
+>48 39 d8
+test rax, rax
+>48 85 c0
+jmp rel32
+>e9 REL32
+je rel32
+>0f 84 REL32
+jne rel32
+>0f 85 REL32
+jl rel32
+>0f 8c REL32
+jg rel32
+>0f 8f REL32
+ja rel32
+>0f 87 REL32
+jb rel32
+>0f 82 REL32
+call rax
+>ff d0
+ret
+>c3
+syscall
+>0f 05
