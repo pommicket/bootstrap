@@ -1,7 +1,5 @@
 #!/bin/sh
 
-# check OS/architecture
-
 esc() {
 	: # comment out the following line to disable color output
 	printf '\33[%dm' "$1"
@@ -19,6 +17,8 @@ echo_green() {
 	esc 0
 }
 
+# check OS/architecture
+
 if uname -a | grep -i 'x86_64' | grep -i -q 'linux'; then
 	: # all good
 else
@@ -27,13 +27,13 @@ else
 fi
 
 cd 00
-rm -f B
-./hexcompile A
-if [ "$(cat B)" != 'Hello, world!' ]; then
+rm -f out00
+make -s out00
+if [ "$(cat out00)" != 'Hello, world!' ]; then
 	echo_red 'Stage 00 failed.'
 	exit 1
 fi
-rm -f B
+rm -f out00
 cd ..
 
-echo_green 'Done all stages!'
+echo_green 'all stages completed successfully!'

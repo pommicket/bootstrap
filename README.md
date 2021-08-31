@@ -31,15 +31,17 @@ decimal.
 - what a CPU is
 - what a CPU architecture is
 - what a CPU register is
-- what a pointer is
 - bits, bytes, kilobytes, etc.
 - bitwise operations (not, or, and, xor, left shift, right shift)
 - 2's complement
 - null-terminated strings
+- how pointers work
 - how floating-point numbers work
 - maybe some basic Intel-style x86-64 assembly (you can probably pick it up on
 the way though)
 
+It will help you a lot to know how to program (with any programming language),
+but it's not strictly necessary.
 
 ## instruction set
 

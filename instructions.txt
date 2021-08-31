@@ -7,6 +7,8 @@ Instruction set:
 
 mov rax, imm64
 >48 b8 IMM64
+xor eax, eax (sets rax to 0, much shorter than mov rax, 0)
+>31 c0
 mov rdest, rsrc
 ax	bx	cx	dx	sp	bp	si	di
 0	3	1	2	4	5	6	7
@@ -27,6 +29,18 @@ mov qword [rbx], rax
 >48 89 03
 mov rax, qword [rbx]
 >48 8b 03
+mov dword [rbx], eax
+>89 03
+mov eax, dword [rbx]
+>8b 03
+mov word [rbx], ax
+>66 89 03
+mov ax, word [rbx]
+>66 8b 03
+mov byte [rbx], al
+>88 03
+mov al, byte [rbx]
+>8a 03
 neg rax
 >48 f7 d8
 add rax, rbx
