@@ -1,7 +1,9 @@
-SYSCALL CALLING CONVENTION
-rdi rsi rdx r10 r8 r9
+Linux syscall calling convention:
+rax  - syscall number
+rdi, rsi, rdx, r10, r8, r9  - arguments
 return value placed in rax
 
+Instruction set:
 
 mov rax, imm64
 >48 b8 IMM64
