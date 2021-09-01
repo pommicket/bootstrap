@@ -26,7 +26,7 @@ it even smaller if you wanted to. Let's take a look at what's inside (`od -t x1
 00 00 48 89 c7 31 c0 48 89 c6 48 b8 02 00 00 00
 00 00 00 00 0f 05 48 b8 72 02 40 00 00 00 00 00
 48 89 c7 48 b8 41 00 00 00 00 00 00 00 48 89 c6
-48 b8 a4 01 00 00 00 00 00 00 48 89 c2 48 b8 02
+48 b8 ed 01 00 00 00 00 00 00 48 89 c2 48 b8 02
 00 00 00 00 00 00 00 0f 05 48 b8 03 00 00 00 00
 00 00 00 48 89 c7 48 89 c2 48 b8 6a 02 40 00 00
 00 00 00 48 89 c6 31 c0 0f 05 48 89 c3 48 b8 03
@@ -181,19 +181,20 @@ Now we open our output file:
 - `48 89 c7` `mov rdi, rax`
 - `48 b8 41 00 00 00 00 00 00 00` `mov rax, 0x41`
 - `48 89 c6` `mov rsi, rax`
-- `48 b8 a4 01 00 00 00 00 00 00` `mov rax, 0o644`
+- `48 b8 ed 01 00 00 00 00 00 00` `mov rax, 0o755`
 - `48 89 c2` `mov rdx, rax`
 - `48 b8 02 00 00 00 00 00 00 00` `mov rax, 2`
 - `0f 05` `syscall`
 
-In C, this is `open("out00", O_WRONLY|O_CREAT, 0644)`.
-This is quite similar to our first call, with two important differences: first,
-we specify `0x41` as the second argument. This tells Linux that we are writing
-to the file (`O_WRONLY = 0x01`), and that we want to create it if it doesn't
-exist (`O_CREAT = 0x40`). Secondly, we are setting the third argument this time.
-It specifies the permissions our file is created with (`0o644` means user
-read/write, group/other read). This is not very important to the actual
-execution of the program, so don't worry if you don't know what it means.
+In C, this is `open("out00", O_WRONLY|O_CREAT, 0755)`.  This is quite similar
+to our first call, with two important differences: first, we specify `0x41` as
+the second argument. This tells Linux that we are writing to the file
+(`O_WRONLY = 0x01`), and that we want to create it if it doesn't exist
+(`O_CREAT = 0x40`). Secondly, we are setting the third argument this time.  It
+specifies the permissions our file is created with (`0o755` means user
+read/write/execute, group/other read/execute). This is not very important to
+the actual execution of the program, so don't worry if you don't know what it
+means.
 
 Now we can start reading from the file. We're going to loop back to this part of
 the code every time we want to read a new hexadecimal number from the input
