@@ -1,3 +1,5 @@
+|| - ELF Header
+
 00 - Byte 00
 ..
 ff - Byte ff

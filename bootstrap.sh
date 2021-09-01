@@ -36,4 +36,15 @@ fi
 rm -f out00
 cd ..
 
+cd 01
+rm -f out0[01]
+make -s out01
+if [ "$(./out01)" != 'Hello, world!' ]; then
+	echo_red 'Stage 01 failed.'
+	exit 1
+fi
+rm -f out0[01]
+cd ..
+
+
 echo_green 'all stages completed successfully!'
