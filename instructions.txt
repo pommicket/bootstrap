@@ -21,10 +21,6 @@ mov r10, rax (for syscalls)
 >49 89 c2
 xchg rax, rbx
 >48 93
-mov qword [rsp], rax
->48 89 04 24
-mov rax, qword [rsp]
->48 8b 04 24
 mov qword [rbx], rax
 >48 89 03
 mov rax, qword [rbx]
@@ -41,6 +37,10 @@ mov byte [rbx], al
 >88 03
 mov al, byte [rbx]
 >8a 03
+mov qword [rsp], rax
+>48 89 04 24
+mov rax, qword [rsp]
+>48 8b 04 24
 neg rax
 >48 f7 d8
 add rax, rbx
@@ -89,10 +89,10 @@ jl rel32
 >0f 8c REL32
 jg rel32
 >0f 8f REL32
-ja rel32
->0f 87 REL32
 jb rel32
 >0f 82 REL32
+ja rel32
+>0f 87 REL32
 call rax
 >ff d0
 ret

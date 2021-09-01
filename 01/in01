@@ -1,6 +1,15 @@
 ||
-;im;2a;00;00;00;00;00;00;00
+;im;01;00;00;00;00;00;00;00 file descriptor for stdout
 ;JA
-;im;3c;00;00;00;00;00;00;00
+;im;bc;00;40;00;00;00;00;00 address of string "Hello, world!\n"
+;IA
+;im;0e;00;00;00;00;00;00;00 number of bytes to output
+;DA
+;im;01;00;00;00;00;00;00;00 syscall #1 (write)
 ;sy
+;zA
+;DA exit code 0
+;im;3c;00;00;00;00;00;00;00 syscall #60 (exit)
+;sy
+;'H;'e;'l;'l;'o;',;' ;'w;'o;'r;'l;'d;'!;\n the string we're printing
 ;

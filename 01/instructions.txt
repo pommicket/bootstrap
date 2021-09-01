@@ -1,0 +1,63 @@
+00 - Byte 00
+..
+ff - Byte ff
+
+'a - Character a (byte 0x61)
+'! - Character ! (byte 0x21)
+etc.
+
+zA - Zero rax
+im - Set rax to an immediate value, e.g.
+     im;05;00;00;00;00;00;00;00;
+	 will set rax to 5.
+
+ax	bx	cx	dx	sp	bp	si	di
+A	B	C	D	S	R	I	J
+The instruction for moving one register to another is [dest][src], e.g. CS is
+mov rcx, rsp.
+
+XA - mov r8,  rax
+YA - mov r9,  rax
+ZA - mov r10, rax
+
+xc - xchg rax, rbx
+
+sq - mov qword [rbx], rax
+lq - mov rax, qword [rbx]
+sd - mov dword [rbx], eax
+ld - mov eax, dword [rbx]
+sw - mov word [rbx], ax
+lw - mov ax, word [rbx]
+sb - mov byte [rbx], al
+lb - mov al, byte [rbx]
+Sq - mov qword [rsp], rax
+Lq - mov rax, qword [rsp]
+
+nA - neg rax
++B - add rax, rbx
+-* - imul rbx
+-/ - idiv rbx
++* - mul rbx
++/ - div rbx
+!A - not rax
+&B - and rax, rbx
+|B - or rax, rbx
+^B - xor rax, rbx
+<C - shl rax, cl
+<I - shl rax, imm8
+>C - shr rax, cl
+>I - shr rax, imm8
+]C - sar rax, cl
+]I - sar rax, imm8
+-S - sub rsp, imm32
+cm - cmp rax, rbx
+te - test rax, rax
+jm - jmp rel32
+je - je rel32
+jn - jne rel32
+jl - jl rel32
+jb - jb rel32
+ja - ja rel32
+cl - call rax
+re - ret
+sy - syscall
