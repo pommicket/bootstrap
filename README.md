@@ -11,14 +11,15 @@ executable, and the last one will be a C compiler. Each directory has its own
 README explaining what's going on.
 
 You can run `bootstrap.sh` to run through and test every stage.
+To get HTML versions of all README pages, run `make`.
 
 ## the basics
 
 In this series, I want to explain *everything* that's going on. I'm going to
-need to assume some passing knowledge about computers, but here's a quick
-overview of what you'll want to know before starting. I can't explain everything
-so you may need to do your own research. You don't need to understand each of
-these in full, just get a general idea at least:
+need to assume some passing knowledge, so here's a quick overview of what you'll
+want to know before starting. I can't explain everything so you may need to do
+your own research. You don't need to understand each of these in full, just get
+a general idea at least:
 
 - what an operating system is
 - what memory is
@@ -59,8 +60,8 @@ not right away.
 
 Bootstrapping a compiler is not an easy task, so we're trying to make it as easy
 as possible. We don't even necessarily need a standard-compliant C compiler, we
-only need enough to compile someone else's C compiler, specifically TCC
-(https://bellard.org/tcc/) since that's a compiler with very few dependencies.
+only need enough to compile someone else's C compiler, specifically we'll be
+using [TCC](https://bellard.org/tcc/) since it's written in standard C89.
 
 - efficiency is not a concern
 
@@ -71,7 +72,7 @@ with itself, we'll get the same executable either way.
 ## reflections on trusting trust
 
 In 1984, Ken Thompson wrote the well-known article
-[*Reflections on Trusting Trust*](http://users.ece.cmu.edu/~ganger/712.fall02/papers/p761-thompson.pdf).
+[Reflections on Trusting Trust](http://users.ece.cmu.edu/~ganger/712.fall02/papers/p761-thompson.pdf).
 This is one of the things that inspired me to start this project. To summarize
 the article: it is possible to create a malicious C compiler which will
 replicate its own malicious functionalities (e.g. detecting password-checking

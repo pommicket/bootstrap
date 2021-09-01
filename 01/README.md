@@ -333,7 +333,7 @@ header. But by a lucky coincidence, all those entries actually land on 0 bytes,
 so they'll just be treated as unrecognized (as they should be). So it's all
 good.
 
-## Limitations
+## limitations
 
 Like our last program, this one will be slow for large files. Again, that isn't
 much of a problem for us. Also, if you forget a `;` at the end of a file, it'll

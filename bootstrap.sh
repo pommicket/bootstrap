@@ -26,6 +26,7 @@ else
 	exit 1
 fi
 
+echo 'Processing stage 00...'
 cd 00
 rm -f out00
 make -s out00
@@ -36,6 +37,7 @@ fi
 rm -f out00
 cd ..
 
+echo 'Processing stage 01...'
 cd 01
 rm -f out0[01]
 make -s out01

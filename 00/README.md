@@ -1,7 +1,7 @@
 # stage 00
 
 This directory contains the file `hexcompile`, a handwritten executable. It
-takes input file `in00` containing space/newline/[any character]-separated
+takes input file `in00` containing space/newline/(any character)-separated
 hexadecimal digit pairs (e.g. `3f`) and outputs them as bytes to the file
 `out00`. On 64-bit Linux, try running `./hexcompile` from this directory (I've
 already provided an `in00` file, which you can take a look at), and you will get
@@ -369,7 +369,7 @@ That's quite a lot to take in for such a simple program, but here we are! We now
 have something that will let us write individual bytes with an ordinary text
 editor and get them translated into a binary file.
 
-## Limitations
+## limitations
 
 There are many ways in which this is a bad program. It will *only* properly
 handle lowercase hexadecimal digit pairs, separated by exactly one character,
@@ -381,7 +381,7 @@ Also, we only read in data *three bytes at a time*, and output one byte at a
 time. This is a very bad idea because syscalls (e.g. `read`) are slow. `read`
 might take ~3 microseconds, which doesn't sound like a lot, but it means that if
 we used code like this to process a 50 megabyte file, say, we'd be waiting for
-a long time.
+a while.
 
 But these problems aren't really a big deal. We'll only be running this on
 little programs and we'll be sure to check that our input is in the right
