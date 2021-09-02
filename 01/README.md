@@ -41,7 +41,7 @@ So, for example, the `sy` command outputs a syscall instruction. You can see
 
 `||` is a very important command. It outputs an ELF header for our executable.
 Rather than compute the correct size of the file, it just sets the "file size"
-and "memory size" members of the program header to `0x40000` (enough for a 256KB
+and "memory size" members of the program header to `0x80000` (enough for a 512KB
 executable). As it turns out, Linux won't mind if the program header lies about
 how much data is in the file.
 
