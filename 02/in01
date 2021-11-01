@@ -1,20 +1,24 @@
 || ELF Header
-;jm;50;00;00;00  jump over data to code
+;jm;cd;cd;cd;cd  jump to start of first pass
 ;'i;'n;'0;'2;00   (0x40007d) input filename
 ;'o;'u;'t;'0;'2;00  (0x400082) output filename
 ;00;00;' ;'n;'o;'t;' ;'r;'e;'c;'o;'g;'n;'i;'z;'e;'d;\n;00;00;00;00;00;00 (0x400088) error message/where we read to
-;48;b8;00 (0x4000a0) load immediate instruction
-;00;00;00;00;00 
+;00 (0x4000a0) stores which pass we're on (1 for second pass)
+;00;00;00;00;00;00;00 
 ;00;00;00;00;00;00;00;00 (0x4000a8) used for output
-;00;00;' ;'b;'a;'d;' ;'l;'a;'b;'e;'l;\n;00 (0x400090)
-;00;00;' 'b;'a;'d;' ;'n;'u;'m;'b;'e;'r;\n;00 (0x40009e)
-;00
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+
+-- code starts here
 
 ;im;7d;00;40;00;00;00;00;00 pointer to input filename
 ;JA
 ;zA O_RDONLY
 ;IA
-;im;02;00;00;00;00;00;00;00 syscall 2, open
+;im;02;00;00;00;00;00;00;00 open
 ;sy
 
 ;im;82;00;40;00;00;00;00;00 pointer to output filename
@@ -25,6 +29,7 @@
 ;DA
 ;im;02;00;00;00;00;00;00;00 open
 ;sy
+
 
 begin by writing the elf header.
 the segment we're loading in includes the ELF header at address 0x400000, so we can just read it from there
@@ -49,397 +54,415 @@ the segment we're loading in includes the ELF header at address 0x400000, so we 
 
 ;BA
 ;im;02;00;00;00;00;00;00;00
-;jg;cd;cd;cd;cd  end of file
+;cm;jn;cd;cd;cd;cd     end of file
 
-calculate the index in the command table
+look at first byte of command
 ;im;88;00;40;00;00;00;00;00
 ;BA
 ;zA;lb
-;<I;07
-;CA
+;<I;0a      we want the offset, not the index, so we're left shifting by 7+3 = 10
+;DA
+
+look at second byte of command
 ;im;89;00;40;00;00;00;00;00
 ;BA
 ;zA;lb
-;BC
-;+B
-;RA store it away in rbp
+;<I;03     each entry is 8 bytes, so left shift by 3
+;BD
+;|B
+
 ;BA
+rbx now contains the command offset
+;im;d0;e9;00;00;00;00;00;00    ':' << 10 | ':' << 3
+;cm;jn;cd;cd;cd;cd
 
-let's check if it's a label definition
-;im;3a;1d;00;00;00;00;00;00
-;cm
-;jn;cd;cd;cd;cd  skip label definition handling code
-
-it's a label definition. first, let's get the position in the file.
-we can do this with the lseek syscall.
-it can be used to move to a different point in the file, but it can also be
-used to get the current file offset, in bytes
-;im;04;00;00;00;00;00;00;00 fd
-;JA
-;zA;IA   don't move
-;im;01;00;00;00;00;00;00;00 SEEK_CUR (use the current position)
-;DA
-;im;08;00;00;00;00;00;00;00 lseek
-;sy
-
-our offset is now in rax. let's add the base address,
-then store the label address away in rbp
-;BA
-;im;00;00;40;00;00;00;00;00
-;+B
-;RA
-
-read 2-byte label name
+it's a label definition
+read the label name:
 ;im;03;00;00;00;00;00;00;00 input fd
 ;JA
 ;im;88;00;40;00;00;00;00;00
 ;IA
-;im;02;00;00;00;00;00;00;00
+;im;02;00;00;00;00;00;00;00   2 bytes
 ;DA
-;zA
+;zA   read
 ;sy
 
-get the address of the entry in the label table
+now call lseek to figure out where in the file we are
+;im;04;00;00;00;00;00;00;00 fd (of output)
+;JA
+;zA;IA  offset = 0
+;im;01;00;00;00;00;00;00;00 1 = SEEK_CUR (stay in current location)
+;DA
+;im;08;00;00;00;00;00;00;00 lseek
+;sy
+file offset now in rax
+
+;BA
+;im;00;00;40;00;00;00;00;00  address of start of file
+;+B
+address now in rax
+;CA store it away in rcx
+
+look at first byte of label
 ;im;88;00;40;00;00;00;00;00
 ;BA
 ;zA;lb
-;<I;07
-;CA
+;<I;09 shift left by 9 instead of 7 since each entry takes up 4 bytes
+;DA
+
+look at second byte of label
 ;im;89;00;40;00;00;00;00;00
 ;BA
 ;zA;lb
-;BC
+;<I;02 each entry takes up 4 bytes
+;BD
+;|B
+
+
+find location in label table
+;BA
+;im;cd;cd;cd;cd;cd;cd;cd;cd
 ;+B
 ;BA
-;im;00;00;43;00;00;00;00;00 label table offset = 0x430000
-;+B
+;AC
+;sd  store the address there
 
-okay now let's write the current address there
+;jm;cd;cd;cd;cd  skip to newline
+
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+
+
+it's not a label definition. let's check if it's a number
+;im;18;8d;00;00;00;00;00;00  '#' << 10 | '#' << 3
+;cm;jn;cd;cd;cd;cd
+
+it's a hex number
+let's read it one byte at a time, storing the full number in RBP
+
+;zA;RA
+
+;im;03;00;00;00;00;00;00;00
+;JA
+;im;88;00;40;00;00;00;00;00
+;IA
+;im;01;00;00;00;00;00;00;00  1 byte
+;DA
+;zA   read
+;sy
+
+;im;88;00;40;00;00;00;00;00
+;zA;lb
+;BA
+;im;30;00;00;00;00;00;00;00
+;cm;jl;cd;cd;cd;cd   not 0-9
+;im;39;00;00;00;00;00;00;00
+;cm;jg;cd;cd;cd;cd   not 0-9
+
+okay it's 0-9
+;im;d0;ff;ff;ff;ff;ff;ff;ff
+;jm;cd;cd;cd;cd
+
+;00;00;00;00;00;00;00;00;00;00;00;00  padding
+
+;im;61;00;00;00;00;00;00;00
+;cm;jl;cd;cd;cd;cd  not a-f--end loop
+;im;66;00;00;00;00;00;00;00
+;cm;jg;cd;cd;cd;cd  not a-f--end loop
+
+;im;a9;ff;ff;ff;ff;ff;ff;ff
+
+;+B
+okay we now have a digit in RBX
+;AR
+;<I;04
+;+B
+;RA    store away in RBP
+;jm;cd;cd;cd;cd  continue loop
+
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+
+okay we have a full number in RBP, time to write it to the file
+start by putting it at address 0x4000a8
+;im;a8;00;40;00;00;00;00;00
 ;BA
 ;AR
 ;sq
 
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
+now write
 
-;jm;cd;cd;cd;cd  skip to newline
-
-
-okay it's not a label definition. let's look at the command table
-;AB
-;<I;03
-;BA
-;im;00;00;41;00;00;00;00;00 command table offset = 0x410000
-;+B
-;BA
-;zA;lb
-check if there's anything there
-;te
-;jn;cd;cd;cd;cd
-
-okay there's nothing there. that's not good. let's print our error message.
-;im;02;00;00;00;00;00;00;00 stderr
+;im;04;00;00;00;00;00;00;00 output file descriptor
 ;JA
-;im;88;00;40;00;00;00;00;00 error message
+;im;a8;00;40;00;00;00;00;00 address to write from
 ;IA
-;im;12;00;00;00;00;00;00;00 length
+;im;08;00;00;00;00;00;00;00 write 8 bytes
 ;DA
-;im;01;00;00;00;00;00;00;00 write
-;sy
-
-
-okay there *is* something here.
-;DA
-;im;01;00;00;00;00;00;00;00 add 1 to address to skip over length
-;+B
-;IA
-;im;04;00;00;00;00;00;00;00  fd
-;JA
-;im;01;00;00;00;00;00;00;00 write
-;sy
-
-now let's check if it's a special instruction, i.e. im or a jump instruction
-;BR
-;im;ed;34;00;00;00;00;00;00
-;cm
-;jn;cd;cd;cd;cd jump over "im" handling code
-
-read two bytes:
-;im;03;00;00;00;00;00;00;00
-;JA
-;im;9e;00;40;00;00;00;00;00
-;IA
-;im;02;00;00;00;00;00;00;00
-;DA
-;zA
-;sy
-
-now look at the second byte (the first one should be a space):
-;im;9f;00;40;00;00;00;00;00
-;BA
-;zA
-;lb
-;BA
-;im;3a;00;00;00;00;00;00;00
-;cm
-;jn;cd;cd;cd;cd
-
-It's a :. Let's look at the label.
-Read 2 bytes.
-
-;im;03;00;00;00;00;00;00;00
-;JA
-;im;90;00;40;00;00;00;00;00
-;IA
-;im;02;00;00;00;00;00;00;00
-;DA
-;zA
-;sy
-
-Now find the entry in the label table.
-
-;im;90;00;40;00;00;00;00;00
-;BA
-;zA;lb
-;<I;07
-;CA
-;im;91;00;40;00;00;00;00;00
-;BA
-;zA;lb
-;BC
-;+B
-;<I;03
-;BA
-;im;00;00;43;00;00;00;00;00  Offset of label table = 0x430000
-;+B
-;BA
-;zA
-;lq
-;te check if there's anything there
-;jn;cd;cd;cd;cd
-
-oh no there's nothing there
-;im;02;00;00;00;00;00;00;00 stderr
-;JA
-;im;90;00;40;00;00;00;00;00 bad label error message
-;IA
-;im;0a;00;00;00;00;00;00;00 length
-;DA
-;im;01;00;00;00;00;00;00;00 write
-;sy
-;im;01;00;00;00;00;00;00;00 exit code
-;JA
-;im;3c;00;00;00;00;00;00;00 exit
-;sy
-
-
-okay let's output what's at that label
-;BA
-;im;a8;00;40;00;00;00;00;00
-;xc
-;sq
-;IB pointer to data
-;im;04;00;00;00;00;00;00;00 file descriptor
-;JA
-;im;08;00;00;00;00;00;00;00 length
-;DA
-;im;01;00;00;00;00;00;00;00 write
-;sy
-
-;jm;cd;cd;cd;cd  skip to newline
-
-okay it's not a label
-let's check if it's hexadecimal
-;im;78;00;00;00;00;00;00;00  ascii 'x'
-;cm
-;jne;cd;cd;cd;cd
-
-it's hexadecimal. we'll use rcx to store the number
-;zA;CA
-;im;03;00;00;00;00;00;00;00 input fd
-;JA
-;im;88;00;40;00;00;00;00;00
-;IA
-;im;01;00;00;00;00;00;00;00 read 1 byte at a time
-;DA
-;zA read
-;sy
-
-;im;88;00;40;00;00;00;00;00
-;BA
-;zA;lb
-;BA
-;im;30;00;00;00;00;00;00;00
-;jl;cd;cd;cd;cd end of number
-;im;39;00;00;00;00;00;00;00
-;jg;cd;cd;cd;cd end of number
-
-okay it's one of 0-9
-;im;d0;ff;ff;ff;ff;ff;ff;ff
-;+B
-;BA
-;AC
-;<I;04
-;+B
-;CA
-;jm;cd;cd;cd;cd  jump back to read the next digit
-
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-
-check if it's a-f
-;im;61;00;00;00;00;00;00;00
-;jl;cd;cd;cd;cd end of number
-;im;66;00;00;00;00;00;00;00
-;jg;cd;cd;cd;cd end of number
-
-okay it is
-;im;a9;ff;ff;ff;ff;ff;ff;ff
-;+B
-;BA
-;AC
-;<I;04
-;+B
-;CA
-;jm;cd;cd;cd;cd  jump back to read the next digit
-
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-
-it's not hexadecimal, let's check if it's decimal
-;im;64;00;00;00;00;00;00;00
-;cm
-;jne;cd;cd;cd;cd  bad number
-
-
-it's decimal. we'll use rcx to store the number
-;zA;CA
-;im;03;00;00;00;00;00;00;00 input fd
-;JA
-;im;88;00;40;00;00;00;00;00
-;IA
-;im;01;00;00;00;00;00;00;00 read 1 byte at a time
-;DA
-;zA read
-;sy
-
-;im;88;00;40;00;00;00;00;00
-;BA
-;zA;lb
-;BA
-
-check if it's 0-9
-;im;30;00;00;00;00;00;00;00
-;jl;cd;cd;cd;cd end of number
-;im;39;00;00;00;00;00;00;00
-;jg;cd;cd;cd;cd end of number
-
-okay it is
-;im;d0;ff;ff;ff;ff;ff;ff;ff
-;+B
-;DA store digit away in rdx
-;im;0a;00;00;00;00;00;00;00
-;BC
-;+*
-;BD return digit to rbx
-;+B
-;CA
-;jm;cd;cd;cd;cd  next digit
-
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-
-
---- end of number ---
-the number will be in rcx
-;im;a8;00;40;00;00;00;00;00  this is where we'll put the number
-;BA
-;AC
-;sq
-
-now write it to the file
-;im;04;00;00;00;00;00;00;00
-;JA
-;im;a8;00;40;00;00;00;00;00
-;IA
-;im;08;00;00;00;00;00;00;00
-;DA
-;im;01;00;00;00;00;00;00;00
+;im;01;00;00;00;00;00;00;00  write
 ;sy
 
 ;jm;cd;cd;cd;cd skip to newline
 
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
+it's not an immediate. let's check if it's a label
+;im;68;b5;00;00;00;00;00;00  '-' << 10 | '-' << 3
+;cm;jn;cd;cd;cd;cd
 
---- bad number ---
-;im;02;00;00;00;00;00;00;00 stderr
-;JA
-;im;9e;00;40;00;00;00;00;00 bad number error message
-;IA
-;im;0b;00;00;00;00;00;00;00 length
-;DA
-;im;01;00;00;00;00;00;00;00 write
-;sy
-;im;01;00;00;00;00;00;00;00 exit code
-;JA
-;im;3c;00;00;00;00;00;00;00 exit
-;sy
+absolute label
 
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-
-okay it's not an im instruction. let's check if it's a jump instruction
-;AR
-;>I;07
-;BA
-;im;6a;00;00;00;00;00;00;00
-;cm
-;jn;cd;cd;cd;cd skip to newline
-
-it is a jump instruction. let's read in the label and write it to--
-wait a minute! this is just like our immediate label code. let's just
-read the space between the command and the label, and then jump there
+it's a label
+read the label name.
 
 ;im;03;00;00;00;00;00;00;00
 ;JA
 ;im;88;00;40;00;00;00;00;00
 ;IA
-;im;01;00;00;00;00;00;00;00
+;im;02;00;00;00;00;00;00;00
 ;DA
 ;zA
 ;sy
 
+convert bytes to an offset
+;im;88;00;40;00;00;00;00;00
+;BA
+;zA;lb
+;<I;09;CA
+
+;im;89;00;40;00;00;00;00;00
+;BA
+;zA;lb
+;<I;02
+;BC
+;|B
+;BA
+offset in rbx
+
+look in the label table
+;im;cd;cd;cd;cd;cd;cd;cd;cd
+;+B
+;BA
+;lq
+rax has the address to write.
+we can just store it in rbp:
+;RA
+then jump to the place where we wrote immediates.
 ;jm;cd;cd;cd;cd
 
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
+;im;68;e9;00;00;00;00;00;00  ':' << 10 | '-' << 3
+;cm;jn;cd;cd;cd;cd
 
--- skip to newline --
-read 1 byte into 0x400088
+relative label
+
+get current file offset
+;im;04;00;00;00;00;00;00;00 fd (of output)
+;JA
+;zA;IA  offset = 0
+;im;01;00;00;00;00;00;00;00 1 = SEEK_CUR (stay in current location)
+;DA
+;im;08;00;00;00;00;00;00;00 lseek
+;sy
+
+;BA
+;im;04;00;40;00;00;00;00;00
+;+B    add 0x400004 to file offset to get address after writing relative address
+;RA   store away in rbp
+
+read the label name.
 ;im;03;00;00;00;00;00;00;00
 ;JA
 ;im;88;00;40;00;00;00;00;00
 ;IA
-;im;01;00;00;00;00;00;00;00
+;im;02;00;00;00;00;00;00;00
 ;DA
+;zA
+;sy
+
+convert bytes to an offset
+;im;88;00;40;00;00;00;00;00
+;BA
+;zA;lb
+;<I;09;CA
+
+;im;89;00;40;00;00;00;00;00
+;BA
+;zA;lb
+;<I;02
+;BC
+;|B
+;BA
+offset in rbx
+
+look in the label table
+;im;cd;cd;cd;cd;cd;cd;cd;cd
+;+B
+;BA
+;lq
+;BA
+subtract current address
+;AR
+;nA;+B 
+
+now we want to write eax to the output file.
+start by putting it at address 0x4000a8
+;im;a8;00;40;00;00;00;00;00
+;BA
+;AR
+;sd
+
+now write
+;im;04;00;00;00;00;00;00;00 output file descriptor
+;JA
+;im;a8;00;40;00;00;00;00;00 address to write from
+;IA
+;im;04;00;00;00;00;00;00;00 4 bytes
+;DA
+;im;01;00;00;00;00;00;00;00  write
+;sy
+
+;jm;cd;cd;cd;cd skip to newline
+
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+
+
+
+it's not a label or a number. let's look it up in the instruction table.
+;im;cd;cd;cd;cd;cd;cd;cd;cd   start of instruction table
+;+B
+;BA
+;zA;lb
+;DA    number of bytes to write (used for syscall if no error)
+;BA
+;zA
+;cm;jn;cd;cd;cd;cd check if # of bytes is 0, if not, skip outputting error
+
+bad command!
+;im;02;00;00;00;00;00;00;00 stderr
+;JA
+;im;88;00;40;00;00;00;00;00 address to write from
+;IA
+;im;12;00;00;00;00;00;00;00 write 18 bytes
+;DA
+;im;01;00;00;00;00;00;00;00 write
+;sy
+;cc   easy exit (trace trap)
+
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+
+this is a real command
+;im;01;00;00;00;00;00;00;00 add 1 because we don't want to write the length 
+;+B
+;IA   address of data to write
+;im;04;00;00;00;00;00;00;00  out file descriptor
+;JA
+;im;01;00;00;00;00;00;00;00 write
+;sy
+
+-- skip to newline --
+
+;im;03;00;00;00;00;00;00;00 in fd
+;JA
+;im;88;00;40;00;00;00;00;00
+;IA
+;im;01;00;00;00;00;00;00;00 read 1 byte
+;DA
+;zA
 ;sy
 
 ;im;88;00;40;00;00;00;00;00
 ;BA
-;zA;lb;BA
-;im;0a;00;00;00;00;00;00;00
-;cm
-;jn;cd;cd;cd;cd  go back to the start of "skip to newline"
-;jm;cd;cd;cd;cd  go all the way back and read the next two-byte command
+;zA;lb
+;BA
+;im;0a;00;00;00;00;00;00;00 '\n'
+;cm;jn;cd;cd;cd;cd  not a newline--keep looping
+;jm;cd;cd;cd;cd   go back to read next command
 
-
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00 unused padding
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
 -- end of file --
+
+lseek input fd back to start of file
+;im;03;00;00;00;00;00;00;00
+;JA
+;zA;IA   0 offset
+;DA      0 = SEEK_SET (start of file)
+;im;08;00;00;00;00;00;00;00  lseek
+;sy
+
+lseek output fd back to start of file
+;im;04;00;00;00;00;00;00;00
+;JA
+;zA;IA   0 offset
+;DA      SEEK_SET
+;im;08;00;00;00;00;00;00;00  lseek
+;sy
+
+check if we're on the second pass
+;im;a0;00;40;00;00;00;00;00
+;BA
+;zA;lb
+;DA  okay store that in rdx for a sec
+
+;im;01;00;00;00;00;00;00;00
+;sb   set second pass to 1
+
+;BD
+;zA
+;cm;je;cd;cd;cd;cd   not the second pass, jump back to do it
+
+okay we're done the second pass. let's exit nicely
 ;zA;JA  exit code 0
 ;im;3c;00;00;00;00;00;00;00 exit
 ;sy
 
-;cc
+
+unused padding
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;
