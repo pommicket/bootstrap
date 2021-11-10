@@ -102,7 +102,7 @@ execute-enabled. Normally people don't do this, for security, but we won't worry
 about that (don't compile any untrusted code with any compiler from this series!)
 Without further ado, here's the contents of the program header:
 
-- `01 00 00 00` Segment type 1 (this should be loaded into memory)
+- `01 00 00 00` Segment type 1 (this segment should be loaded into memory)
 - `07 00 00 00` Flags = RWE (readable, writeable, and executable)
 - `78 00 00 00 00 00 00 00` Offset in file = 120 bytes
 - `78 00 40 00 00 00 00 00` Virtual address = 0x400078
@@ -114,7 +114,7 @@ memory address that the segment will be loaded to.
 Nowadays, computers use virtual memory, meaning that
 addresses in our program don't actually correspond to where the memory is
 physically stored in RAM (the CPU translates between virtual and physical
-memory addresses). There are many reasons for this: making sure each process has
+addresses). There are many reasons for this: making sure each process has
 its own memory space, memory protection, etc. You can read more about it
 elsewhere.
 
@@ -130,7 +130,7 @@ each page (block) of memory is 4096 bytes long, and has to start at an address
 that is a multiple of 4096. Our program needs to be loaded into a memory page,
 so its *virtual address* needs to be a multiple of 4096. We're using `0x400000`.
 But wait! Didn't we use `0x400078` for the virtual address? Well, yes but that's
-because the *data in the file* is loaded to address `0x400078`. The actual page
+because the segment's data is loaded to address `0x400078`. The actual page
 of memory that the OS will allocate for our segment will start at `0x400000`. The
 reason we need to start `0x78` bytes in is that Linux expects the data in the
 file to be at the same position in the page as when it will be loaded, and it
@@ -156,7 +156,8 @@ These instructions execute syscall `2` with arguments `0x40026d`, `0`.
 If you're familiar with C code, this is `open("in00", O_RDONLY)`.
 A syscall is the mechanism which lets software ask the kernel to do things.
 [Here](https://filippo.io/linux-syscall-table/) is a nice table of syscalls you
-can look through if you're interested. You can also install `strace` (e.g. with
+can look through if you're interested. You can also install
+[strace](https://strace.io) (e.g. with
 `sudo apt install strace`) and run `strace ./hexcompile` to see all the syscalls
 our program does.
 Syscall #2, on 64-bit Linux, is `open`. It's used to open a file. You can read
@@ -175,13 +176,13 @@ descriptor Linux gave us. This is because Linux assigns file descriptor numbers
 sequentially, starting from
 [0 for stdin, 1 for stdout, 2 for stderr](https://en.wikipedia.org/wiki/Standard_streams),
 and then 3, 4, 5, ... for any files our program opens. So
-this file, the first one our program opens, will have descriptor `3`.
+this file, the first one our program opens, will have descriptor 3.
 
 Now we open our output file:
 
 - `48 b8 72 02 40 00 00 00 00 00` `mov rax, 0x400272`
 - `48 89 c7` `mov rdi, rax`
-- `48 b8 41 02 00 00 00 00 00 00` `mov rax, 0x41`
+- `48 b8 41 02 00 00 00 00 00 00` `mov rax, 0x241`
 - `48 89 c6` `mov rsi, rax`
 - `48 b8 ed 01 00 00 00 00 00 00` `mov rax, 0o755`
 - `48 89 c2` `mov rdx, rax`
@@ -193,11 +194,12 @@ similar to our first call, with two important differences: first, we specify
 `0x241` as the second argument. This tells Linux that we are writing to the
 file (`O_WRONLY = 0x01`), that we want to create it if it doesn't exist
 (`O_CREAT = 0x40`), and that we want to delete any previous contents it had
-(`O_TRUNC = 0x200`). Secondly, we are setting the third argument this time.  It
+(`O_TRUNC = 0x200`). Secondly, we're setting the third argument this time.  It
 specifies the permissions our file is created with (`0o755` means user
 read/write/execute, group/other read/execute). This is not very important to
 the actual execution of the program, so don't worry if you don't know 
 about UNIX permissions.
+Note that the output file's descriptor will be 4.
 
 Now we can start reading from the file. We're going to loop back to this part of
 the code every time we want to read a new hexadecimal number from the input
@@ -223,13 +225,13 @@ We're telling Linux to output to `0x40026a`, which is just a part of this
 segment (see further down). Normally you would read to a different segment of
 the program from where the code is, but we want this to be as simple as
 possible.
-The number of bytes *actually read*, taking into account that we might have
+The number of bytes *actually* read, taking into account that we might have
 reached the end of the file, is stored in `rax`.
 
 - `48 89 c3` `mov rbx, rax`
 - `48 b8 03 00 00 00 00 00 00 00` `mov rax, 3`
 - `48 39 d8` `cmp rax, rbx`
-- `0f 8f 50 01 00 00` `jg 0x400250`
+- `0f 8f 50 01 00 00` `jg +0x150 (0x400250)`
 
 This tells the CPU to jump to a later part of the code (address `0x400250`) if 3
 is greater than the number of bytes we got, in other words, if we reached the
@@ -307,7 +309,7 @@ Okay, now `rax` contains the byte specified by the two hex digits we read.
 - `48 93` `xchg rax, rbx`
 - `88 03` `mov byte [rbx], al`
 
-Write the byte to a specific memory location (address `0x40026c`).
+Put the byte in a specific memory location (address `0x40026c`).
 
 - `48 b8 04 00 00 00 00 00 00 00` `mov rax, 4`
 - `48 89 c7` `mov rdi, rax`
@@ -356,7 +358,7 @@ This is where we conditionally jumped to way back when we determined if we
 reached the end of the file. This calls syscall #60, `exit`, with one argument,
 0 (exit code 0, indicating we exited successfully).
 
-Normally, you should close files descriptors (with syscall #3), to tell Linux you're
+Normally, you would close files descriptors (with syscall #3), to tell Linux you're
 done with them, but we don't need to. It'll automatically close all our open
 file descriptors when our program exits.
 
@@ -387,4 +389,4 @@ a while.
 But these problems aren't really a big deal. We'll only be running this on
 little programs and we'll be sure to check that our input is in the right
 format. And with that, we are ready to move on to the
-[next stage...](../01/README.md).
+[next stage...](../01/README.md)

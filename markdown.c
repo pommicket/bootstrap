@@ -58,7 +58,8 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 		case '[': {
 			/* link */
 			char url2[256] = {0};
-			const char *label, *url, *label_end, *url_end, *dot;
+			const char *label, *url, *label_end, *url_end;
+			char *dot;
 			int n_label, n_url;
 
 			label = p+1;
@@ -88,7 +89,7 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 				/* replace links to md files with links to html files */
 				strcpy(dot, ".html");
 			}
-			fprintf(out, "<a href=\"%s\" target=\"_blank\">%.*s</a>",
+			fprintf(out, "<a href=\"%s\">%.*s</a>",
 				url2, n_label, label);
 			p = url_end;
 		} break;

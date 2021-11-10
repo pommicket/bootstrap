@@ -3,7 +3,7 @@
 ;'i;'n;'0;'2;00   (0x40007d) input filename
 ;'o;'u;'t;'0;'2;00  (0x400082) output filename
 ;00;00;' ;'n;'o;'t;' ;'r;'e;'c;'o;'g;'n;'i;'z;'e;'d;\n;00;00;00;00;00;00 (0x400088) error message/where we read to
-;00 (0x4000a0) stores which pass we're on (1 for second pass)
+;00 (0x4000a0) stores which pass we're on (0 for first pass, 1 for second pass)
 ;00;00;00;00;00;00;00 
 ;00;00;00;00;00;00;00;00 (0x4000a8) used for output
 unused padding
@@ -180,11 +180,11 @@ okay it's 0-9
 
 ;+B
 ;BA
-okay we now have a digit in RBX
+okay we now have a digit in rbx
 ;AR
 ;<I;04
 ;+B
-;RA    store away in RBP
+;RA    store away in rbp
 ;jm;38;ff;ff;ff  continue loop
 
 unused padding
@@ -195,7 +195,7 @@ unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
-okay we have a full number in RBP, time to write it to the file
+okay we have a full number in rbp, time to write it to the file.
 start by putting it at address 0x4000a8
 ;im;a8;00;40;00;00;00;00;00
 ;BA
@@ -210,7 +210,7 @@ now write
 ;IA
 ;im;08;00;00;00;00;00;00;00 write 8 bytes
 ;DA
-;im;01;00;00;00;00;00;00;00  write
+;im;01;00;00;00;00;00;00;00 write
 ;sy
 
 ;jm;c3;03;00;00 skip to newline
@@ -327,11 +327,11 @@ subtract current address
 ;nA;+B 
 ;RA   store relative address in rbp
 
-now we want to write eax to the output file.
+now we want to write ebp to the output file.
 start by putting it at address 0x4000a8
 ;im;a8;00;40;00;00;00;00;00
 ;BA
-;AR  put relative address in rax
+;AR
 ;sd
 
 now write
@@ -341,7 +341,7 @@ now write
 ;IA
 ;im;04;00;00;00;00;00;00;00 4 bytes
 ;DA
-;im;01;00;00;00;00;00;00;00  write
+;im;01;00;00;00;00;00;00;00 write
 ;sy
 
 ;jm;66;01;00;00 skip to newline
@@ -368,7 +368,7 @@ it's not a label or a number. let's look it up in the instruction table.
 ;BA
 ;RA    store away address of command text in rbp
 ;zA;lb
-;DA    number of bytes to write (used for syscall if no error)
+;DA    number of bytes to write (used for syscall if command exists)
 ;BA
 ;zA
 ;cm;jn;54;00;00;00  check if # of bytes is 0, if not, skip outputting error
@@ -392,7 +392,7 @@ this is a real command
 ;im;01;00;00;00;00;00;00;00 add 1 because we don't want to write the length 
 ;+B
 ;IA   address of data to write
-;im;04;00;00;00;00;00;00;00  out file descriptor
+;im;04;00;00;00;00;00;00;00 out file descriptor
 ;JA
 ;im;01;00;00;00;00;00;00;00 write
 ;sy
@@ -1777,7 +1777,7 @@ the formatting changed appropriately.
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
-;00;00;00;00;00;00;00;00
+;01;90;00;00;00;00;00;00   \n\n
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
@@ -6550,7 +6550,7 @@ the formatting changed appropriately.
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
-;01;90;00;00;00;00;00;00
+;01;90;00;00;00;00;00;00  // comments
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00

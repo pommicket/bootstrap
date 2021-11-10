@@ -17,7 +17,14 @@ Note that the executables produced in this series will only run on
 64-bit Linux, because each OS/architecture combination would need its own separate
 executable.
 
-The README for the first stage is [here](00/README.md).
+## table of contents
+
+- [stage 00](00/README.md) - a program converting a text file with 
+hexadecimal digit pairs to a binary file.
+- [stage 01](01/README.md) - a language with comments, and 2-character
+command codes.
+- [stage 02](02/README.md) - a language with labels
+- more coming soon (hopefully)
 
 ## prerequisite knowledge
 
@@ -44,8 +51,7 @@ decimal.
 - ASCII, null-terminated strings
 - how pointers work
 - how floating-point numbers work
-- maybe some basic Intel-style x86-64 assembly (you can probably pick it up on
-the way though)
+- some basic Intel-style x86-64 assembly
 
 It will help you a lot to know how to program (with any programming language),
 but it's not strictly necessary.
@@ -53,12 +59,11 @@ but it's not strictly necessary.
 ## instruction set
 
 x86-64 has a *gigantic* instruction set. The manual for it is over 2,000 pages
-long! So, it makes sense to select only a small subset of it to use for all the
-stages of our compiler. The set I've chosen can be found in `instructions.txt`.
+long! So it makes sense to select only a small subset of it to use.
+The set I've chosen can be found in `instructions.txt`.
 I think it achieves a pretty good balance between having few enough
 instructions to be manageable and having enough instructions to be useable.
-To be clear, you don't need to read that file to understand the series, at least
-not right away.
+To be clear, you don't need to read that file to understand the series.
 
 ## principles
 
@@ -91,15 +96,15 @@ project can't necessarily even do that though, because the Linux kernel, which
 we depend on, is compiled from C, so we can't fully trust *it*. To *truly*
 create a fully trustable compiler, you'd need to manually write to a USB with a
 circuit, create an operating system from nothing (without even a text editor),
-and then follow this series, or maybe you don't even trust your CPU vendor...
-I'll leave that to someone else
+and then follow this series, or maybe you don't even trust your CPU...
+I'll leave that to someone else.
 
 ## license
 
 ```
 This project is in the public domain. Any copyright protections from any law
-for this project are forfeited by the author(s). No warranty is provided for
-this project, and the author(s) shall not be held liable in connection with it.
+are forfeited by the author(s). No warranty is provided, and the author(s)
+shall not be held liable in connection with it.
 ```
 
 ## contributing

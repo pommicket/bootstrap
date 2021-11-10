@@ -7,11 +7,12 @@ ff - Byte ff
 'a - Character a (byte 0x61)
 '! - Character ! (byte 0x21)
 etc.
+\n - Newline (byte 0x0a)
 
 zA - Zero rax
 im - Set rax to an immediate value, e.g.
-     im;05;00;00;00;00;00;00;00;
-	 will set rax to 5.
+        im;05;00;00;00;00;00;00;00;
+     will set rax to 5.
 
 ax	bx	cx	dx	sp	bp	si	di
 A	B	C	D	S	R	I	J

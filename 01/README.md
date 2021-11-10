@@ -8,7 +8,7 @@ is the executable for this stage's compiler. Run it (it'll read from the file
 `Hello, world!` when run. Let's take a look at the input we're providing to the
 stage 01 compiler, `in01`:
 
-<pre><code>
+```
 || ELF Header
 ;im;01;00;00;00;00;00;00;00 file descriptor for stdout
 ;JA
@@ -24,9 +24,9 @@ stage 01 compiler, `in01`:
 ;sy
 ;'H;'e;'l;'l;'o;',;' ;'w;'o;'r;'l;'d;'!;\n the string we're printing
 ;
-</code></pre>
+```
 
-Look at that! There are comments! Much nicer than just hexadecimal digit pairs.
+Look at that! There are even comments! Much nicer than just hexadecimal digit pairs.
 
 ## end result
 
@@ -50,9 +50,9 @@ actually print out an error message and exit, rather than continuing as if
 nothing happened! Try adding `xx;` to the end of the file `in01`, and running
 `./out00`. You should get the error message:
 
-<pre><code>
+```
 xx not recognized.
-</code></pre>
+```
 
 Pretty cool, huh?
 Anyways let's see how this compiler actually works.
@@ -63,7 +63,7 @@ Writing in our stage 00 language is much nicer than editing an
 executable, because it's easier to move things around, and also, we can separate
 our program into lines! Let's take a look at the start:
 
-<pre><code>
+```
 7f 45 4c 46
 02
 01
@@ -90,7 +90,7 @@ a8 00 40 00 00 00 00 00
 00 10 02 00 00 00 00 00
 00 10 02 00 00 00 00 00
 00 10 00 00 00 00 00 00
-</code></pre>
+```
 
 This is the ELF header and program header. It's just like our last one, but with
 a couple of differences. First, our entry point is at offset 0xa8 instead of 0x78.
@@ -113,7 +113,7 @@ recognized."`
 - `00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00` (unused)
 
 Here's the data for our program. As you can see from my annotations, we have the
-input and output file, as well as the error message. The command part of the
+input and output file names, as well as the error message. The command part of the
 error message is left blank for now (we'll fill it in when the code is actually
 run).
 
@@ -182,8 +182,8 @@ program with exit code 0 (successful).
 - `48 01 d8` `add rax, rbx`
 
 This here looks at the two bytes we read in (we'll call them `b1` and `b2`) and
-computes `b1 * 128 + b2` (more specifically `(b1 << 7) + b2`). This is the index
-in our command table corresponding to the two characters from the input file.
+computes `b1 * 128 + b2` (more specifically `(b1 << 7) + b2`). This is the corresponding index
+in our command table.
 
 - `48 c1 e0 03` `shl rax, 3`
 - `48 89 c3` `mov rbx, rax`
@@ -211,7 +211,7 @@ is `03 48 89 c3`. We set the length to 0 for unused entries.
 So this code checks if the entry for this command starts with a zero byte. If it
 does, that means the two characters we read in don't actually correspond to a
 real command. If that's the case, this next bit of code is executed (otherwise
-it's skiped over):
+it's skipped over):
 
 - `48 b8 02 00 00 00 00 00 00 00` `mov rax, 2 (stderr)`
 - `48 89 c7` `mov rdi, rax`
@@ -228,7 +228,7 @@ it's skiped over):
 - `00 00 00 00 00 00 00 00 00 00 00 00 00 00` (unused)
 
 This prints our error message, now filled in with the specific unrecognized
-instruction, to standard error, and exits with code 1, to indicate failure.
+instruction, to standard error, then exits with code 1, to indicate failure.
 
 - `48 89 eb` `mov rbx, rax`
 - `31 c0` `mov rax, 0`
@@ -273,7 +273,7 @@ all the way back to read the next command. Otherwise, we keep looping. This
 skips over any comments/whitespace we might have between a command and the
 following command.
 
-And that's all the *code* for this compiler. Next comes some data.
+And that's all the *code* for this compiler. Next comes the command table.
 
 First, there's a whole bunch of unused 0s. Then there's the line
 
@@ -293,7 +293,7 @@ Which is the encoding of the `syscall` instruction.
 You can look through the rest of the table, if you want. But let's look at the
 very end:
 
-<code><pre>
+```
 78
 7f 45 4c 46
 02
@@ -321,7 +321,7 @@ very end:
 00 00 08 00 00 00 00 00
 00 00 08 00 00 00 00 00
 00 10 00 00 00 00 00 00
-</code></pre>
+```
 
 This is at the position for `||`, and it contains an ELF header. One thing you
 might notice is that we decided that each entry is 8 bytes long, but this one is
@@ -340,5 +340,5 @@ fixed this, but frankly I've had enough of writing code in hexadecimal. So let's
 move on to [stage 02](../02/README.md),
 now that we have a nicer language on our hands. From now
 on, since we have comments, I'm gonna do most of the explaining in the source file
-itself, rather than the README. But there'll still be a bit of stuff there each
+itself, rather than the README. But there'll still be some stuff there each
 time.
