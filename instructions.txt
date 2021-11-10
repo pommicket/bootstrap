@@ -99,3 +99,5 @@ ret
 >c3
 syscall
 >0f 05
+nop
+>90

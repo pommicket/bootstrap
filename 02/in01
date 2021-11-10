@@ -30,7 +30,7 @@ unused padding
 ;im;02;00;00;00;00;00;00;00 open
 ;sy
 
-
+-- second pass starts here --
 begin by writing the elf header.
 the segment we're loading in includes the ELF header at address 0x400000, so we can just read it from there
 ;im;04;00;00;00;00;00;00;00 out fd
@@ -54,7 +54,7 @@ the segment we're loading in includes the ELF header at address 0x400000, so we 
 
 ;BA
 ;im;02;00;00;00;00;00;00;00
-;cm;jn;cd;cd;cd;cd     end of file
+;cm;jn;61;07;00;00     end of file
 
 look at first byte of command
 ;im;88;00;40;00;00;00;00;00
@@ -213,7 +213,7 @@ now write
 ;im;01;00;00;00;00;00;00;00  write
 ;sy
 
-;jm;cd;cd;cd;cd skip to newline
+;jm;c3;03;00;00 skip to newline
 
 unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
@@ -262,7 +262,7 @@ rax has the address to write.
 we can just store it in rbp:
 ;RA
 then jump to the place where we wrote immediates.
-;jm;cd;cd;cd;cd
+;jm;d5;fe;ff;ff
 
 unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
@@ -413,7 +413,7 @@ this is a real command
 ;zA;lb
 ;BA
 ;im;0a;00;00;00;00;00;00;00 '\n'
-;cm;jn;cd;cd;cd;cd  not a newline--keep looping
+;cm;jn;ae;ff;ff;ff  not a newline--keep looping
 ;jm;be;f8;ff;ff   go back to read next command
 
 unused padding
@@ -424,7 +424,7 @@ unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
--- end of file --
+-- end of file (0x400916) --
 
 lseek input fd back to start of file
 ;im;03;00;00;00;00;00;00;00
@@ -453,7 +453,7 @@ check if we're on the second pass
 
 ;BD
 ;zA
-;cm;je;cd;cd;cd;cd   not the second pass, jump back to do it
+;cm;je;bb;f7;ff;ff   not the second pass, jump back to do it
 
 okay we're done the second pass. let's exit nicely
 ;zA;JA  exit code 0
@@ -6550,7 +6550,7 @@ the formatting changed appropriately.
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
-;00;00;00;00;00;00;00;00
+;01;90;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00

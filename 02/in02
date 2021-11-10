@@ -1,3 +1,47 @@
-::hw
 jm
-:-hw
+:-co   jump to code
+::hw
+'H
+'e
+'l
+'l
+'o
+',
+' 
+'w
+'o
+'r
+'l
+'d
+'!
+\n
+::he  end of hello world
+::co  start of code
+//
+// now we'll calculate the length of the hello world string
+// by subtracting hw from he.
+//
+im
+--he
+BA
+im
+--hw
+nA
++B
+DA   put length in rdx
+// okay now we can write it
+im
+##1.
+JA    set rdi to 1 (stdout)
+im
+--hw
+IA    set rsi to a pointer to "Hello, world!\n"
+im
+##1.  write
+sy
+im
+##0.  exit code 0
+JA
+im
+##3c. exit = syscall 0x3c
+sy
