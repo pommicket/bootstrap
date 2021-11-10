@@ -140,7 +140,7 @@ unused padding
 
 it's not a label definition. let's check if it's a number
 ;im;18;8d;00;00;00;00;00;00  '#' << 10 | '#' << 3
-;cm;jn;cd;cd;cd;cd
+;cm;jn;c2;01;00;00
 
 it's a hex number
 let's read it one byte at a time, storing the full number in RBP
@@ -222,9 +222,9 @@ unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
-it's not an immediate. let's check if it's a label
+it's not a number let's check if it's a label
 ;im;68;b5;00;00;00;00;00;00  '-' << 10 | '-' << 3
-;cm;jn;cd;cd;cd;cd
+;cm;jn;dd;00;00;00
 
 absolute label
 read the label name.
@@ -273,7 +273,7 @@ unused padding
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
 ;im;68;e9;00;00;00;00;00;00  ':' << 10 | '-' << 3
-;cm;jn;cd;cd;cd;cd
+;cm;jn;c8;01;00;00
 
 relative label
 
@@ -320,17 +320,18 @@ look in the label table
 ;im;00;00;42;00;00;00;00;00
 ;+B
 ;BA
-;lq
+;ld
 ;BA
 subtract current address
 ;AR
 ;nA;+B 
+;RA   store relative address in rbp
 
 now we want to write eax to the output file.
 start by putting it at address 0x4000a8
 ;im;a8;00;40;00;00;00;00;00
 ;BA
-;AR
+;AR  put relative address in rax
 ;sd
 
 now write
@@ -343,10 +344,10 @@ now write
 ;im;01;00;00;00;00;00;00;00  write
 ;sy
 
-;jm;cd;cd;cd;cd skip to newline
+;jm;66;01;00;00 skip to newline
 
 unused padding
-;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
+;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
@@ -370,7 +371,7 @@ it's not a label or a number. let's look it up in the instruction table.
 ;DA    number of bytes to write (used for syscall if no error)
 ;BA
 ;zA
-;cm;jn;cd;cd;cd;cd  check if # of bytes is 0, if not, skip outputting error
+;cm;jn;54;00;00;00  check if # of bytes is 0, if not, skip outputting error
 
 bad command!
 ;im;02;00;00;00;00;00;00;00 stderr
