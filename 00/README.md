@@ -5,13 +5,14 @@ takes input file `in00` containing space/newline/(any character)-separated
 hexadecimal digit pairs (e.g. `3f`) and outputs them as bytes to the file
 `out00`. On 64-bit Linux, try running `./hexcompile` from this directory (I've
 already provided an `in00` file, which you can take a look at), and you will get
-a file named `out00` containing the text `Hello, world!`.  This stage is needed
-so that you can use your favorite text editor to write executables by hand
-(which have bytes outside of ASCII/UTF-8). I wrote it with a program called
-hexedit, which can be found on most Linux distributions.  Only 64-bit Linux is
-supported, because each OS/architecture combination would need its own separate
-executable. The executable is just 632 bytes long, and you could definitely make
-it even smaller if you wanted to. Let's take a look at what's inside (`od -t x1
+a file named `out00` containing the text `Hello, world!`.  This stage
+lets you use your favorite text editor to write executables
+(which have bytes outside of ASCII/UTF-8).
+I made `hexcompile` with a program called
+[hexedit](https://github.com/pixel/hexedit),
+which can be found in most Linux package managers.
+The executable is just 632 bytes long.
+Let's take a look at what's inside (`od -t x1
 -An -v hexcompile`):
 
 ```
@@ -74,12 +75,12 @@ version of ELF)
 - `02 00` Object type = executable file (not a dynamic library/etc.)
 - `3e 00` Architecture x86-64
 - `01 00 00 00` Version 1 of ELF, again 
-- `78 00 40 00 00 00 00 00` **Entry point of the executable** = 0x400078 (explained later)
-- `40 00 00 00 00 00 00 00` Program header table offset in bytes from start of file (see below)
+- `78 00 40 00 00 00 00 00` **Entry point of the executable** = 0x400078
+- `40 00 00 00 00 00 00 00` Program header table offset in bytes from start of file
 - `00 00 00 00 00 00 00 00` Section header table offset (we're not using sections)
-- `00 00 00 00` Flags (not important)
+- `00 00 00 00` Flags (not important to us)
 - `40 00` The size of this header, in bytes = 64
-- `38 00` Size of the program header (see below) = 56
+- `38 00` Size of the program header = 56
 - `01 00` Number of program headers = 1
 - `00 00` Size of each section header (unused)
 - `00 00` Number of section headers (unused)
@@ -88,8 +89,8 @@ version of ELF)
 You might notice that all the numbers are backwards, e.g. `38 00` for the number
 0x0038 (56 decimal). This is because almost all modern architectures (including
 x86-64) are little-endian, meaning that the *least significant byte* goes first,
-and the most significant byte goes last. There are various reasons why this is
-easier to deal with, but I won't explain that here.
+and the most significant byte goes last.
+There are reasons for this ([see here](https://en.wikipedia.org/wiki/Endianness#Optimization), for example, if you're interested).
 
 ## program header
 The program header describes a segment of data that is loaded into memory when
@@ -108,11 +109,12 @@ Without further ado, here's the contents of the program header:
 
 **wait a minute, what's that?**
 
-We just specified the *virtual address* of this segment. This is the virtual
-memory address that the segment will be loaded to. Virtual memory means that
-addresses in our program do not actually correspond to where the memory is
-physically stored in RAM, with the CPU translating between virtual and physical
-memory addresses. There are many reasons for this: making sure each process has
+This is the virtual
+memory address that the segment will be loaded to.
+Nowadays, computers use virtual memory, meaning that
+addresses in our program don't actually correspond to where the memory is
+physically stored in RAM (the CPU translates between virtual and physical
+memory addresses). There are many reasons for this: making sure each process has
 its own memory space, memory protection, etc. You can read more about it
 elsewhere.
 
@@ -129,11 +131,10 @@ that is a multiple of 4096. Our program needs to be loaded into a memory page,
 so its *virtual address* needs to be a multiple of 4096. We're using `0x400000`.
 But wait! Didn't we use `0x400078` for the virtual address? Well, yes but that's
 because the *data in the file* is loaded to address `0x400078`. The actual page
-of memory that the OS will allocate for our code will start at `0x400000`. The
-reason we need to start `0x78` bytes in is that Linux expects the data *in the
-file* to be at the same position in the page as when it will be loaded, and it
-appears at offset `0x78` in our file. But don't worry if you don't understand
-that.
+of memory that the OS will allocate for our segment will start at `0x400000`. The
+reason we need to start `0x78` bytes in is that Linux expects the data in the
+file to be at the same position in the page as when it will be loaded, and it
+appears at offset `0x78` in our file.
 
 ## the code
 
@@ -163,16 +164,17 @@ about it with `man 2 open`.
 The first argument, `0x40026d`, is a pointer to some data at the very end of
 this segment (see further down). Specifically, it holds the bytes
 `69 6e 30 30 00`, the null-terminated ASCII string `"in00"`.
-This indicates the name of the file. The second argument (`O_RDONLY`, or 0)
-specifies that we will be reading from this file. There is a third argument to
+This indicates the name of the file. The second argument, `0`,
+specifies that we will (only) be reading from this file. There is a third argument to
 this syscall (we'll get to it later), but it's not applicable here so we don't
 set it.
 
-This call gives us back a *file descriptor*, which can be used to read from the
+This call gives us back a *file descriptor*, a number which we can use to read from the
 file, in register `rax`. But we don't actually need to look at what file
 descriptor Linux gave us. This is because Linux assigns file descriptor numbers
-sequentially, starting from `0` for standard input, `1` for standard output, `2`
-for standard error, and then `3, 4, 5, ...` for any files our program opens. So
+sequentially, starting from
+[0 for stdin, 1 for stdout, 2 for stderr](https://en.wikipedia.org/wiki/Standard_streams),
+and then 3, 4, 5, ... for any files our program opens. So
 this file, the first one our program opens, will have descriptor `3`.
 
 Now we open our output file:
@@ -194,8 +196,8 @@ file (`O_WRONLY = 0x01`), that we want to create it if it doesn't exist
 (`O_TRUNC = 0x200`). Secondly, we are setting the third argument this time.  It
 specifies the permissions our file is created with (`0o755` means user
 read/write/execute, group/other read/execute). This is not very important to
-the actual execution of the program, so don't worry if you don't know what it
-means.
+the actual execution of the program, so don't worry if you don't know 
+about UNIX permissions.
 
 Now we can start reading from the file. We're going to loop back to this part of
 the code every time we want to read a new hexadecimal number from the input
@@ -210,7 +212,7 @@ file.
 - `0f 05` `syscall`
 
 In C, this is `read(3, 0x40026a, 3)`. Here we call syscall #0, `read`, with
-arguments:
+three arguments:
 
 - `fd = 3` This is the descriptor number of our input file.
 - `buf = 0x40026a` This is the memory address we want Linux to output the data
@@ -221,7 +223,6 @@ We're telling Linux to output to `0x40026a`, which is just a part of this
 segment (see further down). Normally you would read to a different segment of
 the program from where the code is, but we want this to be as simple as
 possible.
-
 The number of bytes *actually read*, taking into account that we might have
 reached the end of the file, is stored in `rax`.
 
@@ -231,8 +232,8 @@ reached the end of the file, is stored in `rax`.
 - `0f 8f 50 01 00 00` `jg 0x400250`
 
 This tells the CPU to jump to a later part of the code (address `0x400250`) if 3
-is greater than the number of bytes read in (in other words, if we reached the
-end of the file). Note that we don't specifiy the *address* to jump to, but
+is greater than the number of bytes we got, in other words, if we reached the
+end of the file. Note that we don't specifiy the *address* to jump to, but
 instead the *relative address*, relative to the first byte after the jump
 instruction (so here we're saying to jump `0x150` bytes forward). There are
 reasons for this which I won't get into here.
@@ -299,7 +300,7 @@ the one above:
 - `48 89 fb` `mov rbx, rdi`
 - `48 09 d8` `or rax, rbx`
 
-Okay, now we have the byte specified by the two hex digits we read in `rax`.
+Okay, now `rax` contains the byte specified by the two hex digits we read.
 
 - `48 89 c3` `mov rbx, rax`
 - `48 b8 6c 02 40 00 00 00 00 00` `mov rax, 0x40026c`
@@ -343,8 +344,8 @@ These bytes aren't actually used by our program, and could be set to anything.
 These are here because I wasn't sure how long the program would be when I
 started, so I just set the segment size to 512 bytes, which turned out to be
 more than enough. I could have cut these out and edited all the addresses to get
-a smaller, cleaner executable, but I'm leaving them in because that's what you
-probably would do if you were doing this for non-instructional purposes.
+a smaller executable, but really there's no point—modern
+computers can definitely handle 600-byte files.
 
 - `31 c0` `mov rax, 0`
 - `48 89 c7` `mov rdi, rax`
@@ -355,7 +356,7 @@ This is where we conditionally jumped to way back when we determined if we
 reached the end of the file. This calls syscall #60, `exit`, with one argument,
 0 (exit code 0, indicating we exited successfully).
 
-You'd normally close the files first (with syscall #3), to tell Linux you're
+Normally, you should close files descriptors (with syscall #3), to tell Linux you're
 done with them, but we don't need to. It'll automatically close all our open
 file descriptors when our program exits.
 
@@ -373,8 +374,8 @@ editor and get them translated into a binary file.
 
 There are many ways in which this is a bad program. It will *only* properly
 handle lowercase hexadecimal digit pairs, separated by exactly one character,
-with a terminating character. What's worse, a bad input file (maybe you
-accidentally write `3F` instead of `3f`) won't print out a nice error message,
+with a terminating character. What's worse, a bad input file (maybe someone
+accidentally writes `3F` instead of `3f`) won't print out a nice error message,
 but instead continue processing as usual, without any indication that anything's
 gone wrong, giving you an unexpected result.
 Also, we only read in data *three bytes at a time*, and output one byte at a
@@ -385,4 +386,5 @@ a while.
 
 But these problems aren't really a big deal. We'll only be running this on
 little programs and we'll be sure to check that our input is in the right
-format. And with that, we are ready to move on to the next stage...
+format. And with that, we are ready to move on to the
+[next stage...](../01/README.md).

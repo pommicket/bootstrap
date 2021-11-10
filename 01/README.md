@@ -3,7 +3,7 @@
 The code for the compiler for this stage is in the file `in00`. And yes, that's
 an input to our previous program, `hexcompile`, from stage 00! To compile it,
 run `../00/hexcompile` from this directory. You will get a file, `out00`. That
-is the executable for this stage's compiler. Run it (it will read from the file
+is the executable for this stage's compiler. Run it (it'll read from the file
 `in01` I've provided) and you'll get a file `out01`. That executable will print
 `Hello, world!` when run. Let's take a look at the input we're providing to the
 stage 01 compiler, `in01`:
@@ -98,10 +98,9 @@ I decided to put the data before the code this time (it made it a bit
 easier to work with), so we start a little bit later than the first byte in our
 segment.  Second and more importantly, rather than 512 bytes, our segment is
 0x21000 = 135168 bytes long! That's because we're storing a table of all the
-commands our compiler supports. This table has one eight-byte entry for each
+commands our compiler supports. This table has one 8-byte entry for each
 pair of ASCII characters. There are 128 ASCII characters, so that means it's
-`128 * 128 * 8 = 131072` bytes long. And there's a little bit of extra room for
-the actual code. Funnily enough, this large source file means that compiling our
+`128 * 128 * 8 = 131072` bytes long. This large source file means that compiling our
 stage 01 compiler isn't instantaneous (remember how I said reading 3 bytes at a
 time would be slow?). On my system, it takes 0.13 seconds to run
 `../00/hexcompile`.
@@ -150,7 +149,7 @@ This opens our output file, just like last time.
 - `0f 05` `syscall`
 
 Here we read two bytes from our input file into memory address `0x400083`. Note
-that this corresponds to those two blanks bytes at the start of our error
+that this corresponds to those two blank bytes at the start of our error
 message.
 
 - `48 89 c3` `mov rbx, rax`
@@ -326,8 +325,8 @@ very end:
 
 This is at the position for `||`, and it contains an ELF header. One thing you
 might notice is that we decided that each entry is 8 bytes long, but this one is
-0x79 = 121 bytes long! It's okay, our code doesn't actually check that we're
-using less than 8 bytes of data, but it means that the entries for certain
+0x79 = 121 bytes long! It's okay, our code doesn't check if we use more
+than 8 bytes of data, but it means that the entries for certain
 commands, e.g. `}\n` will land right in the middle of the data for the ELF
 header. But by a lucky coincidence, all those entries actually land on 0 bytes,
 so they'll just be treated as unrecognized (as they should be).
@@ -338,7 +337,8 @@ Like our last program, this one will be slow for large files. Again, that isn't
 much of a problem for us. Also, if you forget a `;` at the end of a file, it'll
 loop infinitely rather than printing a nice error message. I could have
 fixed this, but frankly I've had enough of writing code in hexadecimal. So let's
-move on to stage 02, now that we have a nicer language on our hands. From now
+move on to [stage 02](../02/README.md),
+now that we have a nicer language on our hands. From now
 on, since we have comments, I'm gonna do most of the explaining in the source file
 itself, rather than the README. But there'll still be a bit of stuff there each
 time.

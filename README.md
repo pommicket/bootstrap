@@ -3,9 +3,9 @@
 Compilers nowadays are written in languages like C, which themselves need to be
 compiled. But then, you need a C compiler to compile your C compiler! Of course,
 the very first C compiler was not written in C (because how would it be
-compiled?). Instead, it was slowly built up, starting from a very basic
-assembler, eventually reacing a full-scale compiler. This process is known as
-bootstrapping. In this repository, we'll explore how that's done. Each directory
+compiled?). Instead, it was built up over time, starting from a very basic
+assembler, eventually reaching a full-scale compiler.
+In this repository, we'll explore how that's done. Each directory
 represents a new "stage" in the process. The first one, `00`, is a hand-written
 executable, and the last one will be a C compiler. Each directory has its own
 README explaining what's going on.
@@ -13,15 +13,21 @@ README explaining what's going on.
 You can run `bootstrap.sh` to run through and test every stage.
 To get HTML versions of all README pages, run `make`.
 
-## the basics
+Note that the executables produced in this series will only run on 
+64-bit Linux, because each OS/architecture combination would need its own separate
+executable.
+
+The README for the first stage is [here](00/README.md).
+
+## prerequisite knowledge
 
 In this series, I want to explain *everything* that's going on. I'm going to
 need to assume some passing knowledge, so here's a quick overview of what you'll
-want to know before starting. I can't explain everything so you may need to do
-your own research. You don't need to understand each of these in full, just get
-a general idea at least:
+want to know before starting.
+You don't need to understand everything about each of these, just get
+a general idea:
 
-- what an operating system is
+- what a system call is
 - what memory is
 - what a programming language is
 - what a compiler is
@@ -35,7 +41,7 @@ decimal.
 - bits, bytes, kilobytes, etc.
 - bitwise operations (not, or, and, xor, left shift, right shift)
 - 2's complement
-- null-terminated strings
+- ASCII, null-terminated strings
 - how pointers work
 - how floating-point numbers work
 - maybe some basic Intel-style x86-64 assembly (you can probably pick it up on
@@ -73,7 +79,7 @@ with itself, we'll get the same executable either way.
 
 In 1984, Ken Thompson wrote the well-known article
 [Reflections on Trusting Trust](http://users.ece.cmu.edu/~ganger/712.fall02/papers/p761-thompson.pdf).
-This is one of the things that inspired me to start this project. To summarize
+This is one of the inspirations for this project. To summarize
 the article: it is possible to create a malicious C compiler which will
 replicate its own malicious functionalities (e.g. detecting password-checking
 routines to make them also accept another password the attacker knows) when used

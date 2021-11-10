@@ -57,7 +57,8 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 			break;
 		case '[': {
 			/* link */
-			const char *label, *url, *label_end, *url_end;
+			char url2[256] = {0};
+			const char *label, *url, *label_end, *url_end, *dot;
 			int n_label, n_url;
 
 			label = p+1;
@@ -79,8 +80,16 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 
 			n_label = (int)(label_end - label);
 			n_url  = (int)(url_end  - url);
-			fprintf(out, "<a href=\"%.*s\" target=\"_blank\">%.*s</a>",
-				n_url, url, n_label, label);
+			if (n_url > sizeof url2-8)
+				n_url = sizeof url2-8;
+			sprintf(url2, "%.*s", n_url, url);
+			dot = strrchr(url2, '.');
+			if (dot && strcmp(dot, ".md") == 0) {
+				/* replace links to md files with links to html files */
+				strcpy(dot, ".html");
+			}
+			fprintf(out, "<a href=\"%s\" target=\"_blank\">%.*s</a>",
+				url2, n_label, label);
 			p = url_end;
 		} break;
 		case '-':
@@ -150,7 +159,7 @@ int main(int argc, char **argv) {
 		"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
 		"<meta charset=\"utf-8\">\n"
 		"<style>\n"
-		"body { font-family: sans-serif; }\n"
+		"body { font-family: serif; }\n"
 		"</style>\n"
 		"<title>%s</title>\n"
 		"</head>\n"
