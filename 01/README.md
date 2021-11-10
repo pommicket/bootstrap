@@ -319,19 +319,18 @@ very end:
 00 00 00 00 00 00 00 00
 00 00 40 00 00 00 00 00
 00 00 00 00 00 00 00 00
-00 00 03 00 00 00 00 00
-00 00 03 00 00 00 00 00
+00 00 08 00 00 00 00 00
+00 00 08 00 00 00 00 00
 00 10 00 00 00 00 00 00
 </code></pre>
 
-This is at the position for `||`, and it contains the ELF header. One thing you
+This is at the position for `||`, and it contains an ELF header. One thing you
 might notice is that we decided that each entry is 8 bytes long, but this one is
 0x79 = 121 bytes long! It's okay, our code doesn't actually check that we're
 using less than 8 bytes of data, but it means that the entries for certain
 commands, e.g. `}\n` will land right in the middle of the data for the ELF
 header. But by a lucky coincidence, all those entries actually land on 0 bytes,
-so they'll just be treated as unrecognized (as they should be). So it's all
-good.
+so they'll just be treated as unrecognized (as they should be).
 
 ## limitations
 
