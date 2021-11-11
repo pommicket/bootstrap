@@ -1,0 +1,9 @@
+J=d0
+A=d60
+syscall
+:label
+B+=J
+B<<=9
+B-=J
+J?<B-label
+

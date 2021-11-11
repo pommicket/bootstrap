@@ -1,0 +1,114 @@
+jm
+:-co
+::if
+'i
+'n
+'0
+'3
+00
+::of
+'o
+'u
+'t
+'0
+'3
+00
+::BD
+'B
+'a
+'d
+20
+'d
+'i
+'g
+'i
+'t
+\n
+//
+//
+//
+::co
+// open input file
+im
+--if
+JA
+zA
+IA
+im
+##2.
+sy
+// open output file
+im
+--of
+JA
+im
+##241.
+IA
+im
+##1ed.
+DA
+im
+##2.
+sy
+im
+##43.
+BA
+im
+--hx
+cl
+jm
+:-ex
+//
+//
+// exit with code in rax
+::ex
+JA
+im
+##3c.
+sy
+// convert ASCII hex digit in rbx to number in rax.
+::hx
+im
+##30. compare with ascii '0'
+jg
+:-bd  bad digit if < '0'
+im
+##39.
+jl
+:-af  probably a-f
+im
+##ffffffffffffffd0.  -48
+jm
+:-hX
+::af
+im
+##61. ASCII 'a'
+jg
+:-bd  bad digit (not 0-9, and less than 'a')
+im
+##66. ASCII 'f'
+jl
+:-bd  bad digit (not 0-9, and greater than 'f')
+im
+##ffffffffffffffa9.  -87 (10 - 'a')
+::hX
++B
+re // return
+// bad digit
+::bd
+im
+##2. stderr
+JA
+im
+--BD error message
+IA
+im
+##a. length of error message
+DA
+im
+##1. write
+sy
+im
+##1.
+jm
+:-ex
