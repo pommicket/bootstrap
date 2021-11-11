@@ -71,6 +71,7 @@ plus six new ones:
 - `--` outputs a label's (absolute) address
 - `:-` outputs a label's relative address
 - `##` outputs a number
+- `~~` outputs 255 zeros
 - `//` is for comments
 - `\n\n` does nothing (used for spacing)
 
@@ -171,6 +172,13 @@ im
 since `0x90` gets inserted between the "load immediate" instruction code and the immediate.
 `\n\n` works identically, and lets us space out code a bit. But be careful:
 the number of blank lines must be a multiple of 3!
+
+In the middle of the label table, you'll find a mysterious `ff` byte. This is at the position for
+the command `~~` (the end of the command table overlaps with the start of the label table).
+This command is just 255 bytes of zeros. If you defined a label whose position in the label
+table overlaps with these zeros, you'd screw up the command. But fortunately, this will only happen
+if you include `\r` or a non-printing character in your label names.
+This is so that you can have big buffers to put data in (like our label table from this compiler).
 
 ## limitations
 

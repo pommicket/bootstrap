@@ -1,36 +1,6 @@
-jm
-:-co
-::if
-'i
-'n
-'0
-'3
-00
-::of
-'o
-'u
-'t
-'0
-'3
-00
-::BD
-'B
-'a
-'d
-20
-'d
-'i
-'g
-'i
-'t
-\n
-//
-//
-//
-::co
 // open input file
 im
---if
+--IF
 JA
 zA
 IA
@@ -39,7 +9,7 @@ im
 sy
 // open output file
 im
---of
+--OF
 JA
 im
 ##241.
@@ -50,14 +20,145 @@ DA
 im
 ##2.
 sy
+// read next line
+::rl
 im
-##43.
+--LI
+RA    rbp pointer to line buffer
+::rL  read loop
+im
+##3.  input file descriptor
+JA
+IR    where to read into
+im
+##1.
+DA    read 1 byte
+im
+##0.  syscall 0 (read)
+sy
+// check how many bytes were read
 BA
 im
---hx
-cl
+##1.
+jg   if 1 greater than number of bytes read
+:-ef    end of file
+BR
+DR   pointer to character we just read
+im
+##1.
++B
+RA
+BD
+zA
+lb
+BA
+im
+##a.
+jn
+:-rL  keep looping
+// we now have a full line from the file in ::LI
+// the pointer to the end of the line is in rbp
+// look at the first character
+im
+--LI
+BA
+zA
+lb
+BA
+im
+##3b.  ascii ';'
+je    if it's a comment,
+:-rl  jump back to read the next line
+im
+##a.  ascii '\n'
+je    if it's a blank line,
+:-rl  jump back to read the next line
+im
+##3a.  ascii ':'
+je
+:-ld   label definition
 jm
 :-ex
+// label definition
+::ld
+// first, check if we're on the second pass.
+im
+--2P
+BA
+zA
+lb
+BA
+zA
+jn     if on second pass,
+:-rl   ignore this (read next line)
+// first get current address
+im
+##4. output fd
+JA
+zA
+IA   offset = 0
+im
+##1. whence = SEEK_CUR
+DA
+im
+##8. syscall 8 = lseek
+sy
+BA
+im
+##400000. address of start of file
++B
+DA   put current address in rdx
+im
+--L$
+BA
+lq
+JA
+im
+--LI
+IA
+// copy from rsi to rdi until a newline is reached
+::lc  label copy
+BI
+zA
+lb
+BA
+// store in rdi
+AJ
+xc
+sb
+CA put byte in rcx
+// increment rdi,rsi
+BJ
+im
+##1.
++B
+JA
+BI
+im
+##1.
++B
+IA
+BC
+im
+##a.
+jn   if byte we read wasn't a newline,
+:-lc keep looping
+// store address of label in rdi
+AD
+BJ
+sd
+// increment rdi by 4, because we stored an 4-byte number
+im
+##4.
++B
+JA
+// now set L$ to rdi
+im
+--L$
+BA
+AJ
+sq
+cc
 //
 //
 // exit with code in rax
@@ -112,3 +213,236 @@ im
 ##1.
 jm
 :-ex
+// end of file
+::ef
+// TODO: second pass
+zA  exit code 0
+jm
+:-ex
+::2P  second pass?
+00
+::IF  input file name
+'i
+'n
+'0
+'3
+00
+::OF  output file name
+'o
+'u
+'t
+'0
+'3
+00
+::BD  bad digit error message
+'B
+'a
+'d
+20
+'d
+'i
+'g
+'i
+'t
+\n
+::LI  line buffer
+~~
+::L$  end of current label list
+--LB
+::LB  labels
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
+~~
