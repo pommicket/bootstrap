@@ -74,6 +74,9 @@ plus six new ones:
 - `//` is for comments
 - `\n\n` does nothing (used for spacing)
 
+Also, the conditional jump instructions now have a `cmp rax, rbx`
+built into them.
+
 ## labels
 
 Labels are the most important new feature of this language.
@@ -174,7 +177,7 @@ the number of blank lines must be a multiple of 3!
 Many of the limitations of our previous compilers apply to this one. Also,
 if you use a label without defining it, it uses address 0, rather than outputting
 an error message. This could be fixed: if the value in the label table is 0 and we are
-on the second pass, output an error message. This compiler was already tedious enough
-to implement, though! 
+on the second pass, output an error message. Also, duplicate labels aren't detected.
+
 But thanks to labels, for future compilers at least we won't have to calculate
 any jump offsets manually.
