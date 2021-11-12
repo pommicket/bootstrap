@@ -2,10 +2,11 @@
 ;J=d0
 
 A=d60
-syscall
+syscall x3c
+res d1000
 :label
 B+=J
-B<<=9
+B<<=d9
 B-=J
 J?<B:label
 

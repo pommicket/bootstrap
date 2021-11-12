@@ -1,3 +1,17 @@
+im
+--TE
+BA
+im
+--nu
+cl
+jm
+:-ex
+::TE
+'d
+'1
+'2
+'6
+\n
 // open input file
 im
 --IF
@@ -167,12 +181,77 @@ JA
 im
 ##3c.
 sy
+// convert string representation of number starting at rbx and ending with a newline to number in rax
+::nu
+DB
+im
+##1.
++B
+IA  start by storing pointer to actual number (not including base) in rsi
+BD
+zA
+lb
+BA
+im
+##64. ascii 'd'
+je
+:-#d  decimal
+im
+##78. ascii 'x'
+je
+:-#x  hexadecimal
+jm
+:-bn  unrecognized number base
+// convert newline-terminated decimal representation in rsi to number in rax
+::#d
+zA
+JA   use rdi to store number
+::dL  decimal loop
+BI
+zA
+lb
+BA
+im
+##a.
+je
+:-d$  newline reached
+im
+##30.
+jg
+:-bn  bad digit (<'0')
+im
+##39.
+jl
+:-bn  bad digit (>'9')
+im
+##ffffffffffffffd0.
++B
+CA  put numerical value of digit in rcx
+im
+##a.
+BA
+AJ
++*  multiply by 10
+BC
++B  add digit
+JA
+// increment rsi
+BI
+im
+##1.
++B
+IA
+jm
+:-dL  keep looping
+::d$
+AJ
+re   return
 // convert ASCII hex digit in rbx to number in rax.
 ::hx
 im
 ##30. compare with ascii '0'
 jg
-:-bd  bad digit if < '0'
+:-bn  bad if < '0'
 im
 ##39.
 jl
@@ -185,23 +264,23 @@ jm
 im
 ##61. ASCII 'a'
 jg
-:-bd  bad digit (not 0-9, and less than 'a')
+:-bn  bad digit (not 0-9, and less than 'a')
 im
 ##66. ASCII 'f'
 jl
-:-bd  bad digit (not 0-9, and greater than 'f')
+:-bn  bad digit (not 0-9, and greater than 'f')
 im
 ##ffffffffffffffa9.  -87 (10 - 'a')
 ::hX
 +B
 re // return
-// bad digit
-::bd
+// bad number
+::bn
 im
 ##2. stderr
 JA
 im
---BD error message
+--BN error message
 IA
 im
 ##a. length of error message
@@ -234,16 +313,17 @@ jm
 '0
 '3
 00
-::BD  bad digit error message
+::BN  bad number error message
 'B
 'a
 'd
 20
-'d
-'i
-'g
-'i
-'t
+'n
+'u
+'m
+'b
+'e
+'r
 \n
 ::LI  line buffer
 ~~
