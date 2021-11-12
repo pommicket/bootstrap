@@ -7,10 +7,10 @@ cl
 jm
 :-ex
 ::TE
-'d
+'e
 '1
-'2
-'6
+'f
+'c
 \n
 // open input file
 im
@@ -246,8 +246,18 @@ jm
 ::d$
 AJ
 re   return
-// convert ASCII hex digit in rbx to number in rax.
-::hx
+::#x
+zA
+JA  use rdi to store number
+::xL hexadecimal loop
+BI
+zA
+lb
+BA
+im
+##a.
+je
+:-x$  newline reached
 im
 ##30. compare with ascii '0'
 jg
@@ -273,7 +283,24 @@ im
 ##ffffffffffffffa9.  -87 (10 - 'a')
 ::hX
 +B
-re // return
+BA
+// digit's numerical value now in rbx
+AJ
+<I
+04
++B   add digit
+JA   store away
+// increment rsi
+BI
+im
+##1.
++B
+IA
+jm
+:-xL
+::x$
+AJ
+re  return
 // bad number
 ::bn
 im
@@ -283,7 +310,7 @@ im
 --BN error message
 IA
 im
-##a. length of error message
+##b. length of error message
 DA
 im
 ##1. write
