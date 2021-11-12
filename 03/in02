@@ -1,17 +1,3 @@
-im
---TE
-BA
-im
---nu
-cl
-jm
-:-ex
-::TE
-'e
-'1
-'f
-'c
-\n
 // open input file
 im
 --IF
@@ -33,6 +19,19 @@ im
 DA
 im
 ##2.
+sy
+// write ELF header
+im
+##4.
+JA    output fd
+im
+##400000.  address of ELF header in this executable
+IA
+im
+##78.  length
+DA
+im
+##1.  write
 sy
 // read next line
 ::rl
@@ -172,9 +171,126 @@ im
 BA
 AJ
 sq
-cc
-//
-//
+// read the next line
+jm
+:-rl
+// label lookup--set rax to address of label in rbx
+::ll
+RB  put ptr to label in rbp
+// if it's the first pass, just return 0
+im
+--2P
+BA
+zA
+lb
+BA
+zA
+je
+:-r0
+// okay it's not the second pass
+im
+##a.
+CA   terminator '\n'
+// use rsi to keep track of position in label list
+im
+--LB
+IA
+::lL
+// first, check if we've reached the end of the label list (rsi == *L$)
+im
+--L$
+BA
+lq
+BI
+je
+:-bl  bad label if we've reached the end
+JR
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-l=
+// this isn't the label; advance
+::l\
+zA
+BI
+lb
+DA
+// increment rsi
+BI
+im
+##1.
++B
+IA
+// check if that byte we looked at was a newline
+BD
+im
+##a.
+jn
+:-l\  if not, keep looping
+// now we need to increment rsi by another 4 bytes, to skip over the address
+BI
+im
+##4.
++B
+IA
+jm
+:-lL
+re
+::l=
+// label found!
+// first, increment rsi past newline:
+BI
+im
+##1.
++B
+IA
+// then, read dword at rsi into rax
+BI
+zA
+ld
+// we're done!! 
+re
+// set rax to 1/0 depending on whether rsi and rdi have the same string, up to the terminator in rcx.
+::s=
+BI
+zA
+lb
+DA
+BJ
+zA
+lb
+BD
+jn
+:-r0  1st characters are not equal
+BC
+je
+:-r1  we reached the end of the string
+// increment rsi, rdi
+BI
+im
+##1.
++B
+IA
+BJ
+im
+##1.
++B
+JA
+jm
+:-s= keep looping
+// return 0
+::r0
+zA
+re
+// return 1
+::r1
+im
+##1.
+re
 // exit with code in rax
 ::ex
 JA
@@ -319,6 +435,24 @@ im
 ##1.
 jm
 :-ex
+// bad label
+::bl
+im
+##2. stderr
+JA
+im
+--BL error message
+IA
+im
+##a. length of error message
+DA
+im
+##1. write
+sy
+im
+##1.
+jm
+:-ex
 // end of file
 ::ef
 // TODO: second pass
@@ -351,6 +485,17 @@ jm
 'b
 'e
 'r
+\n
+::BL  bad label error message
+'B
+'a
+'d
+20
+'l
+'a
+'b
+'e
+'l
 \n
 ::LI  line buffer
 ~~

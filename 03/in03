@@ -1,12 +1,12 @@
 :lbab
 ;J=d0
-
 A=d60
-syscall x3c
-res d1000
+sys x3c
+align
 :label
+res d1000
 B+=J
-B<<=d9
+B<=d9
 B-=J
-J?<B:label
-
+?J<B:label
+A=:label
