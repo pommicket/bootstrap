@@ -36,6 +36,21 @@ im
 sy
 // read next line
 ::rl
+// first, increment line number
+im
+--L#
+BA
+lq
+BA
+im
+##1.
++B
+BA
+im
+--L#
+xc
+sq
+// okay, now read the line
 im
 --LI
 RA    rbp pointer to line buffer
@@ -2329,10 +2344,86 @@ im
 DA
 jm
 :-er
+// convert digit rcx of line number to string
+::2s
+DC
+AC
+<I
+02
+CA    multiply rcx by 4 to get shift
+im
+--L#
+BA
+lq
+>C
+BA
+CD    restore rcx as digit index
+im
+##f.
+&B
+BA
+im
+--XD
++B
+BA
+zA
+lb
+DA
+im
+--#S
+BA
+im
+##3.
++B
+BA
+AC
+nA
++B  compute pointer to digit char as  #S + 3 - digit_idx
+BA
+AD
+sb
+re
 ::er  error -- write error message in rsi with length in rdx
 im
 ##2. stderr
 JA
+im
+##1. write
+sy
+im
+##0.
+CA
+im
+--2s
+cl
+im
+##1.
+CA
+im
+--2s
+cl
+im
+##2.
+CA
+im
+--2s
+cl
+im
+##3.
+CA
+im
+--2s
+cl
+// write line number
+im
+##2. stderr
+JA
+im
+--#S
+IA
+im
+##5. length
+DA
 im
 ##1. write
 sy
@@ -2473,7 +2564,7 @@ jm
 'b
 'e
 'r
-\n
+20
 ::!L  bad label error message
 'B
 'a
@@ -2484,7 +2575,7 @@ jm
 'b
 'e
 'l
-\n
+20
 ::!R  bad register error message
 'B
 'a
@@ -2498,7 +2589,7 @@ jm
 't
 'e
 'r
-\n
+20
 ::!J bad jump error message
 'B
 'a
@@ -2508,7 +2599,7 @@ jm
 'u
 'm
 'p
-\n
+20
 ::!I bad instruction message
 'B
 'a
@@ -2525,7 +2616,39 @@ jm
 'i
 'o
 'n
+20
+::L#  line number
+00
+00
+00
+00
+00
+00
+00
+00
+::#S  line number string
+'0
+'0
+'0
+'0
 \n
+::XD hexadecimal digits
+'0
+'1
+'2
+'3
+'4
+'5
+'6
+'7
+'8
+'9
+'a
+'b
+'c
+'d
+'e
+'f
 ::BU  buffer for miscellaneous purposes
 ~~
 ::LI  line buffer
