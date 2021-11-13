@@ -1,15 +1,19 @@
-   :l ba b
+!:label
+?J<B:label
+:label
+e
+;      :l ba b
 ;J=d0
 A=d60
-sys x3c
+syscall x3c
 align
 :label
-res d1000
+reserve d1000
 B+=J
 B<=d9
 B-=J
-?J<B:label
 ?J=B:label
 ?A!B:label
 ?A>B:label
 A=:label
+>funciton

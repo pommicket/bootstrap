@@ -78,7 +78,7 @@ zA
 lb
 BA
 im
-##a.
+##a. ascii '\n'
 jn
 :-rL  keep looping
 // we now have a full line from the file in ::LI
@@ -105,7 +105,11 @@ je
 im
 ##3f.  ascii '?'
 je
-:-?j
+:-?j   conditional jump
+im
+##21.  ascii '!'
+je
+:-jj   unconditional jŭmp
 jm
 :-ex
 // label definition
@@ -298,9 +302,196 @@ im
 JA
 jm
 :-s= keep looping
+// write relative label address of label string in rbx.
+::l~
+im
+--ll
+cl    look up label
+RA    store label addr in rbp
+// get current address
+im
+##4. output fd
+JA
+zA
+IA   offset = 0
+im
+##1. whence = SEEK_CUR
+DA
+im
+##8. syscall 8 = lseek
+sy
+nA  negate current address
+BR
++B  get relative address
+BA
+im
+--BU
+xc
+sd  put relative address in ::BU
+im
+--BU   pointer to data
+IA
+im
+##4.   4 bytes long
+DA
+jm
+:-wr
+// unconditional jump
+::jj
+// first, write "jmp"
+im
+--JJ
+IA
+im
+##1.
+DA
+im
+--wr
+cl
+// now, write the relative address
+im
+##1. add 1 to line pointer to get pointer to label name
+BA
+im
+--LI
++B
+BA
+im
+--l~
+cl
+// go read the next line
+jm
+:-rl
+::JJ
+jm
 // conditional jump handling
 ::?j
-cc
+// note, we actually put the first operand in rbx and the second in rax. this is because A>0 is more familiar than 0<A
+im
+##1. add 1 to line pointer to get pointer to 1st operand
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+--Br
+cl     emit "B = first operand"
+im
+##3. add 3 to line pointer to get pointer to 2nd operand
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+--Ar
+cl     emit "A = second operand"
+im
+##2. add 2 to line pointer to get pointer to condition type
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##3c. '<'
+je
+:-j<
+im
+##3e. '>'
+je
+:-j>
+im
+##3d. '='
+je
+:-j=
+im
+##21. '!'
+je
+:-j!
+jm
+:-!j
+::?@ write address for conditional jump
+im
+##4. add 4 to line pointer to get pointer to label
+BA
+im
+--LI
++B
+BA
+im
+--l~
+cl
+// finally, jump back to read the next line
+jm
+:-rl
+// jump if *greater than* instruction (flipped because operands are flipped)
+::j<
+im
+--J<
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
+::j>
+im
+--J>
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
+::j=
+im
+--J=
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
+::j!
+im
+--J!
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
+::J<
+jg
+::J>
+jl
+::J!
+jn
+::J=
+je
 // set A to register. takes rbx='0','A','B','C','D','I','J','R','S', outputs instruction to file
 ::Ar
 im
@@ -820,6 +1011,15 @@ im
 DA
 jm
 :-er
+::!j  bad jump
+im
+--!J  error message
+IA
+im
+##9.
+DA
+jm
+:-er
 ::er  error -- write error message in rsi with length in rdx
 im
 ##2. stderr
@@ -889,6 +1089,18 @@ jm
 'e
 'r
 \n
+::!J bad jump error message
+'B
+'a
+'d
+20
+'j
+'u
+'m
+'p
+\n
+::BU  buffer for miscellaneous purposes
+~~
 ::LI  line buffer
 ~~
 ::L$  end of current label list
