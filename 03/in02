@@ -57,10 +57,22 @@ jg   if 1 greater than number of bytes read
 :-ef    end of file
 BR
 DR   pointer to character we just read
+zA
+lb
+BA
+im
+##20. ' '
+je
+:-rL  ignore spaces
+im
+##9.  '\t'
+je
+:-rL  ignore tabs
+BD
 im
 ##1.
 +B
-RA
+RA   increment pointer
 BD
 zA
 lb
@@ -90,6 +102,10 @@ im
 ##3a.  ascii ':'
 je
 :-ld   label definition
+im
+##3f.  ascii '?'
+je
+:-?j
 jm
 :-ex
 // label definition
@@ -282,6 +298,364 @@ im
 JA
 jm
 :-s= keep looping
+// conditional jump handling
+::?j
+cc
+// set A to register. takes rbx='0','A','B','C','D','I','J','R','S', outputs instruction to file
+::Ar
+im
+##30. '0'
+je
+:-A0
+im
+##41. 'A'
+je
+:-r0  just return
+im
+##42. 'B'
+je
+:-AB
+im
+##43. 'C'
+je
+:-AC
+im
+##44. 'D'
+je
+:-AD
+im
+##49. 'I'
+je
+:-AI
+im
+##4a. 'J'
+je
+:-AJ
+im
+##52. 'R'
+je
+:-AR
+im
+##53. 'S'
+je
+:-AS
+jm
+:-!r
+// emit instruction for "set A to 0".
+::A0
+zA    neat trick we can just put the instruction here; it doesn't screw anything up
+im
+--A0
+IA
+im
+##2.
+DA
+jm
+:-wr
+// emit "set A to B"
+::AB
+AB
+im
+--AB
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to C"
+::AC
+AC
+im
+--AC
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to D"
+::AD
+AD
+im
+--AD
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to I"
+::AI
+AI
+im
+--AI
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to J"
+::AJ
+AJ
+im
+--AJ
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to R"
+::AR
+AR
+im
+--AR
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set A to S"
+::AS
+AS
+im
+--AS
+IA
+im
+##3.
+DA
+jm
+:-wr
+// set B to register. takes rbx='A','B','C','D','I','J','R','S' outputs instruction to file
+::Br
+im
+##41. 'A'
+je
+:-BA
+im
+##42. 'B'
+je
+:-r0  just return
+im
+##43. 'C'
+je
+:-BC
+im
+##44. 'D'
+je
+:-BD
+im
+##49. 'I'
+je
+:-BI
+im
+##4a. 'J'
+je
+:-BJ
+im
+##52. 'R'
+je
+:-BR
+im
+##53. 'S'
+je
+:-BS
+jm
+:-!r
+// emit "set B to A"
+::BA
+BA
+im
+--BA
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to C"
+::BC
+BC
+im
+--BC
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to D"
+::BD
+BD
+im
+--BD
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to I"
+::BI
+BI
+im
+--BI
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to J"
+::BJ
+BJ
+im
+--BJ
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to R"
+::BR
+BR
+im
+--BR
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set B to S"
+::BS
+BS
+im
+--BS
+IA
+im
+##3.
+DA
+jm
+:-wr
+// set register to A. takes rbx='A','B','C','D','I','J','R','S' outputs instruction to file
+::rA
+im
+##41. 'A'
+je
+:-r0  just return
+im
+##42. 'B'
+je
+:-BA
+im
+##43. 'C'
+je
+:-CA
+im
+##44. 'D'
+je
+:-DA
+im
+##49. 'I'
+je
+:-IA
+im
+##4a. 'J'
+je
+:-JA
+im
+##52. 'R'
+je
+:-RA
+im
+##53. 'S'
+je
+:-SA
+jm
+:-!r
+// emit "set C to A"
+::CA
+im
+--C)
+IA
+im
+##3.
+DA
+jm
+:-wr
+::C)
+CA
+// emit "set D to A"
+::DA
+DA
+im
+--DA
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set I to A"
+::IA
+IA
+im
+--IA
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set J to A"
+::JA
+JA
+im
+--JA
+IA
+im
+##3.
+DA
+jm
+:-wr
+// emit "set R to A"
+::RA
+im
+--R)
+IA
+im
+##3.
+DA
+jm
+:-wr
+::R)
+RA
+// emit "set S to A"
+::SA
+im
+--S)
+IA
+im
+##3.
+DA
+jm
+:-wr
+::S)
+SA
+// write to output file from rsi..rsi+rdx
+::wr
+im
+##4.
+JA
+im
+##1.
+sy
+re
 // return 0
 ::r0
 zA
@@ -418,34 +792,38 @@ jm
 AJ
 re  return
 // bad number
-::bn
+::!n
 im
-##2. stderr
-JA
-im
---BN error message
+--!N error message
 IA
 im
 ##b. length of error message
 DA
-im
-##1. write
-sy
-im
-##1.
 jm
-:-ex
+:-er
 // bad label
-::bl
+::!l
 im
-##2. stderr
-JA
-im
---BL error message
+--!L error message
 IA
 im
 ##a. length of error message
 DA
+jm
+:-er
+::!r  bad register
+im
+--!R error message
+IA
+im
+##d.
+DA
+jm
+:-er
+::er  error -- write error message in rsi with length in rdx
+im
+##2. stderr
+JA
 im
 ##1. write
 sy
@@ -474,7 +852,7 @@ jm
 '0
 '3
 00
-::BN  bad number error message
+::!N  bad number error message
 'B
 'a
 'd
@@ -486,7 +864,7 @@ jm
 'e
 'r
 \n
-::BL  bad label error message
+::!L  bad label error message
 'B
 'a
 'd
@@ -496,6 +874,20 @@ jm
 'b
 'e
 'l
+\n
+::!R  bad register error message
+'B
+'a
+'d
+20
+'r
+'e
+'g
+'i
+'s
+'t
+'e
+'r
 \n
 ::LI  line buffer
 ~~

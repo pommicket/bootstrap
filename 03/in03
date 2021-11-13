@@ -1,4 +1,4 @@
-:lbab
+   :l ba b
 ;J=d0
 A=d60
 sys x3c
@@ -9,4 +9,7 @@ B+=J
 B<=d9
 B-=J
 ?J<B:label
+?J=B:label
+?A!B:label
+?A>B:label
 A=:label
