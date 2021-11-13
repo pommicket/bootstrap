@@ -97,7 +97,7 @@ je    if it's a blank line,
 im
 ##3a.  ascii ':'
 je
-:-ld   label definition
+:-:l   label definition
 im
 ##3f.  ascii '?'
 je
@@ -110,6 +110,26 @@ im
 ##78.  ascii 'x'
 je
 :-x#   literal byte
+im
+##31.  ascii '1'
+je
+:-1=   store byte
+im
+##32.  ascii '2'
+je
+:-2=   store word
+im
+##34.  ascii '4'
+je
+:-4=   store dword
+im
+##38.  ascii '8'
+je
+:-8=   store qword
+im
+##7e.  ascii '~'
+je
+:-~x   bitwise not
 // look at the second character
 im
 ##1.
@@ -124,7 +144,31 @@ BA
 im
 ##2b.  ascii '+'
 je
-:-+=
+:-+=   X+=Y
+im
+##2d.  ascii '-'
+je
+:--=   X-=Y
+im
+##26.  ascii '&'
+je
+:-&=   X&=Y
+im
+##7c.  ascii '|'
+je
+:-|=   X|=Y
+im
+##3c.  ascii '<'
+je
+:-<=   X<=C / X<=imm
+im
+##3e.  ascii '>'
+je
+:->=   X>=C / X>=imm
+im
+##3d.  ascii '='
+je
+:-x=   X=imm / X=:label / X=nY
 im
 ##20.  ascii ' '
 CA     set ' ' as terminator
@@ -144,6 +188,7 @@ je
 :-cl
 jm
 :-ex
+// handle += instruction
 ::+=
 im
 --=?
@@ -174,6 +219,567 @@ jm
 :-rl  next line
 ::+B
 +B
+// handle -= instruction
+::-=
+im
+--=?
+cl
+// put operand 1 in rbx,
+im
+--B1
+cl
+// operand 2 in rax
+im
+--A2
+cl
+// emit 'neg rax'
+im
+--nA
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// emit 'add rax, rbx'
+im
+--+B
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// put rax in operand 1
+im
+--1A
+cl
+jm
+:-rl next line
+::nA
+nA
+// deal with bitwise and
+::&=
+im
+--=?
+cl
+// put operand 1 in rbx,
+im
+--B1
+cl
+// operand 2 in rax
+im
+--A2
+cl
+// emit 'and rax, rbx'
+im
+--&B
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// put rax in operand 1
+im
+--1A
+cl
+jm
+:-rl  next line
+::&B
+&B
+// deal with bitwise or
+::|=
+im
+--=?
+cl
+// put operand 1 in rbx,
+im
+--B1
+cl
+// operand 2 in rax
+im
+--A2
+cl
+// emit 'or rax, rbx'
+im
+--|B
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// put rax in operand 1
+im
+--1A
+cl
+jm
+:-rl  next line
+::|B
+|B
+// deal with left shift
+::<=
+im
+--=?
+cl
+im
+--A1  put operand 1 in rax
+cl
+// look at 2nd operand (line[3])
+im
+##3.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##43. ascii 'C'
+je
+:-<c  non-constant shift
+// write shl rax,
+im
+--<I
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// now write immediate. calculate number
+im
+##3.
+BA
+im
+--LI
++B
+BA
+im
+--nu
+cl
+// we now have the shift amount in rax. write it to the file
+BA
+im
+--wb
+cl
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::<I
+<I
+// deal with right shift
+::>=
+im
+--=?
+cl
+im
+--A1  put operand 1 in rax
+cl
+// look at 2nd operand (line[3])
+im
+##3.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##43. ascii 'C'
+je
+:->c  non-constant shift
+// write shr rax,
+im
+-->I
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// now write immediate. calculate number
+im
+##3.
+BA
+im
+--LI
++B
+BA
+im
+--nu
+cl
+// we now have the shift amount in rax. write it to the file
+BA
+im
+--wb
+cl
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::>I
+>I
+// left shift by cl
+::<c
+im
+--<C
+IA
+im
+##3.
+DA
+im
+--wr
+cl      emit 'shl rax, cl'
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::<C
+<C
+// right shift by cl
+::>c
+im
+-->C
+IA
+im
+##3.
+DA
+im
+--wr
+cl      emit 'shr rax, cl'
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::>C
+>C
+// deal with set immediate (e.g. "A=d3, B=:label, C=1B")
+::x=
+im
+##2.
+BA
+im
+--LI
++B
+BA
+zA
+lb    get char following '='
+BA
+im
+##3a.  ascii ':'
+je
+:-=:   set to label
+im
+##31.  ascii '1'
+je
+:-=1   read 1 byte
+im
+##32.  ascii '2'
+je
+:-=2   read 2 bytes
+im
+##34.  ascii '4'
+je
+:-=4   read 4 bytes
+im
+##38.  ascii '8'
+je
+:-=8   read 8 bytes
+// it's a number.
+im
+##2.
+BA
+im
+--LI
++B
+BA
+im
+--nu
+cl
+BA  put number in rbx
+im
+--im  put immediate in rax
+cl
+im
+--1A  transfer immediate to output
+cl
+jm
+:-rl  next line
+// deal with set to label
+::=:
+im
+##2. add 2 line pointer to get pointer to label name
+BA
+im
+--LI
++B
+BA
+im
+--ll
+cl     look up label name
+BA
+im
+--im
+cl     put label value in rax
+im
+--1A   transfer label value to output
+cl
+jm
+:-rl   next line
+// deal with load byte
+::=1
+im
+--B2
+cl    put address register in rbx
+im
+--A0
+cl     clear rax first.
+im
+--lb
+IA
+im
+##2.
+DA
+im
+--wr
+cl   emit 'mov al, byte [rbx]'
+im
+--1A
+cl    put rax in output
+jm
+:-rl
+// deal with load word
+::=2
+im
+--B2
+cl    put address register in rbx
+im
+--A0
+cl     clear rax first.
+im
+--lw
+IA
+im
+##3.
+DA
+im
+--wr
+cl   emit 'mov ax, word [rbx]'
+im
+--1A
+cl    put rax in output
+jm
+:-rl
+// deal with load dword
+::=4
+im
+--B2
+cl    put address register in rbx
+im
+--A0
+cl     clear rax first.
+im
+--ld
+IA
+im
+##2.
+DA
+im
+--wr
+cl   emit 'mov eax, dword [rbx]'
+im
+--1A
+cl    put rax in output
+jm
+:-rl
+// deal with load qword
+::=8
+im
+--B2
+cl    put address register in rbx
+im
+--A0
+cl     clear rax first.
+im
+--lq
+IA
+im
+##3.
+DA
+im
+--wr
+cl   emit 'mov rax, qword [rbx]'
+im
+--1A
+cl    put rax in output
+jm
+:-rl
+// emit 'B = line[1]', i.e. deal with address of store instruction
+::s@
+im
+##1.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+jm
+:-Br
+// deal with store byte
+::1=
+im
+--s@   put address in rbx
+cl
+im
+--A2    put value in rax
+cl
+im
+--sb
+IA
+im
+##2.
+DA
+im
+--wr   store
+cl
+jm
+:-rl  read next line
+// deal with store word
+::2=
+im
+--s@   put address in rbx
+cl
+im
+--A2    put value in rax
+cl
+im
+--sw
+IA
+im
+##3.
+DA
+im
+--wr   store
+cl
+jm
+:-rl  read next line
+// deal with store dword
+::4=
+im
+--s@   put address in rbx
+cl
+im
+--A2    put value in rax
+cl
+im
+--sd
+IA
+im
+##2.
+DA
+im
+--wr   store
+cl
+jm
+:-rl  read next line
+// deal with store qword
+::8=
+im
+--s@   put address in rbx
+cl
+im
+--A2    put value in rax
+cl
+im
+--sq
+IA
+im
+##3.
+DA
+im
+--wr   store
+cl
+jm
+:-rl  read next line
+::lb
+lb
+::lw
+lw
+::ld
+ld
+::lq
+lq
+::sb
+sb
+::sw
+sw
+::sd
+sd
+::sq
+sq
+// deal with bitwise not
+::~x
+im
+##1.
+BA
+im
+--LI
++B
+BA
+zA
+lb   get register
+RA   put in rbp so we can get it back later
+BR
+im
+--Ar
+cl   'mov rax, <register>'
+im
+--!A
+IA
+im
+##3.
+DA
+im
+--wr
+cl   'not rax'
+BR
+im
+--rA
+cl   'mov <register>, rax'
+jm
+:-rl  next line
+::!A
+!A
+// emit 'put operand 1 in rax'
+::A1
+im
+--LI
+BA
+zA
+lb
+BA
+jm
+:-Ar
 // emit 'put operand 1 in rbx'
 ::B1
 im
@@ -198,6 +804,20 @@ lb
 BA
 jm
 :-Ar
+// emit 'put operand 2 in rbx'
+::B2
+im
+##3.  skip e.g. "A+="
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+jm
+:-Br
 // emit 'put rax in operand 1'
 ::1A
 im
@@ -226,7 +846,7 @@ jn
 :-!i bad instruction
 re
 // label definition
-::ld
+:::l
 // first, check if we're on the second pass.
 im
 --2P
@@ -493,21 +1113,10 @@ BA
 im
 --nu
 cl
-// put number in BU
 BA
+// write byte
 im
---BU
-xc
-sb
-// write 1 byte from BU
-im
---BU
-IA
-im
-##1.
-DA
-im
---wr
+--wb
 cl
 jm
 :-rl  next line
@@ -1048,6 +1657,22 @@ im
 ##1.
 sy
 re
+// write byte in rbx
+::wb
+// put number in BU
+im
+--BU
+xc
+sb
+// write 1 byte from BU
+im
+--BU
+IA
+im
+##1.
+DA
+jm
+:-wr
 // return 0
 ::r0
 zA
@@ -1083,7 +1708,7 @@ im
 je
 :-#x  hexadecimal
 jm
-:-bn  unrecognized number base
+:-!n  unrecognized number base
 // convert newline-terminated decimal representation in rsi to number in rax
 ::#d
 zA
@@ -1100,11 +1725,11 @@ je
 im
 ##30.
 jg
-:-bn  bad digit (<'0')
+:-!n  bad digit (<'0')
 im
 ##39.
 jl
-:-bn  bad digit (>'9')
+:-!n  bad digit (>'9')
 im
 ##ffffffffffffffd0.
 +B
@@ -1143,7 +1768,7 @@ je
 im
 ##30. compare with ascii '0'
 jg
-:-bn  bad if < '0'
+:-!n  bad if < '0'
 im
 ##39.
 jl
@@ -1156,11 +1781,11 @@ jm
 im
 ##61. ASCII 'a'
 jg
-:-bn  bad digit (not 0-9, and less than 'a')
+:-!n  bad digit (not 0-9, and less than 'a')
 im
 ##66. ASCII 'f'
 jl
-:-bn  bad digit (not 0-9, and greater than 'f')
+:-!n  bad digit (not 0-9, and greater than 'f')
 im
 ##ffffffffffffffa9.  -87 (10 - 'a')
 ::hX

@@ -1,11 +1,20 @@
-R+=D
-x3c
+D|=C
+e
+D&=C
+~C
+B|=A
+8D=C
+e
+A=1B
+B>=d33
+e
 call :funciton
 x4b
 !:label
 ?J<B:label
 :label
 e
+1B=C
 ;      :l ba b
 ;J=d0
 A=d60
@@ -22,3 +31,8 @@ B-=J
 A=:label
 x3c
 return
+-*
+-/
++*
++/
+
