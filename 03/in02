@@ -78,6 +78,12 @@ im
 ##a. ascii '\n'
 jn
 :-rL  keep looping
+// subtract 1 from rbp because we don't care about the newline
+im
+##ffffffffffffffff.  -1
+BR
++B
+RA
 // we now have a full line from the file in ::LI
 // the pointer to the end of the line is in rbp
 // look at the first character
@@ -213,6 +219,20 @@ im
 ##1.
 je
 :-sy
+im
+--ST  "str"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-st
 jm
 :-ex
 // handle += instruction
@@ -1796,6 +1816,24 @@ jm
 :-rl  jump back to read next line
 ::Cl
 cl
+// handle "str <string>"
+::st
+im
+##4.
+BA
+im
+--LI
++B
+IA   pointer to string
+nA
+BR
++B
+DA   length of string
+im
+--wr  write
+cl
+jm
+:-rl  next line
 // handle "syscall <number>"
 ::sy
 im
@@ -2125,6 +2163,11 @@ jm
 'a
 'l
 'l
+20
+::ST  "str" text
+'s
+'t
+'r
 20
 ::IF  input file name
 'i

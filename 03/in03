@@ -7,18 +7,6 @@ J=d42
 syscall x3c
 
 :hello_world
-'H
-'e
-'l
-'l
-'o
-',
-x20
-'w
-'o
-'r
-'l
-'d
-'!
+str Hello, world!
 xa
 :hello_world_end

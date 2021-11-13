@@ -37,3 +37,4 @@ x3c
 ;;;;;;;;;;;;;;;;;;;;;;;/+
 :funciton
 call A
+str Here is some text which will be put in the executable!
