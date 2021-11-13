@@ -70,7 +70,7 @@ shr rax, cl
 shr rax, imm8
 >48 c1 e8 IMM8
 sar rax, cl
->f8 d3 f8
+>48 d3 f8
 sar rax, imm8
 >48 c1 f8 IMM8
 sub rsp, imm32

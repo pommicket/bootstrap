@@ -158,6 +158,10 @@ im
 je
 :-|=   X|=Y
 im
+##5e.  ascii '^'
+je
+:-^=   X^=Y
+im
 ##3c.  ascii '<'
 je
 :-<=   X<=C / X<=imm
@@ -165,6 +169,10 @@ im
 ##3e.  ascii '>'
 je
 :->=   X>=C / X>=imm
+im
+##5d.  ascii ']'
+je
+:-]=   X]=C / X]=imm
 im
 ##3d.  ascii '='
 je
@@ -322,6 +330,37 @@ jm
 :-rl  next line
 ::|B
 |B
+// deal with bitwise xor
+::^=
+im
+--=?
+cl
+// put operand 1 in rbx,
+im
+--B1
+cl
+// operand 2 in rax
+im
+--A2
+cl
+// emit 'xor rax, rbx'
+im
+--^B
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// put rax in operand 1
+im
+--1A
+cl
+jm
+:-rl  next line
+::^B
+^B
 // deal with left shift
 ::<=
 im
@@ -434,6 +473,62 @@ jm
 :-rl  next line
 ::>I
 >I
+// deal with arithmetic right shift
+::]=
+im
+--=?
+cl
+im
+--A1  put operand 1 in rax
+cl
+// look at 2nd operand (line[3])
+im
+##3.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##43. ascii 'C'
+je
+:-]c  non-constant shift
+// write sar rax,
+im
+--]I
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// now write immediate. calculate number
+im
+##3.
+BA
+im
+--LI
++B
+BA
+im
+--nu
+cl
+// we now have the shift amount in rax. write it to the file
+BA
+im
+--wb
+cl
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::]I
+]I
 // left shift by cl
 ::<c
 im
@@ -470,6 +565,24 @@ jm
 :-rl  next line
 ::>C
 >C
+// arithmetic right shift by cl
+::]c
+im
+--]C
+IA
+im
+##3.
+DA
+im
+--wr
+cl      emit 'sar rax, cl'
+im
+--1A  put rax back in operand 1
+cl
+jm
+:-rl  next line
+::]C
+]C
 // deal with set immediate (e.g. "A=d3, B=:label, C=1B")
 ::x=
 im
