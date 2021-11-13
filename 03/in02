@@ -61,10 +61,6 @@ zA
 lb
 BA
 im
-##20. ' '
-je
-:-rL  ignore spaces
-im
 ##9.  '\t'
 je
 :-rL  ignore tabs
@@ -109,9 +105,126 @@ je
 im
 ##21.  ascii '!'
 je
-:-jj   unconditional jŭmp
+:-jj   unconditional jump
+im
+##78.  ascii 'x'
+je
+:-x#   literal byte
+// look at the second character
+im
+##1.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##2b.  ascii '+'
+je
+:-+=
+im
+##20.  ascii ' '
+CA     set ' ' as terminator
+im
+--CL  "call"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-cl
 jm
 :-ex
+::+=
+im
+--=?
+cl
+// put operand 1 in rbx,
+im
+--B1
+cl
+// operand 2 in rax
+im
+--A2
+cl
+// emit 'add rax, rbx'
+im
+--+B
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+// put rax in operand 1
+im
+--1A
+cl
+jm
+:-rl  next line
+::+B
++B
+// emit 'put operand 1 in rbx'
+::B1
+im
+--LI
+BA
+zA
+lb
+BA
+jm
+:-Br
+// emit 'put operand 2 in rax'
+::A2
+im
+##3.  skip e.g. "A+="
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+jm
+:-Ar
+// emit 'put rax in operand 1'
+::1A
+im
+--LI
+BA
+zA
+lb
+BA
+jm
+:-rA
+// verify 3rd char of line is =
+::=?
+im
+##2. offset 2
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+##3d.  ascii '='
+jn
+:-!i bad instruction
+re
 // label definition
 ::ld
 // first, check if we're on the second pass.
@@ -302,7 +415,43 @@ im
 JA
 jm
 :-s= keep looping
-// write relative label address of label string in rbx.
+// emit "mov rax, immediate" -- with immediate in rbx
+::im
+// first, write prefix
+im
+--IM
+IA
+im
+##2.
+DA
+im
+--wr
+cl
+// put rbx in BU
+im
+--BU
+xc
+sq
+// now write out BU
+im
+--BU
+IA
+im
+##8.  8 bytes
+DA
+jm
+:-wr
+::IM
+im
+// emit "mov rax, label" -- with pointer to label name in rbx
+::l@
+im
+--ll
+cl     look up label name
+BA
+jm
+:-im   write that immediate
+// emit relative label address of label string in rbx.
 ::l~
 im
 --ll
@@ -336,6 +485,32 @@ im
 DA
 jm
 :-wr
+// literal byte
+::x#
+im
+--LI
+BA
+im
+--nu
+cl
+// put number in BU
+BA
+im
+--BU
+xc
+sb
+// write 1 byte from BU
+im
+--BU
+IA
+im
+##1.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
 // unconditional jump
 ::jj
 // first, write "jmp"
@@ -838,6 +1013,32 @@ jm
 :-wr
 ::S)
 SA
+// handle "call :label"
+::cl
+im
+##5.  add 5 to line pointer to get pointer to label name
+BA
+im
+--LI
++B
+BA
+im
+--l@
+cl
+// emit 'call rax'
+im
+--Cl  instruction
+IA
+im
+##2.  number of bytes
+DA
+im
+--wr
+cl
+jm
+:-rl  jump back to read next line
+::Cl
+cl
 // write to output file from rsi..rsi+rdx
 ::wr
 im
@@ -982,6 +1183,16 @@ jm
 ::x$
 AJ
 re  return
+// bad instruction
+::!i
+im
+--!I error message
+IA
+im
+##10. length
+DA
+jm
+:-er
 // bad number
 ::!n
 im
@@ -1039,6 +1250,12 @@ jm
 :-ex
 ::2P  second pass?
 00
+::CL  "call" text
+'c
+'a
+'l
+'l
+20
 ::IF  input file name
 'i
 'n
@@ -1098,6 +1315,23 @@ jm
 'u
 'm
 'p
+\n
+::!I bad instruction message
+'B
+'a
+'d
+20
+'i
+'n
+'s
+'t
+'r
+'u
+'c
+'t
+'i
+'o
+'n
 \n
 ::BU  buffer for miscellaneous purposes
 ~~

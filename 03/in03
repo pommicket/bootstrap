@@ -1,3 +1,7 @@
+R+=D
+x3c
+call :funciton
+x4b
 !:label
 ?J<B:label
 :label
@@ -16,4 +20,5 @@ B-=J
 ?A!B:label
 ?A>B:label
 A=:label
->funciton
+x3c
+return
