@@ -1471,6 +1471,14 @@ im
 ##21. '!'
 je
 :-j!
+im
+##61. 'a'
+je
+:-ja
+im
+##62. 'b'
+je
+:-jb
 jm
 :-!j
 ::?@ write address for conditional jump
@@ -1500,6 +1508,7 @@ im
 cl
 jm
 :-?@
+// handle jg
 ::j>
 im
 --J>
@@ -1512,6 +1521,7 @@ im
 cl
 jm
 :-?@
+// handle je
 ::j=
 im
 --J=
@@ -1524,6 +1534,7 @@ im
 cl
 jm
 :-?@
+// handle jne
 ::j!
 im
 --J!
@@ -1536,14 +1547,44 @@ im
 cl
 jm
 :-?@
+// handle ja
+::ja
+im
+--Ja
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
+// handle jb
+::jb
+im
+--Jb
+IA
+im
+##5.
+DA
+im
+--wr
+cl
+jm
+:-?@
 ::J<
-jg
+jg   (operands are flipped)
 ::J>
 jl
 ::J!
 jn
 ::J=
 je
+::Ja
+jb    (operands are flipped)
+::Jb
+ja
 // set A to register. takes rbx='0','A','B','C','D','I','J','R','S', outputs instruction to file
 ::Ar
 im
