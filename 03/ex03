@@ -39,3 +39,4 @@ div
 call A
 str Here is some text which will be put in the executable!
 ?CaD:label
+

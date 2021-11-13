@@ -1,14 +1,35 @@
 ; write to stdout
-J=d1
-I=:hello_world
-D=:hello_world_end
-; calculate length by subtracting end from start
-D-=I
-syscall d1
-J=d42
+B=:hello_world
+call :puts
+J=d0
 syscall x3c
 
 :hello_world
 str Hello, world!
 xa
-:hello_world_end
+x0
+
+; output null-terminated string in rbx
+:puts
+	call :strlen
+	I=D
+	D=A
+	J=d1
+	syscall d1
+	return
+
+; calculate length of string in rbx
+; keeps pointer to start of string in rdx, end of string in rsi
+:strlen
+	; keep pointer to start of string
+	D=B
+	I=B
+	:strlen_loop
+	C=1I
+	?C=0:strlen_loop_end
+	I+=d1
+	!:strlen_loop
+	:strlen_loop_end
+	I-=D
+	A=I	
+	return

@@ -770,6 +770,107 @@ im
 ##38.  ascii '8'
 je
 :-=8   read 8 bytes
+im
+##78.  ascii 'x'
+je
+:-=#
+im
+##64.  ascii 'd'
+je
+:-=#
+im
+##27.  ascii '
+je
+:-=#
+// register transfer. start by writing 48 89
+im
+--tx
+IA
+im
+##2.
+DA
+im
+--wr
+cl
+// get index of first register
+im
+--LI
+BA
+zA
+lb
+BA
+im
+--r#
+cl
+DA
+// get index of first register
+im
+##2.
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BA
+im
+--r#
+cl
+<I
+03  shift left by 3
+BA
+im
+##c0.
+|B    or with 0xc0
+BD
+|B    or with dest
+BA
+im
+--wb   write that byte
+cl
+jm
+:-rl  next line
+::tx
+48
+89
+// get register index of rbx
+::r#
+im
+##41. 'A'
+je
+:-r0
+im
+##42. 'B'
+je
+:-r3
+im
+##43. 'C'
+je
+:-r1
+im
+##44. 'D'
+je
+:-r2
+im
+##49. 'I'
+je
+:-r6
+im
+##4a. 'J'
+je
+:-r7
+im
+##52. 'R'
+je
+:-r5
+im
+##53. 'S'
+je
+:-r4
+jm
+:-!r
+::=#
 // it's a number.
 im
 ##2.
@@ -1105,6 +1206,10 @@ im
 ##53.  'S'
 je
 :-AS
+im
+##30.  '0'
+je
+:-A0
 // it's a number
 im
 ##3.
@@ -1404,6 +1509,10 @@ DA
 im
 ##8. syscall 8 = lseek
 sy
+BA
+im
+##400004.
++B        add address of start of file + 4 bytes to write relative offset
 nA  negate current address
 BR
 +B  get relative address
@@ -2125,6 +2234,36 @@ re
 im
 ##1.
 re
+// return 2
+::r2
+im
+##2.
+re
+// return 3
+::r3
+im
+##3.
+re
+// return 4
+::r4
+im
+##4.
+re
+// return 5
+::r5
+im
+##5.
+re
+// return 6
+::r6
+im
+##6.
+re
+// return 7
+::r7
+im
+##7.
+re
 // exit with code in rax
 ::ex
 JA
@@ -2557,6 +2696,12 @@ DA
 im
 ##8.  lseek
 sy
+// set line number to 0
+im
+--L#
+BA
+zA
+sq
 // now go back to do the second pass
 jm
 :-2p
