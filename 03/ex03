@@ -31,10 +31,10 @@ B-=J
 A=:label
 x3c
 return
-;;;;;;;;;;;;;;;;;;;;;;;*-
-;;;;;;;;;;;;;;;;;;;;;;;/-
-;;;;;;;;;;;;;;;;;;;;;;;*+
-;;;;;;;;;;;;;;;;;;;;;;;/+
+imul
+idiv
+mul
+div
 :funciton
 call A
 str Here is some text which will be put in the executable!

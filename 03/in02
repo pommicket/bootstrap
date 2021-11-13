@@ -278,8 +278,64 @@ im
 ##1.
 je
 :-al
+im
+--U*  "mul"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-u*
+im
+--S*  "imul"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-s*
+im
+--U/  "div"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-u/
+im
+--S/  "idiv"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-s/
 jm
-:-ex
+:-!i
 // handle += instruction
 ::+=
 im
@@ -2165,6 +2221,66 @@ jm
 :-rl  next line
 ::Rt
 re
+// deal with "mul"
+::u*
+im
+--+*
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
+// deal with "imul"
+::s*
+im
+---*
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
+// deal with "div"
+::u/
+im
+--+/
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
+// deal with "idiv"
+::s/
+im
+---/
+IA
+im
+##3.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
+::+*
++*
+::-*
+-*
+::+/
++/
+::-/
+-/
 // bad instruction
 ::!i
 im
@@ -2310,6 +2426,28 @@ jm
 'i
 'g
 'n
+\n
+::U*  "mul" text
+'m
+'u
+'l
+\n
+::S*  "imul" text
+'i
+'m
+'u
+'l
+\n
+::U/  "div" text
+'d
+'i
+'v
+\n
+::S/  "idiv" text
+'i
+'d
+'i
+'v
 \n
 ::IF  input file name
 'i

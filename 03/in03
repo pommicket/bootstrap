@@ -1,10 +1,8 @@
-return
-str Hi
-align
-return
+; write to stdout
 J=d1
 I=:hello_world
 D=:hello_world_end
+; calculate length by subtracting end from start
 D-=I
 syscall d1
 J=d42
