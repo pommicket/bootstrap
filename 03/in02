@@ -20,6 +20,7 @@ DA
 im
 ##2.
 sy
+::2p  where the second pass starts from
 // write ELF header
 im
 ##4.
@@ -109,7 +110,11 @@ je
 im
 ##78.  ascii 'x'
 je
-:-x#   literal byte
+:-#b   literal byte
+im
+##27.  ascii '
+je
+:-#b   literal byte
 im
 ##31.  ascii '1'
 je
@@ -194,6 +199,20 @@ im
 ##1.
 je
 :-cl
+im
+--SY  "sycall"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-sy
 jm
 :-ex
 // handle += instruction
@@ -1069,7 +1088,7 @@ BA
 lq
 BI
 je
-:-bl  bad label if we've reached the end
+:-!l  bad label if we've reached the end
 JR
 im
 --s=
@@ -1219,7 +1238,7 @@ DA
 jm
 :-wr
 // literal byte
-::x#
+::#b
 im
 --LI
 BA
@@ -1735,8 +1754,22 @@ jm
 :-wr
 ::S)
 SA
-// handle "call :label"
+// handle call :label / call A
 ::cl
+im
+##5. add 5 to line pointer to get pointer to label name
+BA
+im
+--LI
++B
+BA
+zA
+lb
+BAs
+im
+##41.
+je
+:-ca   call a
 im
 ##5.  add 5 to line pointer to get pointer to label name
 BA
@@ -1747,6 +1780,8 @@ BA
 im
 --l@
 cl
+// intentional fallthrough
+::ca
 // emit 'call rax'
 im
 --Cl  instruction
@@ -1761,6 +1796,35 @@ jm
 :-rl  jump back to read next line
 ::Cl
 cl
+// handle "syscall <number>"
+::sy
+im
+##8.
+BA
+im
+--LI
++B     add 8 to line pointer to get pointer to number
+BA
+im
+--nu
+cl     get syscall number
+BA
+im
+--im
+cl     write 'mov rax, <syscall number>'
+im
+--Sy
+IA
+im
+##2.
+DA
+im
+--wr
+cl     write 'syscall'
+jm
+:-rl   next line
+::Sy
+sy
 // write to output file from rsi..rsi+rdx
 ::wr
 im
@@ -1820,8 +1884,32 @@ im
 ##78. ascii 'x'
 je
 :-#x  hexadecimal
+im
+##27. ascii '
+je
+:-#'  ascii character
 jm
 :-!n  unrecognized number base
+// convert character pointed to by rsi to character code in rax
+::#'
+// make sure there's no trailing characters
+im
+##1.
+BI
++B
+BA
+zA
+lb
+BA
+im
+##a.
+jn
+:-!n
+// okay, no trailing characters, just set rax = *rsi
+BI
+zA
+lb
+re
 // convert newline-terminated decimal representation in rsi to number in rax
 ::#d
 zA
@@ -1982,13 +2070,57 @@ jm
 :-ex
 // end of file
 ::ef
-// TODO: second pass
-zA  exit code 0
+im
+--2P
+BA
+zA
+lb
+DA
+// set 2P to 1 no matter what
+im
+##1.
+sb
+BD
+zA
+jn    if 2nd pass is not zero,
+:-ex   exit
+// okay we need to do the second pass.
+// rewind file descriptors
+// input
+im
+##3.
+JA
+zA
+IA
+DA
+im
+##8.  lseek
+sy
+// output
+im
+##4.
+JA
+zA
+IA
+DA
+im
+##8.  lseek
+sy
+// now go back to do the second pass
 jm
-:-ex
+:-2p
 ::2P  second pass?
 00
 ::CL  "call" text
+'c
+'a
+'l
+'l
+20
+::SY  "syscall" text
+'s
+'y
+'s
 'c
 'a
 'l

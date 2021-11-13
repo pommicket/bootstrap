@@ -1,0 +1,39 @@
+
+D]=d7
+D]=C
+D^=C
+D|=C
+D&=C
+~C
+B|=A
+8D=C
+A=1B
+B>=d33
+call :funciton
+x4b
+!:label
+?J<B:label
+:label
+1B=C
+;      :l ba b
+;J=d0
+A=d60
+syscall x3c
+;;;;;;;;;;;;;;;;;;;;;;;align
+:label
+;;;;;;;;;;;;;;;;;;;;;;;reserve d1000
+B+=J
+B<=d9
+B-=J
+?J=B:label
+?A!B:label
+?A>B:label
+A=:label
+x3c
+;;;;;;;;;;;;;;;;;;;;;;;return
+;;;;;;;;;;;;;;;;;;;;;;;*-
+;;;;;;;;;;;;;;;;;;;;;;;/-
+;;;;;;;;;;;;;;;;;;;;;;;*+
+;;;;;;;;;;;;;;;;;;;;;;;/+
+:funciton
+call A

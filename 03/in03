@@ -1,43 +1,24 @@
-
-D]=d7
-e
-
-D]=C
-D^=C
-D|=C
-D&=C
-~C
-B|=A
-8D=C
-e
-A=1B
-B>=d33
-e
-call :funciton
-x4b
-!:label
-?J<B:label
-:label
-e
-1B=C
-;      :l ba b
-;J=d0
-A=d60
+J=d1
+I=:hello_world
+D=:hello_world_end
+D-=I
+syscall d1
+J=d42
 syscall x3c
-align
-:label
-reserve d1000
-B+=J
-B<=d9
-B-=J
-?J=B:label
-?A!B:label
-?A>B:label
-A=:label
-x3c
-return
--*
--/
-+*
-+/
 
+:hello_world
+'H
+'e
+'l
+'l
+'o
+',
+x20
+'w
+'o
+'r
+'l
+'d
+'!
+xa
+:hello_world_end
