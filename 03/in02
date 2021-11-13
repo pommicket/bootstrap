@@ -233,6 +233,51 @@ im
 ##1.
 je
 :-st
+im
+--RE  "reserve"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-re
+im
+##a.
+CA   set '\n' as terminator
+im
+--RT  "return"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-rt
+im
+--AL  "align"
+IA
+im
+--LI
+JA
+im
+--s=
+cl
+BA
+im
+##1.
+je
+:-al
 jm
 :-ex
 // handle += instruction
@@ -1834,6 +1879,30 @@ im
 cl
 jm
 :-rl  next line
+// handle "reserve <number>"
+::re
+im
+##8.
+BA
+im
+--LI
++B
+BA
+im
+--nu
+cl
+IA   offset
+im
+##4. output fd
+JA
+im
+##1. whence = SEEK_CUR
+DA
+im
+##8. syscall 8 = lseek
+sy
+jm
+:-rl  next line
 // handle "syscall <number>"
 ::sy
 im
@@ -2047,6 +2116,55 @@ jm
 ::x$
 AJ
 re  return
+// deal with "return"
+::rt
+im
+--Rt
+IA
+im
+##1.
+DA
+im
+--wr
+cl
+jm
+:-rl  next line
+// deal with "align"
+::al
+// first get current address
+im
+##4. output fd
+JA
+zA
+IA   offset = 0
+im
+##1. whence = SEEK_CUR
+DA
+im
+##8. syscall 8 = lseek
+sy
+BA
+im
+##8.
++B
+BA
+im
+##fffffffffffffff8.
+&B
+// okay rax now holds address we should seek to
+IA  offset
+zA
+DA   whence = SEEK_SET
+im
+##4. output fd
+JA
+im
+##8.  lseek
+sy
+jm
+:-rl  next line
+::Rt
+re
 // bad instruction
 ::!i
 im
@@ -2169,6 +2287,30 @@ jm
 't
 'r
 20
+::RE  "reserve" text
+'r
+'e
+'s
+'e
+'r
+'v
+'e
+20
+::RT  "return" text
+'r
+'e
+'t
+'u
+'r
+'n
+\n
+::AL  "align" text
+'a
+'l
+'i
+'g
+'n
+\n
 ::IF  input file name
 'i
 'n

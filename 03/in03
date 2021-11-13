@@ -1,3 +1,7 @@
+return
+str Hi
+align
+return
 J=d1
 I=:hello_world
 D=:hello_world_end
