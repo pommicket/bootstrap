@@ -1070,8 +1070,55 @@ BA
 zA
 lb
 BA
+// note: for this we allow numerical operands, e.g. 'C+=d1'
+// we don't need this for ::B2 because it's only used for load instructions
+// (you don't normally need to dereference numerical literals)
+im
+##41.  'A'
+je
+:-r0
+im
+##42.  'B'
+je
+:-AB
+im
+##43.  'C'
+je
+:-AC
+im
+##44.  'D'
+je
+:-AD
+im
+##49.  'I'
+je
+:-AI
+im
+##4a.  'J'
+je
+:-AJ
+im
+##52.  'R'
+je
+:-AR
+im
+##53.  'S'
+je
+:-AS
+// it's a number
+im
+##3.
+BA
+im
+--LI
++B
+BA
+im
+--nu  convert string to number
+cl
+BA
 jm
-:-Ar
+:-im  emit 'mov rax, <number>'
 // emit 'put operand 2 in rbx'
 ::B2
 im
