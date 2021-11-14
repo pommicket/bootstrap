@@ -1,6 +1,6 @@
 # stage 03
-The code for this compiler (the file `in02`, an input for our [stage 02 compiler](../02/README.md))
-is 2700 lines—quite a bit larger than the previous ones. And as we'll see, it's a lot more powerful too.
+The code for this compiler (in the file `in02`, an input for our [stage 02 compiler](../02/README.md))
+is 2700 lines—quite a bit longer than the previous ones.
 To compile it, run `../02/out01` from this directory.
 Let's take a look at `in03`, the example program I've written for it:
 ```
@@ -62,7 +62,7 @@ In addition to `in03`, this directory also has `ex03`,
 which gives examples of all of the instructions supported by this compiler.
 
 Seeing as this is a relatively large compiler,
-here is an overview of how it works:
+here's an overview of how it works:
 
 ## functions
 
@@ -103,7 +103,7 @@ Failing that, we look at the second character, to see if it's
 `=`, `+=`, `-=`, etc. If it doesn't match any of them, we use
 the `::s=` (string equals) function, which conveniently lets you
 set the terminator. We check if the line is equal to `"syscall"`
-up to a terminator of `'&nbsp;'` to check if it's a syscall, for example.
+up to a terminator of `' '` (space) to check if it's a syscall, for example.
 
 ## `+=`, et al.
 
@@ -163,6 +163,6 @@ Functions in this 03 language will probably overwrite the previous values
 of registers. This can make it kind of annoying to call functions, since
 you need to make sure you store away any information you'll need after the function.
 And the language definitely won't be as nice to use as something with real variables. But overall,
-I'm very happy with this compiler, considering it's written in a language with 2-letter label
+I'm very happy with this compiler, especially considering it's written in a language with 2-letter label
 names.
 
