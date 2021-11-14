@@ -1,4 +1,4 @@
-all: out02 out03
+all: out02 out03 README.html
 out02: in02 ../02/out01
 	../02/out01
 out03: out02 in03

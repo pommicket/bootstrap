@@ -24,6 +24,7 @@ hexadecimal digit pairs to a binary file.
 - [stage 01](01/README.md) - a language with comments, and 2-character
 command codes.
 - [stage 02](02/README.md) - a language with labels
+- [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
 - more coming soon (hopefully)
 
 ## prerequisite knowledge
@@ -93,10 +94,10 @@ compile GCC, say, and so all programs around today could be compromised. Of
 course, this is practically definitely not the case, but it's still an
 interesting experiment to try to create a fully trustable compiler.  This
 project can't necessarily even do that though, because the Linux kernel, which
-we depend on, is compiled from C, so we can't fully trust *it*. To *truly*
-create a fully trustable compiler, you'd need to manually write to a USB with a
-circuit, create an operating system from nothing (without even a text editor),
-and then follow this series, or maybe you don't even trust your CPU...
+we depend on, is compiled from C, so we can't fully trust *it*. To
+create a *fully* trustable compiler, you'd need to manually write 
+an operating system to a USB key with a circuit or something,
+assuming you trust your CPU...
 I'll leave that to someone else.
 
 ## license

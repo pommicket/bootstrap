@@ -2886,6 +2886,9 @@ jm
 ~~
 ::LI  line buffer
 ~~
+~~
+~~
+~~
 ::L$  end of current label list
 --LB
 ::LB  labels

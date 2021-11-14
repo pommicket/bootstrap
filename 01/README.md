@@ -1,7 +1,7 @@
 # stage 01
 
 The code for the compiler for this stage is in the file `in00`. And yes, that's
-an input to our previous program, `hexcompile`, from stage 00! To compile it,
+an input to our [previous program](../00/README.html), `hexcompile`, from stage 00! To compile it,
 run `../00/hexcompile` from this directory. You will get a file, `out00`. That
 is the executable for this stage's compiler. Run it (it'll read from the file
 `in01` I've provided) and you'll get a file `out01`. That executable will print

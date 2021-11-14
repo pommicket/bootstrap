@@ -1,42 +1,87 @@
+; You can use registers like variables: rax = A, rbx = B, rcx = C, rdx = D, rsi = I, rdi = J, rsp = S, rbp = R
+; However, because of the way things are implemented, you should be careful about using A/B as variables:
+; they sometimes might not work correctly, and will be overwritten by a lot of statements
+
+; set register to...
+; decimal
+D=d123
+; hexadecimal
+D=x1ef
+; another register
+D=R    we can have a comment here and in some other places. not after numbers or labels though.
+; label address
+D=:label
+; add
 D+=d4
+D+=R
+; subtract
+D-=d123
+D-=R
+; left/right shift (only rcx is supported for variable shifts)
+D<=C
+D<=d33
+D>=C
+D>=x12
+; arithmetic right shift
 D]=d7
 D]=C
-D^=C
-D|=C
-D&=C
-~C
-B|=A
-8D=C
-A=1B
-B>=d33
-call :funciton
-x4b
-!:label
-?J<B:label
-:label
-1B=C
-;      :l ba b
-J=d0
-A=d60
-syscall x3c
-align
-:label
-reserve d1000
-B+=J
-B<=d9
-B-=J
-?J=B:label
-?A!B:label
-?A>B:label
-A=:label
-x3c
+; bitwise xor, or, and
+D^=R
+D|=R
+D&=R
+D^=d1
+D|=d1
+D&=d1
+; bitwise not
+; (this sets D to ~D)
+~D
+; dereference
+;  set 8 bytes at rdx to rbp
+8D=R
+;  set 4 bytes at rdx to ebp
+4D=R
+2D=R
+1D=R
+; set rcx/ecx/cx/cl to 8/4/2/1 bytes at rdx
+C=8D
+C=4D
+C=2D
+C=1D
+; call a function
+call :function
+; return
 return
+; label declarations
+;:function
+;:label
+; literal byte
+x4b
+'H
+'i
+; string
+str This text will appear in the executable!
+; unconditional jump
+!:label
+; conditional jump
+?R<S:label
+?R=S:label
+?R!S:label
+?R>S:label
+; (unsigned comparisons above/below)
+?RaS:label
+?RbS:label
+; syscall
+syscall x3c
+; align to 8 bytes
+align
+; reserve some number of bytes of memory
+reserve d1000
+; signed/unsigned multiply/divide
 imul
 idiv
 mul
 div
-:funciton
-call A
-str Here is some text which will be put in the executable!
-?CaD:label
-
+;   e.g. to compute 5*3 into rcx (note rdx is wiped in the process):
+A=d5
+B=d3
+mul

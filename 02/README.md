@@ -1,6 +1,6 @@
 # stage 02
 
-The compiler for this stage is in the file `in01`, an input for our previous compiler.
+The compiler for this stage is in the file `in01`, an input for our [previous compiler](../01/README.md).
 So if you run `../01/out00`, you'll get the file `out01`, which is
 this stage's compiler.
 The specifics of how this compiler works are in the comments in `in01`, but here I'll
@@ -187,5 +187,5 @@ if you use a label without defining it, it uses address 0, rather than outputtin
 an error message. This could be fixed: if the value in the label table is 0 and we are
 on the second pass, output an error message. Also, duplicate labels aren't detected.
 
-But thanks to labels, for future compilers at least we won't have to calculate
-any jump offsets manually.
+But thanks to labels, at least we won't have to calculate
+any jump offsets manually anymore. With that, let's move on to [stage 03](../03/README.md).

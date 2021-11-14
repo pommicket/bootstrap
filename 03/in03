@@ -1,6 +1,6 @@
-; write to stdout
 B=:hello_world
 call :puts
+; exit code 0
 J=d0
 syscall x3c
 
@@ -11,15 +11,15 @@ x0
 
 ; output null-terminated string in rbx
 :puts
+	R=B
 	call :strlen
-	I=D
 	D=A
+	I=R
 	J=d1
 	syscall d1
 	return
 
 ; calculate length of string in rbx
-; keeps pointer to start of string in rdx, end of string in rsi
 :strlen
 	; keep pointer to start of string
 	D=B
