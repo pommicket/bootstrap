@@ -58,5 +58,15 @@ if [ "$(./out02)" != 'Hello, world!' ]; then
 fi
 cd ..
 
+echo 'Processing stage 03...'
+cd 03
+rm -rf out0[23]
+make -s out03
+if [ "$(./out03)" != 'Hello, world!' ]; then
+	echo_red 'Stage 03 failed.'
+	exit 1
+fi
+cd ..
+
 
 echo_green 'all stages completed successfully!'
