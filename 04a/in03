@@ -1,0 +1,74 @@
+I=8S
+A=d3
+?I!A:usage_error
+; open input file
+	J=S
+	; argv[1] is at *(rsp+16)
+	J+=d16
+	J=8J
+	I=d0
+	syscall x2
+	J=A
+	?J<0:input_file_error
+; open output file
+	J=S
+	; argv[2] is at *(rsp+24)
+	J+=d24
+	J=8J
+	I=x241
+	D=x1ed
+	syscall x2
+	J=A
+	?J<0:output_file_error
+J=d0
+syscall x3c
+
+:usage_error
+	B=:usage_error_message
+	call :error
+	
+:usage_error_message
+	str Please provide an input and an output file.
+	xa
+	x0
+
+:input_file_error
+	B=:input_file_error_message
+	!:error
+
+:input_file_error_message
+	str Couldn't open input file.
+	xa
+	x0
+
+:output_file_error
+	B=:output_file_error_message
+	!:error
+
+:output_file_error_message
+	str Couldn't open output file.
+	xa
+	x0
+
+:error
+	J=B
+	call :strlen
+	D=A
+	I=J
+	J=d2
+	syscall x1
+	J=d1
+	syscall x3c
+	
+:strlen
+	I=B
+	D=B
+	:strlen_loop
+	C=1I
+	?C=0:strlen_ret
+	I+=d1
+	!:strlen_loop
+	:strlen_ret
+	I-=D
+	A=I
+	return
