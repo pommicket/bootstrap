@@ -20,8 +20,182 @@ A=d3
 	syscall x2
 	J=A
 	?J<0:output_file_error
-J=d0
-syscall x3c
+; initialize :definitions_end
+J=:definitions_end
+D=:definitions
+8J=D
+
+:read_line
+; use rbp to store line pointer
+R=:line
+:read_line_loop
+	; read 1 byte into rbp
+	J=d3
+	I=R
+	D=d1
+	syscall x0
+	D=A
+	?D=0:eof
+	
+	; check if the character was a newline:
+	C=1R
+	D=xa
+	?C=D:read_line_loop_end
+	R+=d1
+	!:read_line_loop
+:read_line_loop_end
+
+; check if line = "#define " up to a terminator of ' '.
+C=x20
+I=:#define
+J=:line
+call :string=
+D=A
+?D!0:handle_#define
+
+; handle a normal line
+; R will store a pointer to the current character
+R=:line
+:process_line_loop
+	C=1R
+	B=C
+	call :isident
+	?A!0:process_ident
+		; if *R is not an identifier character, just output it to the file.
+		J=d4
+		B=C
+		call :fputc
+		; check if we reached the end of the line
+		C=1R
+		D=xa
+		?C=A:read_line
+		; increment R, keep looping
+		R+=d1
+		!:process_line_loop
+	:process_ident
+		; if *R is an ident char. look up this identifier in :definitions.
+		; use C to keep pointer to definition
+		C=:definitions
+		:lookup_loop
+			D=1C
+			; check if we reached end of definition table
+			?D=0:lookup_loop_end
+			; check if this entry matches our identifier
+			I=R
+			J=C
+			call :ident=
+			?A!0:perform_substitution
+			; if not, skip over this entry
+			:skip_definition_loop
+				D=1C
+				I=xa
+				C+=d1
+				?I!D:skip_definition_loop
+			!:lookup_loop
+		:lookup_loop_end
+		; this identifier doesn't match anything in the definitions table; just write it.
+		; first, figure out how long it is
+		J=R
+		:length_loop
+			C=1J
+			B=C
+			call :isident
+			?A=0:length_loop_end
+			J+=d1
+			!:length_loop
+		:length_loop_end
+		; now write it.
+		I=R
+		R=J
+		J-=I
+		D=J
+		J=d4
+		syscall x1
+		; keep looping
+		!:process_line_loop
+
+:perform_substitution
+	; right now, I is a pointer to the end of the identifier in :line,
+	; and J is a pointer to the end of the identifier in :definitions.
+	
+	; advance :line pointer for next loop iteration
+	R=I
+	
+	J+=d1
+	; J now points to the definition. let's write it
+	I=J
+	:definition_end_loop
+		C=1I
+		D=xa
+		?C=D:definition_end_loop_end
+		I+=d1
+		!:definition_end_loop
+	:definition_end_loop_end
+	D=I
+	D-=J
+	I=J
+	J=d4
+	syscall x1
+	; process the rest of this line
+	!:process_line_loop
+	
+:eof
+	J=d0
+	syscall x3c
+
+; can the character in rbx appear in an identifier?
+:isident
+	A='0
+	?B<A:return_0
+	; note: 58 = '9' + 1
+	A=d58
+	?B<A:return_1
+	A='A
+	?B<A:return_0
+	; note: 91 = 'z' + 1
+	A=d91
+	?B<A:return_1
+	A='z
+	?B>A:return_0
+	; 96 = 'a' - 1
+	A=d96
+	?B>A:return_1
+	A='_
+	?B=A:return_1
+	!:return_0
+	
+
+:handle_#define
+	J=:definitions_end
+	J=8J
+	; start copy from after "#define"
+	I=:line
+	I+=d8
+	
+	:#define_copy_loop
+		D=1I
+		1J=D
+		I+=d1
+		J+=d1
+		A=xa
+		?D=A:#define_copy_loop_end
+		!:#define_copy_loop
+	:#define_copy_loop_end
+	
+	; update end of definitions
+	D=:definitions_end
+	8D=J
+	; emit newline so we don't screw up line numbers
+	J=d4
+	I=:newline
+	D=d1
+	syscall x1
+	
+	!:read_line
+
+:newline
+	xa
+	
 
 :usage_error
 	B=:usage_error_message
@@ -72,3 +246,77 @@ syscall x3c
 	I-=D
 	A=I
 	return
+
+:#define
+	str #define
+	x20
+	x0
+
+; check if strings in rdi and rsi are equal, up to terminator in rcx
+:string=
+	D=1I
+	A=1J
+	?D!A:return_0
+	?D=C:return_1
+	I+=d1
+	J+=d1
+	!:string=
+
+; check if strings in rdi and rsi are equal, up to the first non-identifier character
+:ident=
+	D=1I
+	B=D
+	call :isident
+	; I ended
+	?A=0:ident=_I_end
+	
+	D=1J
+	B=D
+	call :isident
+	; J ended, but I didn't
+	?A=0:return_0
+	
+	; we haven't reached the end of either
+	D=1I
+	A=1J
+	?D!A:return_0
+	I+=d1
+	J+=d1
+	!:ident=
+:ident=_I_end
+	D=1J
+	B=D
+	call :isident
+	; check if J also ended
+	?A=0:return_1
+	; J didn't end
+	!:return_0
+	
+:return_0
+	A=d0
+	return
+:return_1
+	A=d1
+	return
+
+; write the character in rbx to the file in rdi.
+:fputc
+	C=B
+	I=S
+	I-=d1
+	1I=C
+	D=d1
+	syscall x1
+	return
+	
+
+align
+:definitions_end
+	reserve d8
+:line
+	reserve d1000
+:definitions
+	reserve d200000
+	
+; we shouldn't end the file with a reserve; we don't handle that properly	
+x00
