@@ -39,7 +39,7 @@ cd ..
 
 echo 'Processing stage 01...'
 cd 01
-rm -f out0[01]
+rm -f out*
 make -s out01
 if [ "$(./out01)" != 'Hello, world!' ]; then
 	echo_red 'Stage 01 failed.'
@@ -50,7 +50,7 @@ cd ..
 
 echo 'Processing stage 02...'
 cd 02
-rm -rf out0[12]
+rm -f out*
 make -s out02
 if [ "$(./out02)" != 'Hello, world!' ]; then
 	echo_red 'Stage 02 failed.'
@@ -60,10 +60,20 @@ cd ..
 
 echo 'Processing stage 03...'
 cd 03
-rm -rf out0[23]
+rm -f out*
 make -s out03
 if [ "$(./out03)" != 'Hello, world!' ]; then
 	echo_red 'Stage 03 failed.'
+	exit 1
+fi
+cd ..
+
+echo 'Processing stage 04a...'
+cd 04a
+rm -f out*
+make -s out04a
+if [ "$(cat out04a)" != "$(printf '\n\nHello, world!')" ]; then
+	echo_red 'Stage 04a failed.'
 	exit 1
 fi
 cd ..

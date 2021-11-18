@@ -68,7 +68,7 @@ R=:line
 		; check if we reached the end of the line
 		C=1R
 		D=xa
-		?C=A:read_line
+		?C=D:read_line
 		; increment R, keep looping
 		R+=d1
 		!:process_line_loop

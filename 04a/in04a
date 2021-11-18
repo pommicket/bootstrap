@@ -1,7 +1,3 @@
-A+B=hello A adfhsakjfhjksah+B
-#define COLON d1
-#define SEMICOLON d2
-#define COMMA d3
-
-A=COLON
-1B=A
+#define H Hello,
+#define W world
+H W!
