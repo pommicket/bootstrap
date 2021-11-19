@@ -1,0 +1,487 @@
+; initialize global_variables_end
+C=:global_variables_end
+D=:global_variables
+8C=D
+; initialize static_memory_end
+C=:static_memory_end
+D=x500000
+
+I=8S
+A=d3
+?I!A:usage_error
+; open input file
+	J=S
+	; argv[1] is at *(rsp+16)
+	J+=d16
+	J=8J
+	I=d0
+	syscall x2
+	J=A
+	?J<0:input_file_error
+; open output file
+	J=S
+	; argv[2] is at *(rsp+24)
+	J+=d24
+	J=8J
+	I=x241
+	D=x1ed
+	syscall x2
+	J=A
+	?J<0:output_file_error
+
+:read_line
+; increment line number
+D=:line_number
+C=8D
+C+=d1
+8D=C
+
+; use rbp to store line pointer
+R=:line
+:read_line_loop
+	; read 1 byte into rbp
+	J=d3
+	I=R
+	D=d1
+	syscall x0
+	D=A
+	?D=0:eof
+	
+	; check if the character was a newline:
+	C=1R
+	D=xa
+	?C=D:read_line_loop_end
+	; check if the character was a tab:
+	D=x9
+	; if so, don't increment rbp
+	?C=D:read_line
+	; check if the character was a semicolon:
+	D=';
+	; if so, it's a comment
+	?C=D:handle_comment
+	
+	R+=d1
+	!:read_line_loop
+
+	:handle_comment
+		; read out rest of line from file
+		J=d3
+		I=R
+		D=d1
+		syscall x0
+		D=A
+		?D=0:eof
+		C=1R
+		D=xa
+		; if we didn't reach the end of the line, keep going
+		?C!D:handle_comment
+		
+		!:read_line_loop_end
+:read_line_loop_end
+
+; remove whitespace (specifically, ' ' characters) at end of line
+I=R
+:remove_terminal_whitespace_loop
+	I-=d1
+	C=1I
+	D=x20
+	?C!D:remove_terminal_whitespace_loop_end
+	; replace ' ' with a newline
+	D=xa
+	1I=D
+	!:remove_terminal_whitespace_loop
+:remove_terminal_whitespace_loop_end
+
+; check if this is a blank line
+C=:line
+D=1C
+C=xa
+?C=D:read_line
+
+I=:line
+J=:"global"
+C=x20
+call :string=
+D=A
+?D!0:handle_global
+
+
+!:read_line
+
+:eof
+	J=d0
+	syscall x3c
+
+:handle_global
+	I=:line
+	; skip "global "
+	I+=d7
+	call :read_type
+	; put type in R
+	R=A
+	; skip ' ' after type
+	I+=d1
+	J=:global_variables_end
+	J=8J
+	call :ident_copy
+	; store type
+	1J=R
+	J+=d1
+	; store address
+	D=:static_memory_end
+	D=8D
+	8J=D
+	; update :static_memory_end
+	D=:static_memory_end
+	C=8D
+	C+=d8
+	8D=C
+	; update :global_variables_end
+	I=:global_variables_end
+	8I=J
+	; go read the next line
+	!:read_line
+
+:"global"
+	str global
+	x20
+
+; copy the newline-terminated identifier from rsi to rdi
+:ident_copy
+	C=1I
+	B=C
+	call :isident
+	D=A
+	?D=0:bad_identifier
+	
+	:ident_loop
+		C=1I
+		D=xa
+		?C=D:ident_loop_end
+		B=C
+		call :isident
+		D=A
+		?D=0:bad_identifier
+		C=1I
+		1J=C
+		I+=d1
+		J+=d1
+		!:ident_loop
+	:ident_loop_end
+	return
+		
+
+; can the character in rbx appear in an identifier?
+:isident
+	A='0
+	?B<A:return_0
+	; note: 58 = '9' + 1
+	A=d58
+	?B<A:return_1
+	A='A
+	?B<A:return_0
+	; note: 91 = 'z' + 1
+	A=d91
+	?B<A:return_1
+	A='z
+	?B>A:return_0
+	; 96 = 'a' - 1
+	A=d96
+	?B>A:return_1
+	A='_
+	?B=A:return_1
+	!:return_0
+
+; read the space-terminated type from rsi, advance rsi, and set rax to the corresponding type number:
+;    0 for non-pointer types
+;    1 for pointer to char
+;    2 for pointer to short
+;    4 for pointer to int
+;    8 for pointer to long
+:read_type
+	C=1I
+	D='*
+	?C=D:read_pointer_type
+		; it's not a pointer
+		call :read_simple_type
+		A=d0
+		return
+	:read_pointer_type
+		; it's a pointer!
+		I+=d1
+		!:read_simple_type
+	
+; returns 1 for char, 2 for short, 4 for int, 8 for long
+:read_simple_type
+	R=I
+	C=x20
+	I=R
+	J=:"char"
+	call :string=
+	D=A
+	?D!0:return_1
+	I=R
+	J=:"short"
+	call :string=
+	D=A
+	?D!0:return_2
+	I=R
+	J=:"int"
+	call :string=
+	D=A
+	?D!0:return_4
+	I=R
+	J=:"long"
+	call :string=
+	D=A
+	?D!0:return_8
+	!:bad_type
+
+:"char"
+	str char
+	x20
+:"short"
+	str short
+	x20
+:"int"
+	str int
+	x20
+:"long"
+	str long
+	x20
+
+
+:usage_error
+	B=:usage_error_message
+	call :general_error
+	
+:usage_error_message
+	str Please provide an input and an output file.
+	xa
+	x0
+
+:input_file_error
+	B=:input_file_error_message
+	!:general_error
+
+:input_file_error_message
+	str Couldn't open input file.
+	xa
+	x0
+
+:output_file_error
+	B=:output_file_error_message
+	!:general_error
+
+:output_file_error_message
+	str Couldn't open output file.
+	xa
+	x0
+
+:bad_identifier
+	B=:bad_identifier_error_message
+	!:program_error
+
+:bad_identifier_error_message
+	str Bad identifier.
+	xa
+	x0
+	
+:bad_type
+	B=:bad_type_error_message
+	!:program_error
+
+:bad_type_error_message
+	str Bad type.
+	xa
+	x0
+
+:general_error
+	call :eputs
+	J=d1
+	syscall x3c
+
+:program_error
+	R=B
+	
+	B=:"Line"
+	call :eputs
+	
+	D=:line_number
+	D=8D
+	B=D
+	call :eputn
+	
+	B=:line_number_separator
+	call :eputs
+	
+	B=R
+	call :eputs
+	J=d1
+	syscall x3c
+
+:"Line"
+	str Line
+	x20
+	x0
+
+:line_number_separator
+	str :
+	x20
+	x0
+	
+:strlen
+	I=B
+	D=B
+	:strlen_loop
+	C=1I
+	?C=0:strlen_ret
+	I+=d1
+	!:strlen_loop
+	:strlen_ret
+	I-=D
+	A=I
+	return
+
+; check if strings in rdi and rsi are equal, up to terminator in rcx
+:string=
+	D=1I
+	A=1J
+	?D!A:return_0
+	?D=C:return_1
+	I+=d1
+	J+=d1
+	!:string=
+
+; check if strings in rdi and rsi are equal, up to the first non-identifier character
+:ident=
+	D=1I
+	B=D
+	call :isident
+	; I ended
+	?A=0:ident=_I_end
+	
+	D=1J
+	B=D
+	call :isident
+	; J ended, but I didn't
+	?A=0:return_0
+	
+	; we haven't reached the end of either
+	D=1I
+	A=1J
+	?D!A:return_0
+	I+=d1
+	J+=d1
+	!:ident=
+:ident=_I_end
+	D=1J
+	B=D
+	call :isident
+	; check if J also ended
+	?A=0:return_1
+	; J didn't end
+	!:return_0
+	
+:return_0
+	A=d0
+	return
+:return_1
+	A=d1
+	return
+:return_2
+	A=d2
+	return
+:return_3
+	A=d3
+	return
+:return_4
+	A=d4
+	return
+:return_5
+	A=d5
+	return
+:return_6
+	A=d6
+	return
+:return_7
+	A=d7
+	return
+:return_8
+	A=d8
+	return
+
+; write the character in rbx to the file in rdi.
+:fputc
+	C=B
+	I=S
+	I-=d1
+	1I=C
+	D=d1
+	syscall x1
+	return
+
+; write the string in rbx to stderr
+:eputs
+	J=B
+	call :strlen
+	D=A
+	I=J
+	J=d2
+	syscall x1
+	return
+	
+; write rbx in decimal to stderr
+:eputn
+	I=B
+	J=S
+	J-=d1
+	:eputn_loop
+		D=d0
+		; divide by 10
+		B=d10
+		A=I
+		div
+		; quotient is new number
+		I=A
+		; add remainder to string
+		D+='0
+		1J=D
+		J-=d1
+		?I!0:eputn_loop
+	D=S
+	D-=J
+	I=J
+	J=d2
+	syscall x1
+	return
+
+; copy rdx bytes from rsi to rdi.
+; this copies from the left: if you're doing an overlapped copy, rsi should be greater than rdi
+:memcpy
+	?D=0:return_0
+	A=1I
+	1J=A
+	I+=d1
+	J+=d1
+	D-=d1
+	!:memcpy
+
+; put a 0 byte before the line (this is important for removing whitespace at the end of the line,
+; specifically, we don't want this to be a space character)
+x0
+:line
+	reserve d1000
+	
+align
+:global_variables_end
+	reserve d8
+:static_memory_end
+	reserve d8
+:line_number
+	reserve d8
+:global_variables
+	reserve d50000
+	
+; we shouldn't end the file with a reserve; we don't handle that properly	
+x00
