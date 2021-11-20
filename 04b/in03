@@ -5,6 +5,11 @@ D=:global_variables
 ; initialize static_memory_end
 C=:static_memory_end
 D=x500000
+8C=D
+; initialize labels_end
+C=:labels_end
+D=:labels
+8C=D
 
 I=8S
 A=d3
@@ -103,6 +108,9 @@ C=:line
 D=1C
 C=xa
 ?C=D:read_line
+
+C=':
+?C=D:handle_label_definition
 
 I=:line
 J=:"global"
@@ -245,6 +253,49 @@ D=A
 :mov_rbp_rsp
 	R=S
 
+:handle_label_definition
+	; make sure label only has identifier characters
+	I=:line
+	I+=d1
+	:label_checking_loop
+		C=1I
+		D=xa
+		?C=D:label_checking_loop_end
+		I+=d1
+		B=C
+		call :isident
+		D=A
+		?D!0:label_checking_loop
+		!:bad_label
+	:label_checking_loop_end
+	
+	; @TODO: check if already exists
+	
+	J=:labels_end
+	J=8J
+	I=:line
+	I+=d1
+	call :ident_copy
+	R=J
+	
+	J=d4
+	I=d0
+	D=d1
+	syscall x8
+	C=A
+	C+=x400000
+	J=R
+	4J=C
+	J+=d4
+	
+	; update labels_end
+	C=:labels_end
+	8C=J
+	
+	; read the next line
+	!:read_line
+
+
 :handle_return
 	; @TODO: handle argument
 
@@ -280,16 +331,15 @@ D=A
 	
 	:ident_loop
 		C=1I
+		1J=C
+		I+=d1
+		J+=d1
 		D=xa
 		?C=D:ident_loop_end
 		B=C
 		call :isident
 		D=A
 		?D=0:bad_identifier
-		C=1I
-		1J=C
-		I+=d1
-		J+=d1
 		!:ident_loop
 	:ident_loop_end
 	return
@@ -395,6 +445,15 @@ D=A
 
 :bad_identifier_error_message
 	str Bad identifier.
+	xa
+	x0
+
+:bad_label
+	B=:bad_label_error_message
+	!:program_error
+
+:bad_label_error_message
+	str Bad label.
 	xa
 	x0
 	
@@ -577,7 +636,15 @@ D=A
 	J+=d1
 	D-=d1
 	!:memcpy
-
+	
+; copy from rdi to rsi, until byte cl is reached 
+:memccpy
+	D=1I
+	1J=D
+	I+=d1
+	J+=d1
+	?D!C:memccpy
+	return
 
 :"char"
 	str char
@@ -623,13 +690,15 @@ align
 	reserve d8
 :stack_end
 	reserve d8
+:labels_end
+	reserve d8
 :line_number
 	reserve d8
 :global_variables
 	reserve d50000
 :local_variables
 	reserve d20000
-:label_table
+:labels
 	reserve d200000
 
 :ELF_header

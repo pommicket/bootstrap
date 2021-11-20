@@ -73,7 +73,7 @@ function
 	p = &c
 	syscall(1, 1, p, 1, 0, 0, 0, 0)
 	return
-	
+
 :puts
 function
 	argument *char s
