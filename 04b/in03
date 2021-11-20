@@ -153,6 +153,10 @@ D=A
 	J=d0
 	syscall x3c
 
+align
+:local_start
+	reserve d8
+	
 :handle_local
 	R=I
 	
@@ -168,6 +172,18 @@ D=A
 	call :read_type
 	R=A
 	I+=d1
+	
+	; check if already defined
+	C=:local_start
+	8C=I
+	J=:local_variables
+	D=d9
+	call :ident_lookup
+	C=A
+	?C!0:local_redeclaration
+	C=:local_start
+	I=8C
+	
 	J=:local_variables_end
 	J=8J
 	call :ident_copy
@@ -201,8 +217,11 @@ D=A
 	x00
 	x00
 
+align
+:global_start
+	reserve d8
+
 :handle_global
-	; @TODO: check if already exists
 	; skip ' '
 	I+=d1
 	call :read_type
@@ -210,6 +229,19 @@ D=A
 	R=A
 	; skip ' ' after type
 	I+=d1
+	
+	; check if already defined
+	C=:global_start
+	8C=I
+	J=:global_variables
+	D=d9
+	call :ident_lookup
+	C=A
+	?C!0:global_redeclaration
+	C=:global_start
+	I=8C
+	
+	
 	J=:global_variables_end
 	J=8J
 	call :ident_copy
@@ -269,7 +301,13 @@ D=A
 		!:bad_label
 	:label_checking_loop_end
 	
-	; @TODO: check if already exists
+	I=:line
+	I+=d1
+	J=:labels
+	D=d4
+	call :ident_lookup
+	C=A
+	?C!0:label_redefinition
 	
 	J=:labels_end
 	J=8J
@@ -343,8 +381,36 @@ D=A
 		!:ident_loop
 	:ident_loop_end
 	return
-		
 
+align
+:ident_lookup_i
+	reserve d8
+:ident_lookup_sep
+	reserve d8
+
+; look up identifier rsi in list rdi with separation rdx between entries
+; returns address of whatever's right after the identifier in the list, or 0 if not found
+:ident_lookup
+	C=:ident_lookup_sep
+	8C=D
+	C=:ident_lookup_i
+	8C=I
+	
+	:ident_lookup_loop
+		I=:ident_lookup_i
+		I=8I
+		call :ident=
+		C=A
+		; move past terminator
+		J+=d1
+		?C!0:return_J
+		C=:ident_lookup_sep
+		C=8C
+		J+=C
+		C=1J
+		?C=0:return_0
+		!:ident_lookup_loop
+		
 ; can the character in rbx appear in an identifier?
 :isident
 	A='0
@@ -466,6 +532,33 @@ D=A
 	xa
 	x0
 
+:label_redefinition
+	B=:label_redefinition_error_message
+	!:program_error
+
+:label_redefinition_error_message
+	str Label redefinition.
+	xa
+	x0
+
+:global_redeclaration
+	B=:global_redeclaration_error_message
+	!:program_error
+
+:global_redeclaration_error_message
+	str Global variable declared twice.
+	xa
+	x0
+
+:local_redeclaration
+	B=:local_redeclaration_error_message
+	!:program_error
+
+:local_redeclaration_error_message
+	str Local variable declared twice.
+	xa
+	x0
+
 :general_error
 	call :eputs
 	J=d1
@@ -580,7 +673,10 @@ D=A
 :return_8
 	A=d8
 	return
-
+:return_J
+	A=J
+	return
+	
 ; write the character in rbx to the file in rdi.
 :fputc
 	C=B

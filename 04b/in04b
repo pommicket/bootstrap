@@ -11,7 +11,7 @@
 ;     <lvalue> += <rvalue>
 ;     <lvalue> -= <rvalue>
 ;     <function>(<term>, <term>, ...)
-;     syscall(<term>, <term>, ...)
+;     syscall <term>, <term>, ...
 ;     return <rvalue>
 ;     byte <number>
 ; term:
@@ -33,7 +33,7 @@
 ;     <var>[<term>]
 ;     ~<var>
 ;     <function>(<term>, <term>, ...)
-;     syscall(<term>, <term>, ...)
+;     syscall <term>, <term>, ...
 ;     <term> + <term>
 ;     <term> - <term>
 ;    NOTE: *, /, % are signed (imul and idiv)
@@ -71,7 +71,7 @@ function
 	argument char c
 	local *char p
 	p = &c
-	syscall(1, 1, p, 1, 0, 0, 0, 0)
+	syscall 1, 1, p, 1, 0, 0, 0, 0
 	return
 
 :puts
@@ -79,7 +79,7 @@ function
 	argument *char s
 	local long len
 	len = strlen(s)
-	syscall(1, 1, s, len, 0, 0, 0, 0)
+	syscall 1, 1, s, len, 0, 0, 0, 0
 	return
 
 :main
@@ -88,7 +88,7 @@ function
 	hello = `Hello, world!
 `
 	puts(hello)
-	syscall(0x3c, 0, 0, 0, 0, 0, 0, 0)
+	syscall 0x3c, 0, 0, 0, 0, 0, 0, 0
 
 
 :f
