@@ -29,6 +29,12 @@ A=d3
 	J=A
 	?J<0:output_file_error
 
+; write ELF header
+J=d4
+I=:ELF_header
+D=x78
+syscall x1
+
 :read_line
 ; increment line number
 D=:line_number
@@ -54,7 +60,7 @@ R=:line
 	; check if the character was a tab:
 	D=x9
 	; if so, don't increment rbp
-	?C=D:read_line
+	?C=D:read_line_loop
 	; check if the character was a semicolon:
 	D=';
 	; if so, it's a comment
@@ -105,6 +111,33 @@ call :string=
 D=A
 ?D!0:handle_global
 
+I=:line
+J=:"local"
+C=x20
+call :string=
+D=A
+?D!0:handle_local
+I=:line
+J=:"argument"
+C=x20
+call :string=
+D=A
+?D!0:handle_local
+
+I=:line
+J=:"return"
+C=x20
+call :string=
+D=A
+?D!0:handle_return
+
+C=xa
+I=:line
+J=:"function"
+call :string=
+D=A
+?D!0:handle_function
+
 
 !:read_line
 
@@ -112,10 +145,58 @@ D=A
 	J=d0
 	syscall x3c
 
+:handle_local
+	R=I
+	
+	; emit sub rsp, 8
+	J=d4
+	I=:sub_rsp_8
+	D=d7
+	syscall x1
+	
+	I=R
+	; skip ' '
+	I+=d1
+	call :read_type
+	R=A
+	I+=d1
+	J=:local_variables_end
+	J=8J
+	call :ident_copy
+	; store type
+	1J=R
+	J+=d1
+	; store address
+	D=:stack_end
+	D=8D
+	8J=D
+	J+=d8
+	;  store null terminator
+	1J=0
+	; update :stack_end
+	D=:stack_end
+	C=8D
+	C+=d8
+	8D=C
+	; update :local_variables_end
+	I=:local_variables_end
+	8I=J
+	; read the next line
+	!:read_line
+	
+:sub_rsp_8
+	x48
+	x81
+	xec
+	x08
+	x00
+	x00
+	x00
+
 :handle_global
-	I=:line
-	; skip "global "
-	I+=d7
+	; @TODO: check if already exists
+	; skip ' '
+	I+=d1
 	call :read_type
 	; put type in R
 	R=A
@@ -131,6 +212,9 @@ D=A
 	D=:static_memory_end
 	D=8D
 	8J=D
+	J+=d8
+	;  store null terminator
+	1J=0
 	; update :static_memory_end
 	D=:static_memory_end
 	C=8D
@@ -142,9 +226,49 @@ D=A
 	; go read the next line
 	!:read_line
 
-:"global"
-	str global
-	x20
+:handle_function
+	; emit "mov rbp, rsp"
+	J=d4
+	I=:mov_rbp_rsp
+	D=d3
+	syscall x1
+	
+	; reset local variable table
+	D=:local_variables
+	1D=0
+	C=:local_variables_end
+	8C=D
+	
+	; go read the next line
+	!:read_line
+
+:mov_rbp_rsp
+	R=S
+
+:handle_return
+	; @TODO: handle argument
+
+
+	; emit "mov rsp, rbp"
+	J=d4
+	I=:mov_rsp_rbp
+	D=d3
+	syscall x1
+	
+	; emit "ret"
+	J=d4
+	I=:ret
+	D=d1
+	syscall x1
+	
+	; go read the next lines
+	!:read_line	
+
+:mov_rsp_rbp
+	S=R
+
+:ret
+	return
 
 ; copy the newline-terminated identifier from rsi to rdi
 :ident_copy
@@ -236,19 +360,6 @@ D=A
 	D=A
 	?D!0:return_8
 	!:bad_type
-
-:"char"
-	str char
-	x20
-:"short"
-	str short
-	x20
-:"int"
-	str int
-	x20
-:"long"
-	str long
-	x20
 
 
 :usage_error
@@ -467,6 +578,36 @@ D=A
 	D-=d1
 	!:memcpy
 
+
+:"char"
+	str char
+	x20
+:"short"
+	str short
+	x20
+:"int"
+	str int
+	x20
+:"long"
+	str long
+	x20
+
+:"global"
+	str global
+	x20
+:"argument"
+	str argument
+	x20
+:"local"
+	str local
+	x20
+:"return"
+	str return
+	x20
+:"function"
+	str function
+	xa
+
 ; put a 0 byte before the line (this is important for removing whitespace at the end of the line,
 ; specifically, we don't want this to be a space character)
 x0
@@ -478,10 +619,129 @@ align
 	reserve d8
 :static_memory_end
 	reserve d8
+:local_variables_end
+	reserve d8
+:stack_end
+	reserve d8
 :line_number
 	reserve d8
 :global_variables
 	reserve d50000
-	
-; we shouldn't end the file with a reserve; we don't handle that properly	
+:local_variables
+	reserve d20000
+:label_table
+	reserve d200000
+
+:ELF_header
+x7f
+x45
+x4c
+x46
+x02
+x01
+x01
+
+reserve d9
+
+x02
 x00
+
+x3e
+x00
+
+x01
+x00
+x00
+x00
+
+x78
+x00
+x40
+x00
+x00
+x00
+x00
+x00
+
+x40
+x00
+x00
+x00
+x00
+x00
+x00
+x00
+
+reserve d12
+
+x40
+x00
+x38
+x00
+x01
+x00
+x00
+x00
+x00
+x00
+x00
+x00
+
+x01
+x00
+x00
+x00
+
+x07
+x00
+x00
+x00
+
+x78
+x00
+x00
+x00
+x00
+x00
+x00
+x00
+
+x78
+x00
+x40
+x00
+x00
+x00
+x00
+x00
+
+reserve d8
+
+x00
+x00
+x20
+x00
+x00
+x00
+x00
+x00
+
+x00
+x00
+x20
+x00
+x00
+x00
+x00
+x00
+
+x00
+x10
+x00
+x00
+x00
+x00
+x00
+x00
+
+; NOTE: we shouldn't end the file with a reserve; we don't handle that properly	

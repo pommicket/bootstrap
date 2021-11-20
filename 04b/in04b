@@ -52,38 +52,49 @@ global char x
 global short y ;123
 global long z
 
-function strlen(*char s)
+:strlen
+function
+	argument *char s
 	local long len
 	local char c
 	len = 0
-	:strlen.loop
+	:strlen_loop
 	c = s[len]
-	if c == 0 goto strlen.loop_end
+	if c == 0 goto strlen_loop_end
 	len += 1
-	goto strlen.loop
-	:strlen.loop_end
+	goto strlen_loop
+	:strlen_loop_end
 	return len
 
-function putc(char c)
-	local char *p
+:putc
+function
+	argument char c
+	local *char p
 	p = &c
 	syscall(1, 1, p, 1, 0, 0, 0, 0)
 	return
 	
-function puts(*char s)
+:puts
+function
+	argument *char s
 	local long len
 	len = strlen(s)
 	syscall(1, 1, s, len, 0, 0, 0, 0)
 	return
 
-function main()
+:main
+function
 	local *char hello
 	hello = `Hello, world!
 `
 	puts(hello)
 	syscall(0x3c, 0, 0, 0, 0, 0, 0, 0)
 
-function f(*long x, *long y)
+
+:f
+function
+	argument *long x
+	argument *long y
 	local long v
 	local *long p
 	v = *x
