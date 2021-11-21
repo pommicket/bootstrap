@@ -37,10 +37,16 @@ mov byte [rbx], al
 >88 03
 mov al, byte [rbx]
 >8a 03
-mov qword [rsp], rax
->48 89 04 24
-mov rax, qword [rsp]
->48 8b 04 24
+mov rax, qword [rbp+imm32]
+>48 8b 85 IMM32  (note: imm may be negative)
+mov qword [rbp+imm32], rax
+>48 89 85 IMM32  (note: imm may be negative)
+mov qword [rsp], rbp
+>48 89 2c 24
+mov rbp, qword [rsp]
+>48 8b 2c 24
+mov ebx, imm32
+>bb IMM32
 neg rax
 >48 f7 d8
 add rax, rbx
@@ -75,6 +81,8 @@ sar rax, imm8
 >48 c1 f8 IMM8
 sub rsp, imm32
 >48 81 ec IMM32
+add rsp, imm32
+>48 81 c4 IMM32
 cmp rax, rbx
 >48 39 d8
 test rax, rax
@@ -102,3 +110,9 @@ syscall
 nop
 >90
 (more will be added as needed)
+
+to be removed:
+mov qword [rsp], rax
+>48 89 04 24
+mov rax, qword [rsp]
+>48 8b 04 24

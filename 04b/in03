@@ -34,6 +34,7 @@ A=d3
 	J=A
 	?J<0:output_file_error
 
+:second_pass_starting_point
 ; write ELF header
 J=d4
 I=:ELF_header
@@ -150,6 +151,24 @@ D=A
 !:read_line
 
 :eof
+	C=:second_pass
+	D=1C
+	?D!0:exit_success
+	; set 2nd pass to 1
+	1C=d1
+	; seek both files back to start
+	J=d3
+	I=d0
+	D=d0
+	syscall x8
+	J=d4
+	I=d0
+	D=d0
+	syscall x8
+	
+	!:second_pass_starting_point
+	
+:exit_success
 	J=d0
 	syscall x3c
 
@@ -177,7 +196,7 @@ align
 	C=:local_start
 	8C=I
 	J=:local_variables
-	D=d9
+	D=d5
 	call :ident_lookup
 	C=A
 	?C!0:local_redeclaration
@@ -192,9 +211,9 @@ align
 	J+=d1
 	; store address
 	D=:stack_end
-	D=8D
-	8J=D
-	J+=d8
+	D=4D
+	4J=D
+	J+=d4
 	;  store null terminator
 	1J=0
 	; update :stack_end
@@ -222,6 +241,11 @@ align
 	reserve d8
 
 :handle_global
+	; ignore if this is the second pass
+	C=:second_pass
+	C=1C
+	?C!0:read_line
+	
 	; skip ' '
 	I+=d1
 	call :read_type
@@ -234,7 +258,7 @@ align
 	C=:global_start
 	8C=I
 	J=:global_variables
-	D=d9
+	D=d5
 	call :ident_lookup
 	C=A
 	?C!0:global_redeclaration
@@ -250,9 +274,9 @@ align
 	J+=d1
 	; store address
 	D=:static_memory_end
-	D=8D
-	8J=D
-	J+=d8
+	D=4D
+	4J=D
+	J+=d4
 	;  store null terminator
 	1J=0
 	; update :static_memory_end
@@ -267,10 +291,10 @@ align
 	!:read_line
 
 :handle_function
-	; emit "mov rbp, rsp"
+	; emit prologue
 	J=d4
-	I=:mov_rbp_rsp
-	D=d3
+	I=:function_prologue
+	D=d14
 	syscall x1
 	
 	; reset local variable table
@@ -282,10 +306,50 @@ align
 	; go read the next line
 	!:read_line
 
-:mov_rbp_rsp
+:function_prologue
+	; sub rsp, 8
+	x48
+	x81
+	xec
+	x08
+	x00
+	x00
+	x00
+	; mov [rsp], rbp
+	x48
+	x89
+	x2c
+	x24
+	; mov rbp, rsp
 	R=S
+	; total length: 7 + 4 + 3 = 14 bytes
+
+:function_epilogue
+	; mov rsp, rbp
+	S=R
+	; mov rbp, [rsp]
+	x48
+	x8b
+	x2c
+	x24
+	; add rsp, 8
+	x48
+	x81
+	xc4
+	x08
+	x00
+	x00
+	x00
+	; ret
+	return
+	; total length = 15 bytes
 
 :handle_label_definition
+	; ignore if this is the second pass
+	C=:second_pass
+	C=1C
+	?C!0:read_line
+	
 	; make sure label only has identifier characters
 	I=:line
 	I+=d1
@@ -338,16 +402,9 @@ align
 	; @TODO: handle argument
 
 
-	; emit "mov rsp, rbp"
 	J=d4
-	I=:mov_rsp_rbp
-	D=d3
-	syscall x1
-	
-	; emit "ret"
-	J=d4
-	I=:ret
-	D=d1
+	I=:function_epilogue
+	D=d15
 	syscall x1
 	
 	; go read the next lines
@@ -391,6 +448,11 @@ align
 ; look up identifier rsi in list rdi with separation rdx between entries
 ; returns address of whatever's right after the identifier in the list, or 0 if not found
 :ident_lookup
+	C=:second_pass
+	C=1C
+	; use default of 0 on first pass
+	?C!0:return_0
+	
 	C=:ident_lookup_sep
 	8C=D
 	C=:ident_lookup_i
@@ -431,6 +493,104 @@ align
 	A='_
 	?B=A:return_1
 	!:return_0
+
+; set rax to the term in rsi
+:set_rax_to_term
+	R=I
+	
+	C=1I
+	D=''
+	?C=D:term_char
+	
+	C=1I
+	D=d58
+	?C<D:term_number
+	
+	; variable
+	J=:local_variables
+	D=d5
+	call :ident_lookup
+	C=A
+	?C=0:rax2term_try_global
+		; it's a local variable
+		; skip over its type
+		C+=d1
+		; read the offset from rbp
+		D=4C
+		; put negated offset in rcx
+		C=d0
+		C-=D
+		; store negated offset in :rax2term_addr
+		D=:rax2term_addr
+		4D=C
+		
+		J=d4
+		I=:load_rbp_offset_prefix
+		D=d3
+		syscall x1
+		J=d4
+		I=:rax2term_addr
+		D=d4
+		syscall x1
+		
+		
+	:rax2term_try_global
+	J=:global_variables
+	D=d5
+	call :ident_lookup
+	C=A
+	?C=0:bad_term
+	; it's a global variable
+	; skip over its type
+	C+=d1
+	C=4C
+	D=:rax2term_addr
+	4D=C
+	
+	; put address in rbx
+	J=d4
+	I=:mov_ebx_imm32_prefix
+	D=d1
+	syscall x1
+	J=d4
+	I=:rax2term_addr
+	D=d4
+	syscall x1
+	
+	; now load [rbx] into rax
+	J=d4
+	I=:mov_rax_[rbx]
+	D=d3
+	syscall x1
+	
+	return
+
+:term_char
+	; @TODO
+	xcc
+
+:term_number
+	; @TODO
+	xcc
+	
+align
+:rax2term_addr
+	reserve d4
+
+:mov_ebx_imm32_prefix
+	xbb
+
+:mov_rax_[rbx]
+	x48
+	x8b
+	x03
+
+; prefix for mov rax, [rbp+IMM32]
+:load_rbp_offset_prefix
+	x48
+	x8b
+	x85	
+	
 
 ; read the space-terminated type from rsi, advance rsi, and set rax to the corresponding type number:
 ;    0 for non-pointer types
@@ -529,6 +689,15 @@ align
 
 :bad_type_error_message
 	str Bad type.
+	xa
+	x0
+
+:bad_term
+	B=:bad_term_error_message
+	!:program_error
+
+:bad_term_error_message
+	str Bad term.
 	xa
 	x0
 
@@ -796,6 +965,8 @@ align
 	reserve d20000
 :labels
 	reserve d200000
+:second_pass
+	reserve d1
 
 :ELF_header
 x7f
