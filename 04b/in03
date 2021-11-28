@@ -209,9 +209,11 @@ align
 	; store type
 	1J=R
 	J+=d1
-	; store address
-	D=:stack_end
-	D=4D
+	; increase stack_end, store it in J
+	C=:stack_end
+	D=4C
+	D+=d8
+	4C=D
 	4J=D
 	J+=d4
 	;  store null terminator
@@ -241,6 +243,7 @@ align
 	reserve d8
 
 :handle_global
+	xcc
 	; ignore if this is the second pass
 	C=:second_pass
 	C=1C
@@ -302,6 +305,10 @@ align
 	1D=0
 	C=:local_variables_end
 	8C=D
+	
+	; reset stack_end
+	D=:stack_end
+	8D=0
 	
 	; go read the next line
 	!:read_line
@@ -399,15 +406,18 @@ align
 
 
 :handle_return
-	; @TODO: handle argument
-
+	I=:line
+	; "return " is 7 chars long
+	I+=d7
+	
+	call :set_rax_to_term
 
 	J=d4
 	I=:function_epilogue
 	D=d15
 	syscall x1
 	
-	; go read the next lines
+	; go read the next line
 	!:read_line	
 
 :mov_rsp_rbp
@@ -450,8 +460,8 @@ align
 :ident_lookup
 	C=:second_pass
 	C=1C
-	; use default of 0 on first pass
-	?C!0:return_0
+	; use default of 1 on first pass
+	?C=0:return_1
 	
 	C=:ident_lookup_sep
 	8C=D
@@ -463,12 +473,19 @@ align
 		I=8I
 		call :ident=
 		C=A
-		; move past terminator
-		J+=d1
+		; move past terminator of identifier in table
+		:ident_finish_loop
+			D=1J
+			J+=d1
+			A=xa
+			?D!A:ident_finish_loop
+		; check if this was it
 		?C!0:return_J
+		; nope. keep going
 		C=:ident_lookup_sep
 		C=8C
 		J+=C
+		; check if reached the end of the table
 		C=1J
 		?C=0:return_0
 		!:ident_lookup_loop
@@ -509,6 +526,7 @@ align
 	; variable
 	J=:local_variables
 	D=d5
+	xcc
 	call :ident_lookup
 	C=A
 	?C=0:rax2term_try_global
