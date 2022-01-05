@@ -1,4 +1,3 @@
-; types: char, short, int, long, *type
 ; declaration:
 ;     global <type> <name>
 ;     local  <type> <name>
@@ -11,7 +10,7 @@
 ;     <lvalue> += <rvalue>
 ;     <lvalue> -= <rvalue>
 ;     <function>(<term>, <term>, ...)
-;     syscall <term>, <term>, ...
+;     syscall <term> <term> ...
 ;     return <rvalue>
 ;     byte <number>
 ; term:
@@ -29,7 +28,7 @@
 ;     `<string>`
 ;     <var>
 ;     &<var>
-;     *<var>
+;     *1 <var> / *2 <var> / *4 <var> / *8 <var>
 ;     <var>[<term>]
 ;     ~<var>
 ;     <function>(<term>, <term>, ...)
@@ -48,18 +47,20 @@
 
 main() ; hello
 
-global char x
-global short y ;123
-global long z
+global x
+global y ;123
+global z
 
 :strlen
 function
-	argument *char s
-	local long len
-	local char c
+	argument s
+	local len
+	local c
+	local p
 	len = 0
 	:strlen_loop
-	c = s[len]
+	p = s + len
+	c = *1 p
 	if c == 0 goto strlen_loop_end
 	len += 1
 	goto strlen_loop
@@ -68,40 +69,40 @@ function
 
 :putc
 function
-	argument char c
-	local *char p
+	argument c
+	local p
 	p = &c
-	syscall 1, 1, p, 1, 0, 0, 0, 0
+	syscall 1 1 p 1 0 0 0 0
 	return
 
 :puts
 function
-	argument *char s
-	local long len
+	argument s
+	local len
 	len = strlen(s)
-	syscall 1, 1, s, len, 0, 0, 0, 0
+	syscall 1 1 s len 0 0 0 0
 	return
 
 :main
 function
-	local *char hello
+	local hello
 	hello = `Hello, world!
 `
 	puts(hello)
-	syscall 0x3c, 0, 0, 0, 0, 0, 0, 0
+	syscall 0x3c 0 0 0 0 0 0 0
 
 
 :f
 function
-	argument *long x
-	argument *long y
-	local long v
-	local *long p
-	v = *x
-	p = *y
-	*p = v
+	argument x
+	argument y
+	local v
+	local p
+	v = *4x
+	p = *8y
+	*4p = v
 	if v == 0 goto something
-	p[1] = v + 1
-	return p[2]
+	*1p = v + 1
+	return *2p
 	:something
-	return p[1]
+	return *4p

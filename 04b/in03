@@ -243,7 +243,6 @@ align
 	reserve d8
 
 :handle_global
-	xcc
 	; ignore if this is the second pass
 	C=:second_pass
 	C=1C
@@ -262,6 +261,7 @@ align
 	8C=I
 	J=:global_variables
 	D=d5
+	
 	call :ident_lookup
 	C=A
 	?C!0:global_redeclaration
@@ -458,17 +458,15 @@ align
 ; look up identifier rsi in list rdi with separation rdx between entries
 ; returns address of whatever's right after the identifier in the list, or 0 if not found
 :ident_lookup
-	C=:second_pass
-	C=1C
-	; use default of 1 on first pass
-	?C=0:return_1
-	
 	C=:ident_lookup_sep
 	8C=D
 	C=:ident_lookup_i
 	8C=I
 	
 	:ident_lookup_loop
+		; check if reached the end of the table
+		C=1J
+		?C=0:return_0
 		I=:ident_lookup_i
 		I=8I
 		call :ident=
@@ -485,9 +483,6 @@ align
 		C=:ident_lookup_sep
 		C=8C
 		J+=C
-		; check if reached the end of the table
-		C=1J
-		?C=0:return_0
 		!:ident_lookup_loop
 		
 ; can the character in rbx appear in an identifier?
@@ -525,8 +520,8 @@ align
 	
 	; variable
 	J=:local_variables
-	D=d5
 	xcc
+	D=d5
 	call :ident_lookup
 	C=A
 	?C=0:rax2term_try_global
