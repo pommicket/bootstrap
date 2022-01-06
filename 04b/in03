@@ -133,6 +133,13 @@ call :string=
 D=A
 ?D!0:handle_return
 
+I=:line
+J=:"byte"
+C=x20
+call :string=
+D=A
+?D!0:handle_byte
+
 ; set delimiter to newline
 C=xa
 
@@ -141,6 +148,12 @@ J=:"function"
 call :string=
 D=A
 ?D!0:handle_function
+
+I=:line
+J=:"return\n"
+call :string=
+D=A
+?D!0:handle_return
 
 ; check if this is a function call (where we discard the return value)
 I=:line
@@ -194,6 +207,25 @@ I=:line
 align
 :local_variable_name
 	reserve d8
+
+:handle_byte
+	I=:line
+	; 5 = length of "byte "
+	I+=d5
+	call :read_number
+	; make sure byte is 0-255
+	C=A
+	D=xff
+	?CaD:bad_byte
+	; write byte
+	I=:byte
+	1I=C
+	J=d4
+	D=d1
+	syscall x1
+	!:read_line
+:byte
+	reserve d1
 
 :handle_call
 	J=I
@@ -420,11 +452,18 @@ align
 
 :handle_return
 	I=:line
-	; "return " is 7 chars long
-	I+=d7
+	; skip "return"
+	I+=d6
+	C=1I
+	D=xa
+	?C=D:no_return_value
+	
+	; skip ' ' after return
+	I+=d1
 	
 	call :set_rax_to_rvalue
 
+	:no_return_value
 	J=d4
 	I=:function_epilogue
 	D=d15
@@ -520,7 +559,7 @@ align
 	
 	C=1I
 	D=''
-	?C=D:term_char
+	?C=D:term_number
 	D='.
 	?C=D:term_label
 	D=d58
@@ -952,12 +991,7 @@ align
 		; put address in rax
 		I=C
 		!:set_rax_to_immediate
-	
-:term_char
-	I+=d1
-	I=1I
-	!:set_rax_to_immediate
-	
+		
 :number_is_negative
 	reserve d1
 
@@ -969,6 +1003,8 @@ align
 ; set rax to the number in the string at rsi
 :read_number
 	C=1I
+	D=''
+	?C=D:read_char
 	D='-
 	; set rdx to 0 if number is positive, 1 if negative
 	?C=D:read_number_negative
@@ -981,7 +1017,7 @@ align
 	; store away negativity
 	C=:number_is_negative
 	1C=D
-	
+	; check if number starts with 0-9
 	C=1I
 	D='9
 	?C>D:bad_number
@@ -1011,6 +1047,12 @@ align
 	:decimal_number_loop_end
 	!:read_number_output
 
+:read_char
+	I+=d1
+	R=1I
+	I+=d1
+	!:read_number_output
+
 :number_starting_with0
 	I+=d1
 	C=1I	
@@ -1018,12 +1060,9 @@ align
 	?C=D:read_hex_number
 	; otherwise, it should just be 0
 	R=d0
-	!:read_number_output
-	
+	!:read_number_output	
 
 :read_hex_number
-	; 0 followed by something other than x
-	?C!D:bad_number
 	I+=d1
 	; rbp will store the number
 	R=d0
@@ -1283,6 +1322,15 @@ align
 	xa
 	x0
 
+:bad_byte
+	B=:bad_byte_error_message
+	!:program_error
+
+:bad_byte_error_message
+	str Byte not in range 0-255.
+	xa
+	x0
+
 :bad_number
 	B=:bad_number_error_message
 	!:program_error
@@ -1531,6 +1579,12 @@ align
 	x20
 :"return"
 	str return
+	x20
+:"return\n"
+	str return
+	xa
+:"byte"
+	str byte
 	x20
 :"function"
 	str function

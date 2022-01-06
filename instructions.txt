@@ -40,9 +40,11 @@ mov byte [rbx], al
 mov al, byte [rbx]
 >8a 03
 mov rax, qword [rbp+imm32]
->48 8b 85 IMM32  (note: imm may be negative)
+>48 8b 85 IMM32    (note: imm may be negative)
+lea rax, [rbp+imm32]
+>48 8d 85 IMM32    (note: imm may be negative)
 mov qword [rbp+imm32], rax
->48 89 85 IMM32  (note: imm may be negative)
+>48 89 85 IMM32    (note: imm may be negative)
 mov qword [rsp+imm32], rax
 >48 89 84 24 IMM32 (note: imm may be negative)
 mov qword [rsp], rbp

@@ -43,8 +43,123 @@
 ;     <term> < <term>  (left shift)
 ;     <term> > <term>  (unsigned right shift)
 
-main(46) ; hello
 
+syscall(1, 1, .str_hw, 14)
+syscall(0x3c, 42)
+
+:str_hw
+	byte 'H
+	byte 'e
+	byte 'l
+	byte 'l
+	byte 'o
+	byte ',
+	byte 32
+	byte 'w
+	byte 'o
+	byte 'r
+	byte 'l
+	byte 'd
+	byte '!
+	byte 10
+	
+:syscall
+function
+	; I've done some testing, and this should be okay even if
+	; rbp-56 goes beyond the end of the stack.
+	; mov rax, [rbp-16]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc7
+	
+	; mov rax, [rbp-24]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rsi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc6
+	
+	; mov rax, [rbp-32]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdx, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-40]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r10, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-48]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r8, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc0
+	
+	; mov rax, [rbp-56]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xc8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r9, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc1
+	
+	; mov rax, [rbp-8]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; syscall
+	byte 0x0f
+	byte 0x05
+	
+	return
+	
 global x
 global y ;123
 global z
@@ -59,11 +174,6 @@ function
 function
 	return -123
 	
-:syscall
-function
-	; ...
-	byte 0x0f
-	byte 0x05
 
 :strlen
 function
