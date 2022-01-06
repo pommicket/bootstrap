@@ -142,6 +142,21 @@ call :string=
 D=A
 ?D!0:handle_function
 
+; check if this is a function call (where we discard the return value)
+I=:line
+;  (check for an opening bracket not preceded by a space)
+:call_check_loop
+	C=1I
+	D=x20
+	?C=D:call_check_loop_end
+	D=xa
+	?C=D:call_check_loop_end
+	D='(
+	?C=D:handle_call
+	I+=d1
+	!:call_check_loop
+:call_check_loop_end
+
 
 !:read_line
 
@@ -166,6 +181,9 @@ D=A
 	I=d0
 	D=d0
 	syscall x8
+	; set line number to 0
+	C=:line_number
+	8C=0
 	
 	!:second_pass_starting_point
 	
@@ -176,6 +194,16 @@ D=A
 align
 :local_variable_name
 	reserve d8
+
+:handle_call
+	J=I
+	; just use the rvalue function call code
+	C=:rvalue
+	D=:line
+	8C=D
+	I=:line
+	call :rvalue_function_call
+	!:read_line
 	
 :handle_local
 	R=I
@@ -545,7 +573,7 @@ align
 	:rvalue_loop
 		C=1J
 		D='(
-		?C=D:rvalue_function
+		?C=D:rvalue_function_call
 		D=x20
 		?C=D:rvalue_binary_op
 		D=xa
@@ -554,9 +582,112 @@ align
 		J+=d1
 		!:rvalue_loop
 
-:rvalue_function
-	xcc
+align
+:rvalue_function_arg
+	reserve d8
+:rvalue_function_arg_offset
+	reserve d4
 
+:rvalue_function_call
+	I=J
+	I+=d1
+	C=1I
+	D=')
+	?C=D:function_call_no_arguments
+	
+	C=:rvalue_function_arg_offset
+	; set arg offset to -16 (to skip over stack space for return address and rbp)
+	D=xfffffffffffffff0
+	4C=D
+	
+	:rvalue_function_loop
+		C=:rvalue_function_arg
+		8C=I
+		; set <rax> to argument
+		call :set_rax_to_term
+		; set <[rsp-arg_offset]> to rax
+		; first, output prefix
+		J=d4
+		I=:mov_[rsp_offset]_rax_prefix
+		D=d4
+		syscall x1
+		; now decrement offset, and output it
+		I=:rvalue_function_arg_offset
+		C=4I
+		C-=d8
+		4I=C
+		J=d4
+		D=d4
+		syscall x1
+		
+		C=:rvalue_function_arg
+		I=8C
+		; skip over argument
+		:rvalue_function_arg_loop
+			C=1I
+			D=',
+			?C=D:rvalue_function_next_arg
+			D=')
+			?C=D:rvalue_function_loop_end
+			D=xa
+			; no closing bracket
+			?C=D:bad_call
+			I+=d1
+			!:rvalue_function_arg_loop
+		:rvalue_function_next_arg
+		; skip comma
+		I+=d1
+		C=1I
+		D=x20
+		; make sure there's a space after the comma
+		?C!D:bad_call
+		; skip space
+		I+=d1
+		
+		; handle the next argument
+		!:rvalue_function_loop
+	:rvalue_function_loop_end
+	:function_call_no_arguments
+	
+	I+=d1
+	C=1I
+	D=xa
+	; make sure there's nothing after the closing bracket
+	?C!D:bad_term
+	
+	C=:second_pass
+	C=1C
+	?C=0:ignore_function_address
+	; look up function name
+	I=:rvalue
+	I=8I
+	J=:labels
+	call :ident_lookup
+	C=A
+	?C=0:bad_function
+	; read address
+	I=4C
+	:ignore_function_address
+	call :set_rax_to_immediate
+	; write call rax
+	J=d4
+	I=:call_rax
+	D=d2
+	syscall x1
+	; we're done!
+	
+	return
+
+:mov_[rsp_offset]_rax_prefix
+	x48
+	x89
+	x84
+	x24
+	
+:call_rax
+	xff
+	xd0
+	
 :binary_op
 	reserve d1
 :rvalue_binary_op
@@ -852,8 +983,11 @@ align
 	1C=D
 	
 	C=1I
+	D='9
+	?C>D:bad_number
 	D='0
-	?C=D:read_hex_number
+	?C<D:bad_number
+	?C=D:number_starting_with0
 	; it's a decimal number
 	; rbp will store the number
 	R=d0
@@ -876,11 +1010,18 @@ align
 		!:decimal_number_loop
 	:decimal_number_loop_end
 	!:read_number_output
-	
-:read_hex_number
+
+:number_starting_with0
 	I+=d1
-	C=1I
+	C=1I	
 	D='x
+	?C=D:read_hex_number
+	; otherwise, it should just be 0
+	R=d0
+	!:read_number_output
+	
+
+:read_hex_number
 	; 0 followed by something other than x
 	?C!D:bad_number
 	I+=d1
@@ -913,9 +1054,13 @@ align
 	!:read_number_output
 	
 :read_number_output
-	; first, make sure number is followed by space or newline
+	; first, make sure number is followed by space/newline/appropriate punctuation
 	C=1I
 	D=x20
+	?C=D:read_number_valid
+	D=',
+	?C=D:read_number_valid
+	D=')
 	?C=D:read_number_valid
 	D=xa
 	?C=D:read_number_valid
@@ -1129,6 +1274,15 @@ align
 	xa
 	x0
 
+:bad_function
+	B=:bad_function_error_message
+	!:program_error
+
+:bad_function_error_message
+	str No such function.
+	xa
+	x0
+
 :bad_number
 	B=:bad_number_error_message
 	!:program_error
@@ -1144,6 +1298,15 @@ align
 
 :bad_term_error_message
 	str Bad term.
+	xa
+	x0
+	
+:bad_call
+	B=:bad_call_error_message
+	!:program_error
+
+:bad_call_error_message
+	str Bad function call.
 	xa
 	x0
 

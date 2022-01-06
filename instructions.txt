@@ -43,6 +43,8 @@ mov rax, qword [rbp+imm32]
 >48 8b 85 IMM32  (note: imm may be negative)
 mov qword [rbp+imm32], rax
 >48 89 85 IMM32  (note: imm may be negative)
+mov qword [rsp+imm32], rax
+>48 89 84 24 IMM32 (note: imm may be negative)
 mov qword [rsp], rbp
 >48 89 2c 24
 mov rbp, qword [rsp]
