@@ -3,7 +3,6 @@
 ;     local <name>
 ;     argument <name>
 ;     :<label>
-;     .<label>  (local label)
 ; statement:
 ;     <declaration>
 ;     if <term> <==/</>/>=/<=/!=/[/]/[=/]=> <term> goto <label>   NOTE: this uses signed comparisons
@@ -44,30 +43,48 @@
 ;     <term> < <term>  (left shift)
 ;     <term> > <term>  (unsigned right shift)
 
-
-if 0 > -1 goto main
-
-syscall(0x3c, 0)
+main()
 
 :main
 function
-	global str
-	global strp
-	local offset
-	strp = &str
-	*8strp = .str_hw
-	offset = 2
-	offset &= offset
-	offset %= 2
-	*8strp += offset
-	syscall(1, 1, str, 14)
-	syscall(0x3c, 42)
+	puts(.str_hello_world)
+	putc(10) ; newline
+	syscall(0x3c, 0)
+:str_hello_world
+string Hello, world!
+byte 0
 
-:str_hw
-	string Hello, world!
-	byte 10
-	
-	
+:strlen
+function
+	argument s
+	local len
+	local c
+	local p
+	len = 0
+	:strlen_loop
+		p = s + len
+		c = *1p
+		if c == 0 goto strlen_loop_end
+		len += 1
+		goto strlen_loop
+	:strlen_loop_end
+	return len
+
+:putc
+function
+	argument c
+	local p
+	p = &c
+	syscall(1, 1, p, 1)
+	return
+
+:puts
+function
+	argument s
+	local len
+	len = strlen(s)
+	syscall(1, 1, s, len)
+	return
 
 :syscall
 function
@@ -165,76 +182,3 @@ function
 	byte 0x05
 	
 	return
-	
-global x
-global y ;123
-global z
-:test
-function
-	local eee
-	local fff
-	local ggg
-	return test2(eee, 0x223, ggg)
-	
-:test2
-function
-	return -123
-	
-
-:strlen
-function
-	argument s
-	local len
-	local c
-	local p
-	len = 0
-	:strlen_loop
-	p = s + len
-	c = *1p
-	; if c == 0 goto strlen_loop_end
-	len += 1
-	goto strlen_loop
-	:strlen_loop_end
-	return len
-
-:putc
-function
-	argument c
-	local p
-	p = &c
-	syscall(1, 1, p, 1)
-	return
-
-:puts
-function
-	argument s
-	local len
-	len = strlen(s)
-	syscall(1, 1, s, len)
-	return
-
-:main2
-function
-	puts(.str_hello_world)
-	syscall(0x3c, 0)
-:str_hello_world
-string Hello, world!
-byte 10
-byte 0
-
-:f
-function
-	argument x
-	argument y
-	local v
-	local p
-	v = *4x
-	p = *8y
-	;*4p = v
-	;if v == 0 goto something
-	;*1p = v + 1
-	v = *2p
-	return v
-	:something
-	v = *4p
-	return v
