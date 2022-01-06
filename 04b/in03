@@ -11,23 +11,14 @@ C=:labels_end
 D=:labels
 8C=D
 
-I=8S
-A=d3
-?I!A:usage_error
 ; open input file
-	J=S
-	; argv[1] is at *(rsp+16)
-	J+=d16
-	J=8J
+	J=:input_filename
 	I=d0
 	syscall x2
 	J=A
 	?J<0:input_file_error
 ; open output file
-	J=S
-	; argv[2] is at *(rsp+24)
-	J+=d24
-	J=8J
+	J=:output_filename
 	I=x241
 	D=x1ed
 	syscall x2
@@ -126,6 +117,7 @@ C=x20
 call :string=
 D=A
 ?D!0:handle_local
+; arguments are treated the same as local variables
 I=:line
 J=:"argument"
 C=x20
@@ -140,7 +132,9 @@ call :string=
 D=A
 ?D!0:handle_return
 
+; set delimiter to newline
 C=xa
+
 I=:line
 J=:"function"
 call :string=
@@ -173,7 +167,7 @@ D=A
 	syscall x3c
 
 align
-:local_start
+:local_variable_name
 	reserve d8
 	
 :handle_local
@@ -188,27 +182,22 @@ align
 	I=R
 	; skip ' '
 	I+=d1
-	call :read_type
-	R=A
-	I+=d1
+	
+	; store away pointer to variable name
+	C=:local_variable_name
+	8C=I
 	
 	; check if already defined
-	C=:local_start
-	8C=I
 	J=:local_variables
-	D=d5
 	call :ident_lookup
 	C=A
 	?C!0:local_redeclaration
-	C=:local_start
+	C=:local_variable_name
 	I=8C
 	
 	J=:local_variables_end
 	J=8J
 	call :ident_copy
-	; store type
-	1J=R
-	J+=d1
 	; increase stack_end, store it in J
 	C=:stack_end
 	D=4C
@@ -218,11 +207,6 @@ align
 	J+=d4
 	;  store null terminator
 	1J=0
-	; update :stack_end
-	D=:stack_end
-	C=8D
-	C+=d8
-	8D=C
 	; update :local_variables_end
 	I=:local_variables_end
 	8I=J
@@ -241,7 +225,8 @@ align
 align
 :global_start
 	reserve d8
-
+:global_variable_name
+	reserve d8
 :handle_global
 	; ignore if this is the second pass
 	C=:second_pass
@@ -250,43 +235,33 @@ align
 	
 	; skip ' '
 	I+=d1
-	call :read_type
-	; put type in R
-	R=A
-	; skip ' ' after type
-	I+=d1
+	
+	; store away pointer to variable name
+	C=:global_variable_name
+	8C=I
 	
 	; check if already defined
-	C=:global_start
-	8C=I
 	J=:global_variables
-	D=d5
-	
 	call :ident_lookup
 	C=A
 	?C!0:global_redeclaration
-	C=:global_start
-	I=8C
 	
+	C=:global_variable_name
+	I=8C
 	
 	J=:global_variables_end
 	J=8J
 	call :ident_copy
-	; store type
-	1J=R
-	J+=d1
 	; store address
 	D=:static_memory_end
-	D=4D
-	4J=D
+	C=4D
+	4J=C
 	J+=d4
-	;  store null terminator
-	1J=0
-	; update :static_memory_end
-	D=:static_memory_end
-	C=8D
+	; increase static_memory_end
 	C+=d8
-	8D=C
+	4D=C
+	; store null terminator
+	1J=0
 	; update :global_variables_end
 	I=:global_variables_end
 	8I=J
@@ -308,7 +283,7 @@ align
 	
 	; reset stack_end
 	D=:stack_end
-	8D=0
+	4D=0
 	
 	; go read the next line
 	!:read_line
@@ -374,8 +349,7 @@ align
 	
 	I=:line
 	I+=d1
-	J=:labels
-	D=d4
+	J=:global_variables
 	call :ident_lookup
 	C=A
 	?C!0:label_redefinition
@@ -387,6 +361,7 @@ align
 	call :ident_copy
 	R=J
 	
+	; figure out where in the file we are
 	J=d4
 	I=d0
 	D=d1
@@ -394,6 +369,7 @@ align
 	C=A
 	C+=x400000
 	J=R
+	; store address
 	4J=C
 	J+=d4
 	
@@ -452,14 +428,10 @@ align
 align
 :ident_lookup_i
 	reserve d8
-:ident_lookup_sep
-	reserve d8
 
-; look up identifier rsi in list rdi with separation rdx between entries
+; look up identifier rsi in list rdi
 ; returns address of whatever's right after the identifier in the list, or 0 if not found
 :ident_lookup
-	C=:ident_lookup_sep
-	8C=D
 	C=:ident_lookup_i
 	8C=I
 	
@@ -480,9 +452,8 @@ align
 		; check if this was it
 		?C!0:return_J
 		; nope. keep going
-		C=:ident_lookup_sep
-		C=8C
-		J+=C
+		; skip over address:
+		J+=d4
 		!:ident_lookup_loop
 		
 ; can the character in rbx appear in an identifier?
@@ -520,14 +491,10 @@ align
 	
 	; variable
 	J=:local_variables
-	xcc
-	D=d5
 	call :ident_lookup
 	C=A
 	?C=0:rax2term_try_global
 		; it's a local variable
-		; skip over its type
-		C+=d1
 		; read the offset from rbp
 		D=4C
 		; put negated offset in rcx
@@ -546,16 +513,15 @@ align
 		D=d4
 		syscall x1
 		
+		return
 		
 	:rax2term_try_global
 	J=:global_variables
-	D=d5
 	call :ident_lookup
 	C=A
 	?C=0:bad_term
 	; it's a global variable
-	; skip over its type
-	C+=d1
+	; get its address
 	C=4C
 	D=:rax2term_addr
 	4D=C
@@ -579,13 +545,122 @@ align
 	return
 
 :term_char
-	; @TODO
-	xcc
+	I+=d1
+	I=1I
+	!:set_rax_to_immediate
+	
+:number_is_negative
+	reserve d1
 
 :term_number
-	; @TODO
-	xcc
+	C=1I
+	D='-
+	; set rdx to 0 if number is positive, 1 if negative
+	?C=D:term_number_negative
+	D=d0
+	!:term_number_cont
+	:term_number_negative
+	D=d1
+	I+=d1
+	:term_number_cont
+	; store away negativity
+	C=:number_is_negative
+	1C=D
 	
+	C=1I
+	D='0
+	?C=D:term_hex_number
+	; it's a decimal number
+	; rbp will store the number
+	R=d0
+	:decimal_number_loop
+		C=1I
+		D='9
+		?C>D:decimal_number_loop_end
+		D='0
+		?C<D:decimal_number_loop_end
+		C-=D
+		; multiply by 10
+		B=d10
+		A=R
+		mul
+		R=A
+		; add this digit
+		R+=C
+		
+		I+=d1
+		!:decimal_number_loop
+	:decimal_number_loop_end
+	!:term_number_output
+	
+:term_hex_number
+	I+=d1
+	C=1I
+	D='x
+	; 0 followed by something other than x
+	?C!D:bad_term
+	I+=d1
+	; rbp will store the number
+	R=d0
+	:hex_number_loop
+		C=1I
+		D='0
+		?C<D:hex_number_loop_end
+		D=d58
+		?C<D:hex_number_0123456789
+		D='a
+		?C<D:hex_number_loop_end
+		D='f
+		?C>D:hex_number_loop_end
+		; one of the digits a-f
+		D=xffffffffffffffa9
+		!:hex_number_digit
+		:hex_number_0123456789
+		D=xffffffffffffffd0
+		:hex_number_digit
+		C+=D
+		; shift left by 4
+		R<=d4
+		; add digit
+		R+=C
+		I+=d1
+		!:hex_number_loop
+	:hex_number_loop_end
+	!:term_number_output
+	
+:term_number_output
+	; we now have the *unsigned* number in rbp. first, take the sign into consideration
+	C=:number_is_negative
+	D=1C
+	?D=0:number_not_negative
+		; R = -R
+		C=R
+		R=d0
+		R-=C
+	:number_not_negative
+	I=R
+	!:set_rax_to_immediate
+	
+	
+
+; set <rax> to the immediate in rsi.
+:set_rax_to_immediate
+	C=:imm64
+	8C=I
+		
+	; write prefix
+	J=d4
+	D=d2
+	I=:mov_rax_imm64_prefix
+	syscall x1
+	
+	; write immediate
+	J=d4
+	D=d8
+	I=:imm64
+	syscall x1
+	return
+
 align
 :rax2term_addr
 	reserve d4
@@ -593,6 +668,13 @@ align
 :mov_ebx_imm32_prefix
 	xbb
 
+:mov_rax_imm64_prefix
+	x48
+	xb8
+
+align	
+:imm64
+	reserve d8
 :mov_rax_[rbx]
 	x48
 	x8b
@@ -602,62 +684,14 @@ align
 :load_rbp_offset_prefix
 	x48
 	x8b
-	x85	
-	
+	x85
 
-; read the space-terminated type from rsi, advance rsi, and set rax to the corresponding type number:
-;    0 for non-pointer types
-;    1 for pointer to char
-;    2 for pointer to short
-;    4 for pointer to int
-;    8 for pointer to long
-:read_type
-	C=1I
-	D='*
-	?C=D:read_pointer_type
-		; it's not a pointer
-		call :read_simple_type
-		A=d0
-		return
-	:read_pointer_type
-		; it's a pointer!
-		I+=d1
-		!:read_simple_type
-	
-; returns 1 for char, 2 for short, 4 for int, 8 for long
-:read_simple_type
-	R=I
-	C=x20
-	I=R
-	J=:"char"
-	call :string=
-	D=A
-	?D!0:return_1
-	I=R
-	J=:"short"
-	call :string=
-	D=A
-	?D!0:return_2
-	I=R
-	J=:"int"
-	call :string=
-	D=A
-	?D!0:return_4
-	I=R
-	J=:"long"
-	call :string=
-	D=A
-	?D!0:return_8
-	!:bad_type
+:input_filename
+	str in04b
+	x0
 
-
-:usage_error
-	B=:usage_error_message
-	call :general_error
-	
-:usage_error_message
-	str Please provide an input and an output file.
-	xa
+:output_filename
+	str out04b
 	x0
 
 :input_file_error
@@ -693,15 +727,6 @@ align
 
 :bad_label_error_message
 	str Bad label.
-	xa
-	x0
-	
-:bad_type
-	B=:bad_type_error_message
-	!:program_error
-
-:bad_type_error_message
-	str Bad type.
 	xa
 	x0
 
@@ -923,19 +948,6 @@ align
 	J+=d1
 	?D!C:memccpy
 	return
-
-:"char"
-	str char
-	x20
-:"short"
-	str short
-	x20
-:"int"
-	str int
-	x20
-:"long"
-	str long
-	x20
 
 :"global"
 	str global

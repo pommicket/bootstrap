@@ -1,3 +1,6 @@
+:test
+	return -0x3874f
+
 ; declaration:
 ;     global <type> <name>
 ;     local  <type> <name>
@@ -10,8 +13,8 @@
 ;     <lvalue> += <rvalue>
 ;     <lvalue> -= <rvalue>
 ;     <function>(<term>, <term>, ...)
-;     syscall <term> <term> ...
 ;     return <rvalue>
+;     string <str>
 ;     byte <number>
 ; term:
 ;     <var>
@@ -22,17 +25,13 @@
 ;     0xabc
 ; lvalue:
 ;     <var>
-;     *<var>
-;     <var>[<term>]
+;     *1 <var> / *2 <var> / *4 <var> / *8 <var>
 ; rvalue:
-;     `<string>`
 ;     <var>
 ;     &<var>
 ;     *1 <var> / *2 <var> / *4 <var> / *8 <var>
-;     <var>[<term>]
 ;     ~<var>
 ;     <function>(<term>, <term>, ...)
-;     syscall <term>, <term>, ...
 ;     <term> + <term>
 ;     <term> - <term>
 ;    NOTE: *, /, % are signed (imul and idiv)
@@ -50,6 +49,12 @@ main() ; hello
 global x
 global y ;123
 global z
+
+:syscall
+function
+	; ...
+	byte 0x0f
+	byte 0x05
 
 :strlen
 function
@@ -72,7 +77,7 @@ function
 	argument c
 	local p
 	p = &c
-	syscall 1 1 p 1 0 0 0 0
+	syscall(1, 1, p, 1)
 	return
 
 :puts
@@ -80,17 +85,17 @@ function
 	argument s
 	local len
 	len = strlen(s)
-	syscall 1 1 s len 0 0 0 0
+	syscall(1, 1, s, len)
 	return
 
 :main
 function
-	local hello
-	hello = `Hello, world!
-`
-	puts(hello)
-	syscall 0x3c 0 0 0 0 0 0 0
-
+	puts(str_hello_world)
+	syscall(0x3c, 0)
+:str_hello_world
+string Hello, world!
+byte 10
+byte 0
 
 :f
 function
@@ -103,6 +108,8 @@ function
 	*4p = v
 	if v == 0 goto something
 	*1p = v + 1
-	return *2p
+	v = *2p
+	return v
 	:something
-	return *4p
+	v = *4p
+	return v
