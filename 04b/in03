@@ -140,6 +140,13 @@ call :string=
 D=A
 ?D!0:handle_byte
 
+I=:line
+J=:"string"
+C=x20
+call :string=
+D=A
+?D!0:handle_string
+
 ; set delimiter to newline
 C=xa
 
@@ -227,6 +234,27 @@ align
 :byte
 	reserve d1
 
+:handle_string
+	I=:line
+	; 7 = length of "string "
+	I+=d7
+	J=I
+	; find end of string
+	:string_loop
+		C=1J
+		D=xa
+		?C=D:string_loop_end
+		J+=d1
+		!:string_loop
+	:string_loop_end
+	; get length of string
+	D=J
+	D-=I
+	; output fd
+	J=d4
+	syscall x1
+	!:read_line
+	
 :handle_call
 	J=I
 	; just use the rvalue function call code
@@ -1585,6 +1613,9 @@ align
 	xa
 :"byte"
 	str byte
+	x20
+:"string"
+	str string
 	x20
 :"function"
 	str function

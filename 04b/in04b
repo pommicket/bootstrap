@@ -43,26 +43,15 @@
 ;     <term> < <term>  (left shift)
 ;     <term> > <term>  (unsigned right shift)
 
-
 syscall(1, 1, .str_hw, 14)
 syscall(0x3c, 42)
 
 :str_hw
-	byte 'H
-	byte 'e
-	byte 'l
-	byte 'l
-	byte 'o
-	byte ',
-	byte 32
-	byte 'w
-	byte 'o
-	byte 'r
-	byte 'l
-	byte 'd
-	byte '!
+	string Hello, world!
 	byte 10
 	
+	
+
 :syscall
 function
 	; I've done some testing, and this should be okay even if
