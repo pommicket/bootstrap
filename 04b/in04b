@@ -3,9 +3,10 @@
 ;     local <name>
 ;     argument <name>
 ;     :<label>
+;     .<label>  (local label)
 ; statement:
 ;     <declaration>
-;     if <term> <==/</>/>=/<=/!=> <term> goto <label>   NOTE: this uses signed comparisons
+;     if <term> <==/</>/>=/<=/!=/[/]/[=/]=> <term> goto <label>   NOTE: this uses signed comparisons
 ;     goto <label>
 ;     <lvalue> = <rvalue>
 ;     <lvalue> += <rvalue>
@@ -43,8 +44,24 @@
 ;     <term> < <term>  (left shift)
 ;     <term> > <term>  (unsigned right shift)
 
-syscall(1, 1, .str_hw, 14)
-syscall(0x3c, 42)
+
+if 0 > -1 goto main
+
+syscall(0x3c, 0)
+
+:main
+function
+	global str
+	global strp
+	local offset
+	strp = &str
+	*8strp = .str_hw
+	offset = 2
+	offset &= offset
+	offset %= 2
+	*8strp += offset
+	syscall(1, 1, str, 14)
+	syscall(0x3c, 42)
 
 :str_hw
 	string Hello, world!
@@ -173,8 +190,8 @@ function
 	len = 0
 	:strlen_loop
 	p = s + len
-	c = *1 p
-	if c == 0 goto strlen_loop_end
+	c = *1p
+	; if c == 0 goto strlen_loop_end
 	len += 1
 	goto strlen_loop
 	:strlen_loop_end
@@ -196,7 +213,7 @@ function
 	syscall(1, 1, s, len)
 	return
 
-:main
+:main2
 function
 	puts(.str_hello_world)
 	syscall(0x3c, 0)
@@ -213,9 +230,9 @@ function
 	local p
 	v = *4x
 	p = *8y
-	*4p = v
-	if v == 0 goto something
-	*1p = v + 1
+	;*4p = v
+	;if v == 0 goto something
+	;*1p = v + 1
 	v = *2p
 	return v
 	:something

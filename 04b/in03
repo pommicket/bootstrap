@@ -147,6 +147,20 @@ call :string=
 D=A
 ?D!0:handle_string
 
+I=:line
+J=:"goto"
+C=x20
+call :string=
+D=A
+?D!0:handle_goto
+
+I=:line
+J=:"if"
+C=x20
+call :string=
+D=A
+?D!0:handle_if
+
 ; set delimiter to newline
 C=xa
 
@@ -161,6 +175,18 @@ J=:"return\n"
 call :string=
 D=A
 ?D!0:handle_return
+
+; check if this is an assignment
+I=:line
+:assignment_check_loop
+	C=1I
+	D=xa
+	?C=D:assignment_check_loop_end
+	D='=
+	?C=D:handle_assignment
+	I+=d1
+	!:assignment_check_loop
+:assignment_check_loop_end
 
 ; check if this is a function call (where we discard the return value)
 I=:line
@@ -458,7 +484,7 @@ align
 	call :ident_copy
 	R=J
 	
-	; figure out where in the file we are
+	; figure out where in the file we are (using lseek)
 	J=d4
 	I=d0
 	D=d1
@@ -477,6 +503,496 @@ align
 	; read the next line
 	!:read_line
 
+:handle_goto
+	J=d4
+	I=:jmp_prefix
+	D=d1
+	syscall x1
+	I=:line
+	; 5 = length of "goto "
+	I+=d5
+	call :emit_label_jump_address
+	!:read_line
+:jmp_prefix
+	xe9
+
+:handle_if
+	I=:line
+	I+=d3
+	; skip term 1
+	call :go_to_space
+	I+=d1
+	; skip operator
+	call :go_to_space
+	I+=d1
+	; put second operand in rsi
+	call :set_rax_to_term
+	call :set_rsi_to_rax
+	
+	
+	I=:line
+	; length of "if "
+	I+=d3
+	; put first operand in rax
+	call :set_rax_to_term
+	; put second operand in rbx
+	call :set_rbx_to_rsi
+	; emit cmp rax, rbx
+	J=d4
+	I=:cmp_rax_rbx
+	D=d3
+	syscall x1
+	
+	I=:line
+	I+=d3
+	call :go_to_space
+	I+=d1
+	R=I
+	C=x20
+	
+	I=R
+	J=:"=="
+	call :string=
+	I=A
+	?I!0:write_je
+	
+	I=R
+	J=:"!="
+	call :string=
+	I=A
+	?I!0:write_jne
+	
+	I=R
+	J=:">"
+	call :string=
+	I=A
+	?I!0:write_jg
+	
+	I=R
+	J=:"<"
+	call :string=
+	I=A
+	?I!0:write_jl
+	
+	I=R
+	J=:">="
+	call :string=
+	I=A
+	?I!0:write_jge
+	
+	I=R
+	J=:"<="
+	call :string=
+	I=A
+	?I!0:write_jle
+	
+	I=R
+	J=:"]"
+	call :string=
+	I=A
+	?I!0:write_ja
+	
+	I=R
+	J=:"["
+	call :string=
+	I=A
+	?I!0:write_jb
+	
+	I=R
+	J=:"]="
+	call :string=
+	I=A
+	?I!0:write_jae
+	
+	I=R
+	J=:"[="
+	call :string=
+	I=A
+	?I!0:write_jbe
+	
+	!:bad_jump
+	
+	:write_je
+		J=d4
+		I=:je_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jne
+		J=d4
+		I=:jne_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jl
+		J=d4
+		I=:jl_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jg
+		J=d4
+		I=:jg_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jle
+		J=d4
+		I=:jle_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jge
+		J=d4
+		I=:jge_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jb
+		J=d4
+		I=:jb_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_ja
+		J=d4
+		I=:ja_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jbe
+		J=d4
+		I=:jbe_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+	:write_jae
+		J=d4
+		I=:jae_prefix
+		D=d2
+		syscall x1
+		!:if_continue
+	
+:if_continue
+	I=:line
+	I+=d3
+	; skip term 1
+	call :go_to_space
+	I+=d1
+	; skip operator
+	call :go_to_space
+	I+=d1
+	; skip term 2
+	call :go_to_space
+	I+=d1
+	J=:"goto"
+	C=x20
+	call :string=
+	C=A
+	; make sure word after term 2 is "goto"
+	?C=0:bad_jump
+	I+=d1
+	call :emit_label_jump_address
+	!:read_line
+
+:je_prefix
+	x0f
+	x84
+:jne_prefix
+	x0f
+	x85
+:jl_prefix
+	x0f
+	x8c
+:jg_prefix
+	x0f
+	x8f
+:jle_prefix
+	x0f
+	x8e
+:jge_prefix
+	x0f
+	x8d
+:jb_prefix
+	x0f
+	x82
+:ja_prefix
+	x0f
+	x87
+:jbe_prefix
+	x0f
+	x86
+:jae_prefix
+	x0f
+	x83
+
+:cmp_rax_rbx
+	x48
+	x39
+	xd8
+
+align
+:reladdr
+	reserve d4
+
+; emit relative address (for jumping) of label in rsi
+:emit_label_jump_address
+	; address doesn't matter for first pass
+	C=:second_pass
+	C=1C
+	?C=0:jump_ignore_address
+	; look up label; store address in rbp
+	J=:labels
+	call :ident_lookup
+	C=A
+	?C=0:bad_label
+	R=4C
+:jump_ignore_address
+	
+	; first, figure out current address
+	J=d4
+	I=d0
+	D=d1
+	syscall x8
+	C=A
+	; add an additional 4 because the relative address is 4 bytes long
+	C+=x400004
+	
+	; compute relative address
+	D=d0
+	D-=C
+	D+=R
+	; store in :reladdr	
+	C=:reladdr
+	4C=D
+	; output
+	J=d4
+	I=:reladdr
+	D=d4
+	syscall x1
+	return
+
+align
+:assignment_type
+	reserve d8
+:handle_assignment
+	I-=d1
+	C=:assignment_type
+	8C=I
+	
+	I+=d2
+	C=1I
+	D=x20
+	; check for space after =
+	?C!D:bad_assignment
+	I+=d1
+	
+	; set rdi to right-hand side of assignment
+	call :set_rax_to_rvalue
+	call :set_rdi_to_rax
+	
+	J=:assignment_type
+	J=8J
+	C=1J
+	; put newline after lvalue to make parsing easier
+		D=xa
+		1J=D
+		D=x20
+		?C=D:handle_assignment_cont
+			J-=d1
+			D=xa
+			1J=D
+		:handle_assignment_cont
+	D=x20
+	?C=D:handle_plain_assignment
+	D='+
+	?C=D:handle_+=
+	D='-
+	?C=D:handle_-=
+	D='*
+	?C=D:handle_*=
+	D='/
+	?C=D:handle_/=
+	D='%
+	?C=D:handle_%=
+	D='&
+	?C=D:handle_&=
+	D='|
+	?C=D:handle_|=
+	D='^
+	?C=D:handle_^=
+	D='<
+	?C=D:handle_<=
+	D='>
+	?C=D:handle_>=
+	
+	!:bad_assignment
+
+:handle_plain_assignment
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_+=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_add_rax_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_-=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_sub_rax_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_*=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_imul_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_/=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_zero_rdx_idiv_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_%=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_zero_rdx_idiv_rbx
+	call :set_rax_to_rdx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_&=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_and_rax_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_|=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_or_rax_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+
+:handle_^=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rbx_to_rdi
+	call :emit_xor_rax_rbx
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+
+:handle_<=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rcx_to_rdi
+	call :emit_shl_rax_cl
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+	
+:handle_>=
+	I=:line
+	call :set_rax_to_rvalue
+	call :set_rcx_to_rdi
+	call :emit_shr_rax_cl
+	I=:line
+	call :set_lvalue_to_rax
+	!:read_line
+
+align
+:lvalue
+	reserve d8
+
+; set the lvalue in rsi to <rax>
+:set_lvalue_to_rax
+	C=:lvalue
+	8C=I
+	
+	; first, store away <rax> value in <rdi>
+	R=I
+	call :set_rdi_to_rax
+	I=R
+	
+	C=:lvalue
+	I=8C
+	C=1I
+	D='*
+	
+	?C=D:lvalue_deref
+		; not a dereference; just a variable
+		C=:lvalue
+		I=8C
+		call :set_rax_to_address_of_variable
+		call :set_rbx_to_rax
+		call :set_rax_to_rdi
+		call :set_[rbx]_to_rax
+		return
+	:lvalue_deref
+		C=:lvalue
+		I=8C
+		I+=d2
+		call :set_rax_to_address_of_variable
+		call :set_rbx_to_rax
+		call :set_rax_to_[rbx]
+		call :set_rbx_to_rax
+		call :set_rax_to_rdi
+		
+		C=:lvalue
+		I=8C
+		I+=d1
+		C=1I
+		
+		D='1
+		?C=D:lvalue_deref1
+		D='2
+		?C=D:lvalue_deref2
+		D='4
+		?C=D:lvalue_deref4
+		D='8
+		?C=D:lvalue_deref8
+		!:bad_assignment
+	:lvalue_deref1
+		!:set_[rbx]_to_al
+	:lvalue_deref2
+		!:set_[rbx]_to_ax
+	:lvalue_deref4
+		!:set_[rbx]_to_eax
+	:lvalue_deref8
+		!:set_[rbx]_to_rax
 
 :handle_return
 	I=:line
@@ -819,122 +1335,45 @@ align
 
 :rvalue_add
 	call :set_rbx_to_rsi
-	J=d4
-	I=:add_rax_rbx
-	D=d3
-	syscall x1
-	return	
-:add_rax_rbx
-	x48
-	x01
-	xd8
+	!:emit_add_rax_rbx
 
 :rvalue_sub
 	call :set_rbx_to_rsi
-	J=d4
-	I=:sub_rax_rbx
-	D=d3
-	syscall x1
-	return	
-:sub_rax_rbx
-	x48
-	x29
-	xd8
+	!:emit_sub_rax_rbx
 	
 :rvalue_mul
 	call :set_rbx_to_rsi
-	J=d4
-	I=:imul_rbx
-	D=d3
-	syscall x1
-	return	
-:imul_rbx
-	x48
-	xf7
-	xeb
+	!:emit_imul_rbx
 	
 :rvalue_div
 	call :set_rbx_to_rsi
-	call :zero_rdx
-	J=d4
-	I=:idiv_rbx
-	D=d3
-	syscall x1
-	return
-:idiv_rbx
-	x48
-	xf7
-	xfb
+	!:emit_zero_rdx_idiv_rbx
 
 :rvalue_rem
 	call :set_rbx_to_rsi
-	call :zero_rdx
-	J=d4
-	I=:idiv_rbx
-	D=d3
-	syscall x1
+	call :emit_zero_rdx_idiv_rbx
 	call :set_rax_to_rdx
 	return
 
 :rvalue_and
 	call :set_rbx_to_rsi
-	J=d4
-	I=:and_rax_rbx
-	D=d3
-	syscall x1
-	return
-:and_rax_rbx
-	x48
-	x21
-	xd8
+	!:emit_and_rax_rbx
 
 :rvalue_or
 	call :set_rbx_to_rsi
-	J=d4
-	I=:or_rax_rbx
-	D=d3
-	syscall x1
-	return
-:or_rax_rbx
-	x48
-	x09
-	xd8
+	!:emit_or_rax_rbx
 
 :rvalue_xor
 	call :set_rbx_to_rsi
-	J=d4
-	I=:xor_rax_rbx
-	D=d3
-	syscall x1
-	return
-:xor_rax_rbx
-	x48
-	x31
-	xd8
+	!:emit_xor_rax_rbx
 
 :rvalue_shl
 	call :set_rcx_to_rsi
-	J=d4
-	I=:shl_rax_cl
-	D=d3
-	syscall x1
-	return
-:shl_rax_cl
-	x48
-	xd3
-	xe0
+	!:emit_shl_rax_cl
 
 :rvalue_shr
 	call :set_rcx_to_rsi
-	J=d4
-	I=:shr_rax_cl
-	D=d3
-	syscall x1
-	return
-:shr_rax_cl
-	x48
-	xd3
-	xe8
+	!:emit_shr_rax_cl
 
 :rvalue_addressof
 	I+=d1
@@ -1204,6 +1643,15 @@ align
 :mov_rbx_rsi
 	B=I
 
+:set_rbx_to_rdi
+	J=d4
+	I=:mov_rbx_rdi
+	D=d3
+	syscall x1
+	return
+:mov_rbx_rdi
+	B=J
+
 :set_rcx_to_rsi
 	J=d4
 	I=:mov_rcx_rsi
@@ -1213,6 +1661,15 @@ align
 :mov_rcx_rsi
 	C=I
 	
+:set_rcx_to_rdi
+	J=d4
+	I=:mov_rcx_rdi
+	D=d3
+	syscall x1
+	return
+:mov_rcx_rdi
+	C=J
+
 :set_rax_to_rdx
 	J=d4
 	I=:mov_rax_rdx
@@ -1222,6 +1679,15 @@ align
 :mov_rax_rdx
 	A=D
 
+:set_rax_to_rdi
+	J=d4
+	I=:mov_rax_rdi
+	D=d3
+	syscall x1
+	return
+:mov_rax_rdi
+	A=J
+	
 :set_rsi_to_rax
 	J=d4
 	I=:mov_rsi_rax
@@ -1230,6 +1696,15 @@ align
 	return
 :mov_rsi_rax
 	I=A
+
+:set_rdi_to_rax
+	J=d4
+	I=:mov_rdi_rax
+	D=d3
+	syscall x1
+	return
+:mov_rdi_rax
+	J=A
 
 :set_rax_to_[rbx]
 	J=d4
@@ -1272,13 +1747,156 @@ align
 :mov_al_[rbx]
 	x8a
 	x03
+
+
+:set_[rbx]_to_rax
+	J=d4
+	I=:mov_[rbx]_rax
+	D=d3
+	syscall x1
+	return
+:mov_[rbx]_rax
+	x48
+	x89
+	x03
 	
+:set_[rbx]_to_eax
+	J=d4
+	I=:mov_[rbx]_eax
+	D=d2
+	syscall x1
+	return
+:mov_[rbx]_eax
+	x89
+	x03
+	
+:set_[rbx]_to_ax
+	J=d4
+	I=:mov_[rbx]_ax
+	D=d3
+	syscall x1
+	return
+:mov_[rbx]_ax
+	x66
+	x89
+	x03
+	
+:set_[rbx]_to_al
+	J=d4
+	I=:mov_[rbx]_al
+	D=d2
+	syscall x1
+	return
+:mov_[rbx]_al
+	x88
+	x03
+
 	
 :mov_rax_imm64_prefix
 	x48
 	xb8
 
-align	
+:emit_add_rax_rbx
+	J=d4
+	I=:add_rax_rbx
+	D=d3
+	syscall x1
+	return
+:add_rax_rbx
+	x48
+	x01
+	xd8
+	
+:emit_sub_rax_rbx
+	J=d4
+	I=:sub_rax_rbx
+	D=d3
+	syscall x1
+	return
+:sub_rax_rbx
+	x48
+	x29
+	xd8
+
+:emit_and_rax_rbx
+	J=d4
+	I=:and_rax_rbx
+	D=d3
+	syscall x1
+	return
+:and_rax_rbx
+	x48
+	x21
+	xd8
+
+:emit_or_rax_rbx
+	J=d4
+	I=:or_rax_rbx
+	D=d3
+	syscall x1
+	return
+:or_rax_rbx
+	x48
+	x09
+	xd8
+
+:emit_xor_rax_rbx
+	J=d4
+	I=:xor_rax_rbx
+	D=d3
+	syscall x1
+	return
+:xor_rax_rbx
+	x48
+	x31
+	xd8
+
+:emit_shl_rax_cl
+	J=d4
+	I=:shl_rax_cl
+	D=d3
+	syscall x1
+	return
+:shl_rax_cl
+	x48
+	xd3
+	xe0
+
+:emit_shr_rax_cl
+	J=d4
+	I=:shr_rax_cl
+	D=d3
+	syscall x1
+	return
+:shr_rax_cl
+	x48
+	xd3
+	xe8
+
+:emit_imul_rbx
+	J=d4
+	I=:imul_rbx
+	D=d3
+	syscall x1
+	return	
+:imul_rbx
+	x48
+	xf7
+	xeb
+
+:emit_zero_rdx_idiv_rbx
+	call :zero_rdx
+	J=d4
+	I=:idiv_rbx
+	D=d3
+	syscall x1
+	return
+:idiv_rbx
+	x48
+	xf7
+	xfb
+
+align
 :imm64
 	reserve d8
 
@@ -1367,6 +1985,15 @@ align
 	str Bad number.
 	xa
 	x0
+
+:bad_assignment
+	B=:bad_assignment_error_message
+	!:program_error
+
+:bad_assignment_error_message
+	str Bad assignment.
+	xa
+	x0
 	
 :bad_term
 	B=:bad_term_error_message
@@ -1374,6 +2001,15 @@ align
 
 :bad_term_error_message
 	str Bad term.
+	xa
+	x0
+
+:bad_jump
+	B=:bad_jump_error_message
+	!:program_error
+
+:bad_jump_error_message
+	str Bad jump.
 	xa
 	x0
 	
@@ -1596,6 +2232,16 @@ align
 	?D!C:memccpy
 	return
 
+; advance rsi to the next space or newline character
+:go_to_space
+	C=1I
+	D=xa
+	?C=D:return_0
+	D=x20
+	?C=D:return_0
+	I+=d1
+	!:go_to_space
+
 :"global"
 	str global
 	x20
@@ -1617,9 +2263,46 @@ align
 :"string"
 	str string
 	x20
+:"goto"
+	str goto
+	x20
+:"if"
+	str if
+	x20
 :"function"
 	str function
 	xa
+:"=="
+	str ==
+	x20
+:"!="
+	str !=
+	x20
+:">"
+	str >
+	x20
+:"<"
+	str <
+	x20
+:"<="
+	str <=
+	x20
+:">="
+	str >=
+	x20
+:"["
+	str [
+	x20
+:"]"
+	str ]
+	x20
+:"[="
+	str [=
+	x20
+:"]="
+	str ]=
+	x20
+
 :zero
 	x0
 

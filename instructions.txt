@@ -105,10 +105,18 @@ jl rel32
 >0f 8c REL32
 jg rel32
 >0f 8f REL32
+jle rel32
+>0f 8e REL32
+jge rel32
+>0f 8d REL32
 jb rel32
 >0f 82 REL32
 ja rel32
 >0f 87 REL32
+jbe rel32
+>0f 86 REL32
+jae rel32
+>0f 83 REL32
 call rax
 >ff d0
 ret
