@@ -9,6 +9,8 @@ mov rax, imm64
 >48 b8 IMM64
 xor eax, eax (sets rax to 0, much shorter than mov rax, 0)
 >31 c0
+xor edx, edx
+>31 d2
 mov rdest, rsrc
 ax	bx	cx	dx	sp	bp	si	di
 0	3	1	2	4	5	6	7
@@ -51,6 +53,8 @@ neg rax
 >48 f7 d8
 add rax, rbx
 >48 01 d8
+sub rax, rbx
+>48 29 d8
 imul rbx
 >48 f7 eb
 idiv rbx
