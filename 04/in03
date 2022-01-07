@@ -16,6 +16,13 @@ I=8S
 A=d2
 ?I>A:argv_file_names
 	; use default input/output filenames
+	
+	; set :filename appropriately
+	J=:filename
+	I=:input_filename
+	C=d0
+	call :memccpy
+	
 	; open input file
 		J=:input_filename
 		I=d0
@@ -30,7 +37,18 @@ A=d2
 		J=A
 		?J<0:output_file_error
 	!:second_pass_starting_point
-:argv_file_names
+:argv_file_names	
+	; get filenames from command-line arguments
+	
+	; set :filename appropriately
+	I=S
+	; argv[1] is at *(rsp+16)
+	I+=d16
+	I=8I
+	J=:filename
+	C=d0
+	call :memccpy
+	
 	; open input file
 	J=S
 	; argv[1] is at *(rsp+16)
@@ -174,6 +192,13 @@ D=A
 ?D!0:handle_string
 
 I=:line
+J=:"#line"
+C=x20
+call :string=
+D=A
+?D!0:handle_#line
+
+I=:line
 J=:"goto"
 C=x20
 call :string=
@@ -275,19 +300,53 @@ align
 	; 5 = length of "byte "
 	I+=d5
 	call :read_number
+	; store away number in rbp
+	R=A
+	; make sure number is immediately followed by newline
+	C=1I
+	D=xa
+	?C!D:bad_number
 	; make sure byte is 0-255
-	C=A
 	D=xff
-	?CaD:bad_byte
+	?RaD:bad_byte
 	; write byte
 	I=:byte
-	1I=C
+	1I=R
 	J=d4
 	D=d1
 	syscall x1
 	!:read_line
 :byte
 	reserve d1
+
+:handle_#line
+	I=:line
+	; 6 = length of "#line "
+	I+=d6
+	call :read_number
+	; store line number
+	D=A
+	C=:line_number
+	; subtract one so that we specify the number of the *next* line
+	D-=d1
+	8C=D
+	; check character after line number
+	C=1I
+	D=xa
+	; if it's a newline, we're done
+	?C=D:read_line
+	; otherwise, it'd better be a space
+	D=x20
+	?C!D:bad_statement
+	; set the filename
+	I+=d1
+	J=:filename
+	C=xa
+	call :memccpy
+	; we want a null-terminated, not newline-terminated filename
+	J-=d1
+	1J=0
+	!:read_line
 
 :handle_string
 	I=:line
@@ -2139,7 +2198,9 @@ align
 :program_error
 	R=B
 	
-	B=:"Line"
+	B=:filename
+	call :eputs
+	B=:":"
 	call :eputs
 	
 	D=:line_number
@@ -2155,9 +2216,8 @@ align
 	J=d1
 	syscall x3c
 
-:"Line"
-	str Line
-	x20
+:":"
+	str :
 	x0
 
 :line_number_separator
@@ -2346,6 +2406,9 @@ align
 :"string"
 	str string
 	x20
+:"#line"
+	str #line
+	x20
 :"goto"
 	str goto
 	x20
@@ -2408,6 +2471,8 @@ align
 	reserve d8
 :line_number
 	reserve d8
+:filename
+	reserve d80
 :global_variables
 	reserve d50000
 :local_variables

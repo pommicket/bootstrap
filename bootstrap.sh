@@ -68,12 +68,12 @@ if [ "$(./out03)" != 'Hello, world!' ]; then
 fi
 cd ..
 
-echo 'Processing stage 04a...'
-cd 04a
+echo 'Processing stage 04...'
+cd 04
 rm -f out*
-make -s out04a
-if [ "$(cat out04a)" != "$(printf '\n\nHello, world!')" ]; then
-	echo_red 'Stage 04a failed.'
+make -s out04
+if [ "$(./out04)" != 'Hello, world!' ]; then
+	echo_red 'Stage 04 failed.'
 	exit 1
 fi
 cd ..

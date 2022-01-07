@@ -212,6 +212,9 @@ conditionally jump to the specified label. `{operator}` should be one of
 - `return {rvalue}`
 - `string {str}` - places a literal string in the code
 - `byte {number}` - places a literal byte in the code
+- `#line {line number} {filename}` / `#line {line number}` - set line number and optionally the filename for future errors (no code is outputted from this)
+
+The `#line` directive (which also exists in C) seems a bit strange, but its use will be revealed soon.
 
 Now let's get down into the weeds:
 
