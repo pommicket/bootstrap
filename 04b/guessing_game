@@ -1,0 +1,238 @@
+global 0x1000 exit_code
+global y
+y = 4
+exit_code = main()
+exit(exit_code)
+
+function main
+	local secret_number
+	local guess
+	global 32 input_line
+	local p_line
+	p_line = &input_line
+	secret_number = getrand(100)
+	fputs(1, .str_intro)
+	
+	:guess_loop
+		fputs(1, .str_guess)
+		syscall(0, 0, p_line, 30)
+		guess = stoi(p_line)
+		if guess < secret_number goto too_low
+		if guess > secret_number goto too_high
+		fputs(1, .str_got_it)
+		return 0
+		:too_low
+			fputs(1, .str_too_low)
+			goto guess_loop
+		:too_high
+			fputs(1, .str_too_high)
+			goto guess_loop
+
+:str_intro
+	string I'm thinking of a number.
+	byte 10
+	byte 0
+
+:str_guess
+	string Guess what it is:
+	byte 32
+	byte 0
+
+:str_got_it
+	string You got it!
+	byte 10
+	byte 0
+
+:str_too_low
+	string Too low!
+	byte 10
+	byte 0
+
+:str_too_high
+	string Too high!
+	byte 10
+	byte 0
+
+; get a "random" number from 0 to x using the system clock
+function getrand
+	argument x
+	global 16 getrand_time
+	local ptime
+	local n
+	
+	ptime = &getrand_time
+	syscall(228, 1, ptime)
+	ptime += 8 ; nanoseconds at offset 8 in struct timespec
+	n = *4ptime
+	n %= x
+	return n
+
+; returns a pointer to a null-terminated string containing the number given
+function itos
+	global 32 itos_string
+	argument x
+	local c
+	local p
+	p = &itos_string
+	p += 30
+	:itos_loop
+		c = x % 10
+		c += '0
+		*1p = c
+		x /= 10
+		if x == 0 goto itos_loop_end
+		p -= 1
+		goto itos_loop
+	:itos_loop_end
+	return p
+
+
+; returns the number at the start of the given string
+function stoi
+	argument s
+	local p
+	local n
+	local c
+	n = 0
+	p = s
+	:stoi_loop
+		c = *1p
+		if c < '0 goto stoi_loop_end
+		if c > '9 goto stoi_loop_end
+		n *= 10
+		n += c - '0
+		p += 1
+		goto stoi_loop
+	:stoi_loop_end
+	return n
+
+
+function strlen
+	argument s
+	local c
+	local p
+	p = s
+	:strlen_loop
+		c = *1p
+		if c == 0 goto strlen_loop_end
+		p += 1
+		goto strlen_loop
+	:strlen_loop_end
+	return p - s
+
+function fputs
+	argument fd
+	argument s
+	local length
+	length = strlen(s)
+	syscall(1, fd, s, length)
+	return
+	
+
+function fputn
+	argument fd
+	argument n
+	local s
+	s = itos(n)
+	fputs(fd, s)
+	return
+
+function exit
+	argument status_code
+	syscall(0x3c, status_code)
+
+function syscall
+	; I've done some testing, and this should be okay even if
+	; rbp-56 goes beyond the end of the stack.
+	; mov rax, [rbp-16]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc7
+	
+	; mov rax, [rbp-24]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rsi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc6
+	
+	; mov rax, [rbp-32]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdx, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-40]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r10, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-48]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r8, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc0
+	
+	; mov rax, [rbp-56]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xc8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r9, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc1
+	
+	; mov rax, [rbp-8]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; syscall
+	byte 0x0f
+	byte 0x05
+	
+	return

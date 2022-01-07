@@ -26,6 +26,8 @@ command codes.
 - [stage 02](02/README.md) - a language with labels
 - [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
 - more coming soon (hopefully)
+- [stage 04a](04a/README.md) - (interlude) a very simple preprocessor
+- [stage 04b](04b/README.md) - a language with nice functions and local variables
 
 ## prerequisite knowledge
 
@@ -46,6 +48,7 @@ decimal.
 - what a CPU is
 - what a CPU architecture is
 - what a CPU register is
+- what the (call) stack is
 - bits, bytes, kilobytes, etc.
 - bitwise operations (not, or, and, xor, left shift, right shift)
 - 2's complement

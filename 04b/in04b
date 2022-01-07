@@ -1,93 +1,42 @@
-; declaration:
-;     global <name>
-;     local <name>
-;     argument <name>
-;     :<label>
-; statement:
-;     <declaration>
-;     if <term> <==/</>/>=/<=/!=/[/]/[=/]=> <term> goto <label>   NOTE: this uses signed comparisons
-;     goto <label>
-;     <lvalue> = <rvalue>
-;     <lvalue> += <rvalue>
-;     <lvalue> -= <rvalue>
-;     <function>(<term>, <term>, ...)
-;     return <rvalue>
-;     string <str>
-;     byte <number>
-; term:
-;     <var>
-;     .<label>
-;     <number>
-; number:
-;     'c
-;     12345
-;     0xabc
-; lvalue:
-;     <var>
-;     *1<var> / *2<var> / *4<var> / *8<var>
-; rvalue:
-;     <term>
-;     &<var>
-;     *1<var> / *2<var> / *4<var> / *8<var>
-;     ~<term>
-;     <function>(<term>, <term>, ...)
-;     <term> + <term>
-;     <term> - <term>
-;    NOTE: *, /, % are signed (imul and idiv)
-;     <term> * <term>
-;     <term> / <term>
-;     <term> % <term>
-;     <term> & <term>
-;     <term> | <term>
-;     <term> ^ <term>
-;     <term> < <term>  (left shift)
-;     <term> > <term>  (unsigned right shift)
-
 main()
 
-:main
-function
+function main
 	puts(.str_hello_world)
 	putc(10) ; newline
 	syscall(0x3c, 0)
-:str_hello_world
-string Hello, world!
-byte 0
 
-:strlen
-function
+:str_hello_world
+	string Hello, world!
+	byte 0
+
+function strlen
 	argument s
-	local len
 	local c
 	local p
-	len = 0
+	p = s
 	:strlen_loop
-		p = s + len
 		c = *1p
 		if c == 0 goto strlen_loop_end
-		len += 1
+		p += 1
 		goto strlen_loop
 	:strlen_loop_end
-	return len
+	return p - s
 
-:putc
-function
+function putc
 	argument c
 	local p
 	p = &c
 	syscall(1, 1, p, 1)
 	return
 
-:puts
-function
+function puts
 	argument s
 	local len
 	len = strlen(s)
 	syscall(1, 1, s, len)
 	return
 
-:syscall
-function
+function syscall
 	; I've done some testing, and this should be okay even if
 	; rbp-56 goes beyond the end of the stack.
 	; mov rax, [rbp-16]

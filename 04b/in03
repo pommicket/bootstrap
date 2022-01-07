@@ -4,27 +4,53 @@ D=:global_variables
 8C=D
 ; initialize static_memory_end
 C=:static_memory_end
-; 0x40000 = 256KB for code
-D=x440000
+; 0x80000 = 512KB for code
+D=x480000
 8C=D
 ; initialize labels_end
 C=:labels_end
 D=:labels
 8C=D
 
-; open input file
-	J=:input_filename
+I=8S
+A=d2
+?I>A:argv_file_names
+	; use default input/output filenames
+	; open input file
+		J=:input_filename
+		I=d0
+		syscall x2
+		J=A
+		?J<0:input_file_error
+	; open output file
+		J=:output_filename
+		I=x241
+		D=x1ed
+		syscall x2
+		J=A
+		?J<0:output_file_error
+	!:second_pass_starting_point
+:argv_file_names
+	; open input file
+	J=S
+	; argv[1] is at *(rsp+16)
+	J+=d16
+	J=8J
 	I=d0
 	syscall x2
 	J=A
 	?J<0:input_file_error
-; open output file
-	J=:output_filename
+	; open output file
+	J=S
+	; argv[2] is at *(rsp+24)
+	J+=d24
+	J=8J
 	I=x241
 	D=x1ed
 	syscall x2
 	J=A
 	?J<0:output_file_error
+
 
 :second_pass_starting_point
 ; write ELF header
@@ -161,14 +187,15 @@ call :string=
 D=A
 ?D!0:handle_if
 
-; set delimiter to newline
-C=xa
-
 I=:line
 J=:"function"
 call :string=
 D=A
 ?D!0:handle_function
+
+
+; set delimiter to newline
+C=xa
 
 I=:line
 J=:"return\n"
@@ -203,6 +230,7 @@ I=:line
 	!:call_check_loop
 :call_check_loop_end
 
+!:bad_statement
 
 !:read_line
 
@@ -217,6 +245,7 @@ I=:line
 	J=d4
 	I=:static_memory_end
 	I=8I
+	I-=x400000
 	syscall x4d
 	; seek both files back to start
 	J=d3
@@ -292,15 +321,6 @@ align
 	!:read_line
 	
 :handle_local
-	R=I
-	
-	; emit sub rsp, 8
-	J=d4
-	I=:sub_rsp_8
-	D=d7
-	syscall x1
-	
-	I=R
 	; skip ' '
 	I+=d1
 	
@@ -333,22 +353,35 @@ align
 	; update :local_variables_end
 	I=:local_variables_end
 	8I=J
+	
+	; set rsp appropriately
+	C=:rbp_offset
+	J=d0
+	J-=D
+	4C=J
+
+	J=d4
+	I=:lea_rsp_[rbp_offset]
+	D=d7
+	syscall x1
+	
+	
 	; read the next line
 	!:read_line
-	
-:sub_rsp_8
+
+:lea_rsp_[rbp_offset]
 	x48
-	x81
-	xec
-	x08
-	x00
-	x00
-	x00
+	x8d
+	xa5
+:rbp_offset
+	reserve d4
 
 align
 :global_start
 	reserve d8
 :global_variable_name
+	reserve d8
+:global_variable_size
 	reserve d8
 :handle_global
 	; ignore if this is the second pass
@@ -359,6 +392,27 @@ align
 	; skip ' '
 	I+=d1
 	
+	C=1I
+	D='9
+	?C>D:global_default_size
+		; read specific size of global
+		call :read_number
+		D=A
+		C=:global_variable_size
+		8C=D
+		; check and skip space after number
+		C=1I
+		D=x20
+		?C!D:bad_number
+		I+=d1
+		!:global_cont
+	:global_default_size
+		; default size = 8
+		C=:global_variable_size
+		D=d8
+		8C=D
+	:global_cont
+		
 	; store away pointer to variable name
 	C=:global_variable_name
 	8C=I
@@ -380,8 +434,11 @@ align
 	C=4D
 	4J=C
 	J+=d4
-	; increase static_memory_end
-	C+=d8
+	; increase static_memory_end by size
+	D=:global_variable_size
+	D=8D
+	C+=D
+	D=:static_memory_end
 	4D=C
 	; store null terminator
 	1J=0
@@ -392,6 +449,12 @@ align
 	!:read_line
 
 :handle_function
+	I=:line
+	; length of "function "
+	I+=d9
+	; make function name a label
+	call :add_label
+	
 	; emit prologue
 	J=d4
 	I=:function_prologue
@@ -450,14 +513,25 @@ align
 	; total length = 15 bytes
 
 :handle_label_definition
+	I=:line
+	I+=d1
+	call :add_label
+	!:read_line
+
+align
+:label_name
+	reserve d8
+; add the label in rsi to the label list (with the current pc address)
+:add_label
 	; ignore if this is the second pass
 	C=:second_pass
 	C=1C
-	?C!0:read_line
+	?C!0:return_0
+	
+	C=:label_name
+	8C=I
 	
 	; make sure label only has identifier characters
-	I=:line
-	I+=d1
 	:label_checking_loop
 		C=1I
 		D=xa
@@ -470,8 +544,8 @@ align
 		!:bad_label
 	:label_checking_loop_end
 	
-	I=:line
-	I+=d1
+	C=:label_name
+	I=8C
 	J=:labels
 	call :ident_lookup
 	C=A
@@ -479,8 +553,8 @@ align
 	
 	J=:labels_end
 	J=8J
-	I=:line
-	I+=d1
+	C=:label_name
+	I=8C
 	call :ident_copy
 	R=J
 	
@@ -500,8 +574,7 @@ align
 	C=:labels_end
 	8C=J
 	
-	; read the next line
-	!:read_line
+	return
 
 :handle_goto
 	J=d4
@@ -2004,6 +2077,15 @@ align
 	xa
 	x0
 
+:bad_statement
+	B=:bad_statement_error_message
+	!:program_error
+
+:bad_statement_error_message
+	str Bad statement.
+	xa
+	x0
+
 :bad_jump
 	B=:bad_jump_error_message
 	!:program_error
@@ -2205,6 +2287,7 @@ align
 		1J=D
 		J-=d1
 		?I!0:eputn_loop
+	J+=d1
 	D=S
 	D-=J
 	I=J
@@ -2271,7 +2354,7 @@ align
 	x20
 :"function"
 	str function
-	xa
+	x20
 :"=="
 	str ==
 	x20
