@@ -1,4 +1,4 @@
-# stage 03
+# [bootstrap](../README.md) stage 03
 The code for this compiler (in the file `in02`, an input for our [stage 02 compiler](../02/README.md))
 is 2700 lines—quite a bit longer than the previous ones.
 To compile it, run `../02/out01` from this directory.

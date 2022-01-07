@@ -1,4 +1,4 @@
-# stage 01
+# [bootstrap](../README.md) stage 01
 
 The code for the compiler for this stage is in the file `in00`. And yes, that's
 an input to our [previous program](../00/README.html), `hexcompile`, from stage 00! To compile it,

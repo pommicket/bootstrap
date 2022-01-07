@@ -1,4 +1,4 @@
-# stage 02
+# [bootstrap](../README.md) stage 02
 
 The compiler for this stage is in the file `in01`, an input for our [previous compiler](../01/README.md).
 So if you run `../01/out00`, you'll get the file `out01`, which is
@@ -178,7 +178,7 @@ the command `~~` (the end of the command table overlaps with the start of the la
 This command is just 255 bytes of zeros. If you defined a label whose position in the label
 table overlaps with these zeros, you'd screw up the command. But fortunately, this will only happen
 if you include `\r` or a non-printing character in your label names.
-This is so that you can have big buffers to put data in (like our label table from this compiler).
+The `~~` command makes it easier to create big buffers to put data in (like our label table from this compiler).
 
 ## limitations
 

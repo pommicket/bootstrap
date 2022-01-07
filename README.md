@@ -27,11 +27,11 @@ command codes.
 - [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
 - more coming soon (hopefully)
 - [stage 04](04/README.md) - a language with nice functions and local variables
-- [stage 04a](04a/README.md) - (interlude) a very simple preprocessor
+- [stage 04a](04a/README.md) - (interlude) a simple preprocessor
 
 ## prerequisite knowledge
 
-In this series, I want to explain *everything* that's going on. I'm going to
+In this series, I want to *everything* that's going on to be understandable. I'm going to
 need to assume some passing knowledge, so here's a quick overview of what you'll
 want to know before starting.
 You don't need to understand everything about each of these, just get

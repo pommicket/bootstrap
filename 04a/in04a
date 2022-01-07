@@ -1,3 +1,3 @@
 #define H Hello,
-#define W world
+#include test_inc
 H W!

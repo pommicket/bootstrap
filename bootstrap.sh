@@ -78,5 +78,15 @@ if [ "$(./out04)" != 'Hello, world!' ]; then
 fi
 cd ..
 
+echo 'Processing stage 04a...'
+cd 04a
+rm -f out*
+make -s out04a
+if [ "$(sed '/^#/d;/^$/d' out04a)" != 'Hello, world!' ]; then
+	echo_red 'Stage 04a failed.'
+	exit 1
+fi
+cd ..
+
 
 echo_green 'all stages completed successfully!'

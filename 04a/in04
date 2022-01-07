@@ -11,6 +11,9 @@ global output_fd
 
 goto main
 
+global defines
+global defines_end
+
 function main
 	argument argv2
 	argument argv1
@@ -18,6 +21,9 @@ function main
 	argument argc
 	local input_filename
 	local output_filename
+	
+	defines = malloc(4000000)
+	defines_end = defines
 	
 	if argc < 3 goto default_filenames
 		input_filename = argv1
@@ -32,6 +38,9 @@ function main
 	if output_fd >= 0 goto output_file_good
 	file_error(output_filename)
 	:output_file_good
+	preprocess(input_filename, output_fd)
+	close(output_fd)
+	free(defines)
 	exit(0)
 
 :str_default_input_filename
@@ -41,6 +50,203 @@ function main
 :str_default_output_filename
 	string out04a
 	byte 0
+
+function preprocess
+	argument input_filename
+	argument output_fd
+	local input_fd
+	global 2048 line_buf
+	local line
+	local b
+	local p
+	local c
+	local line_number
+	
+	line_number = 0
+	line = &line_buf
+	
+	; first, open the input file
+	input_fd = syscall(2, input_filename, 0)
+	if input_fd >= 0 goto input_file_good
+	file_error(input_filename)
+	:input_file_good
+	
+	; output a line directive
+	fputs(output_fd, .str_line1)
+	fputs(output_fd, input_filename)
+	fputc(output_fd, 10)
+	
+	:preprocess_loop
+		line_number += 1
+		b = fgets(input_fd, line, 2000)
+		if b == 0 goto preprocess_eof
+		b = str_startswith(line, .str_define)
+		if b != 0 goto handle_define
+		b = str_startswith(line, .str_include)
+		if b != 0 goto handle_include
+		
+		; normal line (not #define or #include)
+		p = line
+		:normal_line_loop
+			c = *1p
+			if c == 0 goto normal_line_loop_end
+			; optimization: don't look this up if it doesn't start with an uppercase letter
+			b = isupper(c)
+			if b == 0 goto no_replacement
+			b = look_up_define(p)
+			if b == 0 goto no_replacement
+				; wow! a replacement!
+				fputs(output_fd, b)
+				; advance p past this identifier
+				:advance_loop
+					c = *1p
+					b = is_ident(c)
+					if b == 0 goto normal_line_loop
+					p += 1
+					goto advance_loop
+			:no_replacement
+				fputc(output_fd, c)
+				p += 1
+				goto normal_line_loop
+		:normal_line_loop_end
+		fputc(output_fd, 10)
+		goto preprocess_loop
+		
+		:handle_define
+			local def
+			def = line + 8 ; 8 = length of "#define "
+			; make sure define name only consists of identifier characters
+			p = def
+			c = *1p
+			b = isupper(c)
+			if b == 0 goto bad_define
+			:define_check_loop
+				c = *1p
+				if c == 32 goto define_check_loop_end
+				b = is_ident(c)
+				if b == 0 goto bad_define
+				p += 1
+				goto define_check_loop
+			:define_check_loop_end
+			b = look_up_define(def)
+			if b != 0 goto redefinition
+			defines_end = strcpy(defines_end, def)
+			defines_end += 1
+			fputc(output_fd, 10) ; don't screw up line numbers
+			goto preprocess_loop
+			:bad_define
+				fputs(2, .str_bad_define)
+				fputs(2, line)
+				fputc(2, 10)
+				exit(1)
+			:redefinition
+				fputs(2, .str_redefinition)
+				fputs(2, line)
+				fputc(2, 10)
+				exit(1)
+		:handle_include
+			local included_filename
+			local n
+			included_filename = line + 9 ; 9 = length of "#include "
+			preprocess(included_filename, output_fd)
+			; reset filename and line number
+			fputs(output_fd, .str_line)
+			n = line_number + 1
+			fputn(output_fd, n)
+			fputc(output_fd, 32)
+			fputs(output_fd, input_filename)
+			fputc(output_fd, 10)
+			goto preprocess_loop
+	:preprocess_eof
+	close(input_fd)
+	return
+
+:str_redefinition
+	string Preprocessor redefinition:
+	byte 32
+	byte 0
+	
+:str_bad_define
+	string Bad preprocessor definition:
+	byte 32
+	byte 0
+
+:str_define
+	string #define
+	byte 32
+	byte 0
+
+:str_include
+	string #include
+	byte 32
+	byte 0
+
+:str_line
+	string #line
+	byte 32
+	byte 0
+
+:str_line1
+	string #line
+	byte 32
+	string 1
+	byte 32
+	byte 0
+
+; returns a pointer to the thing str should be replaced with,
+; or 0 if there is no definition for str.
+function look_up_define
+	argument str
+	local lookup
+	local p
+	local c
+	lookup = defines
+	:lookup_loop
+		c = *1lookup
+		if c == 0 goto lookup_not_found	
+		c = ident_eq(str, lookup)
+		if c == 1 goto lookup_found
+		lookup = memchr(lookup, 0)
+		lookup += 1
+		goto lookup_loop
+	:lookup_not_found
+	return 0
+	:lookup_found
+	p = memchr(lookup, 32)
+	return p + 1 ; the character after the space following the name is the replacement
+
+; returns 1 if the identifiers s1 and s2 are equal; 0 otherwise
+function ident_eq
+	argument s1
+	argument s2
+	local p1
+	local p2
+	local c1
+	local c2
+	local b1
+	local b2
+	p1 = s1
+	p2 = s2
+	:ident_eq_loop
+		c1 = *1p1
+		c2 = *1p2
+		b1 = is_ident(c1)
+		b2 = is_ident(c2)
+		if b1 != b2 goto return_0
+		if b1 == 0 goto return_1
+		if c1 != c2 goto return_0
+		p1 += 1
+		p2 += 1
+		goto ident_eq_loop
+
+function is_ident
+	argument c
+	if c < '0 goto return_0
+	if c <= '9 goto return_1
+	if c < 'A goto return_0
+	if c <= 'Z goto return_1
+	if c == '_ goto return_1
+	goto return_0
 
 function file_error
 	argument name
@@ -54,6 +260,33 @@ function file_error
 	byte 32
 	byte 0
 
+function malloc
+	argument size
+	local total_size
+	local memory
+	total_size = size + 8
+	memory = syscall(9, 0, total_size, 3, 0x22, -1, 0)
+	if memory ] 0xffffffffffff0000 goto malloc_failed
+	*8memory = total_size
+	return memory + 8
+
+:malloc_failed
+	fputs(2, .str_out_of_memory)
+	exit(1)
+	
+:str_out_of_memory
+	string Out of memory.
+	byte 10
+	byte 0
+
+function free
+	argument memory
+	local psize
+	local size
+	psize = memory - 8
+	size = *8psize
+	syscall(11, psize, size)
+	return
 
 ; returns a pointer to a null-terminated string containing the number given
 function itos
@@ -94,6 +327,19 @@ function stoi
 	:stoi_loop_end
 	return n
 
+function memchr
+	argument mem
+	argument c
+	local p
+	local a
+	p = mem
+	:memchr_loop
+		a = *1p
+		if a == c goto memchr_loop_end
+		p += 1
+		goto memchr_loop
+	:memchr_loop_end
+	return p
 
 function strlen
 	argument s
@@ -107,6 +353,42 @@ function strlen
 		goto strlen_loop
 	:strlen_loop_end
 	return p - s
+
+function strcpy
+	argument dest
+	argument src
+	local p
+	local q
+	local c
+	p = dest
+	q = src
+	:strcpy_loop
+		c = *1q
+		*1p = c
+		if c == 0 goto strcpy_loop_end
+		p += 1
+		q += 1
+		goto strcpy_loop
+	:strcpy_loop_end
+	return p
+	
+function str_startswith
+	argument s
+	argument prefix
+	local p
+	local q
+	local c1
+	local c2
+	p = s
+	q = prefix
+	:str_startswith_loop
+		c1 = *1p
+		c2 = *1q
+		if c2 == 0 goto return_1
+		if c1 != c2 goto return_0
+		p += 1
+		q += 1
+		goto str_startswith_loop
 
 function fputs
 	argument fd
@@ -141,11 +423,68 @@ function putc
 	argument c
 	fputc(1, c)
 	return
+
+; returns 0 at end of file
+function fgetc
+	argument fd
+	local c
+	local p
+	c = 0
+	p = &c
+	syscall(0, fd, p, 1)
+	return c
+
+; read a line from fd as a null-terminated string
+; returns 0 at end of file, 1 otherwise
+function fgets
+	argument fd
+	argument buf
+	argument size
+	local p
+	local end
+	local c
+	p = buf
+	end = buf + size
 	
+	:fgets_loop
+		c = fgetc(fd)
+		if c == 0 goto fgets_eof
+		if c == 10 goto fgets_eol
+		*1p = c
+		p += 1
+		if p == end goto fgets_eob
+		goto fgets_loop
+		
+	:fgets_eol ; end of line
+	*1p = 0
+	return 1
+	:fgets_eof ; end of file
+	*1p = 0
+	return 0
+	:fgets_eob ; end of buffer
+	p -= 1
+	*1p = 0
+	return 1
+
+function close
+	argument fd
+	syscall(3, fd)
+	return
+
+function isupper
+	argument c
+	if c < 'A goto return_0
+	if c <= 'Z goto return_1
+	goto return_0
+
 function exit
 	argument status_code
 	syscall(0x3c, status_code)
 
+:return_0
+	return 0
+:return_1
+	return 1
 
 function syscall
 	; I've done some testing, and this should be okay even if

@@ -1,4 +1,4 @@
-# stage 00
+# [bootstrap](../README.md) stage 00
 
 This directory contains the file `hexcompile`, a handwritten executable. It
 takes input file `in00` containing space/newline/(any character)-separated

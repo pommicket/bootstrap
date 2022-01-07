@@ -1,4 +1,4 @@
-# stage 04
+# [bootstrap](../README.md) stage 04
 
 As usual, the source for this compiler is `in03`, an input to the [previous compiler](../03/README.md).
 `in04` contains a hello world program written in the stage 4 language.
