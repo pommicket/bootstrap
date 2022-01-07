@@ -11,21 +11,21 @@ function main
 	local p_line
 	p_line = &input_line
 	secret_number = getrand(100)
-	fputs(1, .str_intro)
+	puts(.str_intro)
 	
 	:guess_loop
-		fputs(1, .str_guess)
+		puts(.str_guess)
 		syscall(0, 0, p_line, 30)
 		guess = stoi(p_line)
 		if guess < secret_number goto too_low
 		if guess > secret_number goto too_high
-		fputs(1, .str_got_it)
+		puts(.str_got_it)
 		return 0
 		:too_low
-			fputs(1, .str_too_low)
+			puts(.str_too_low)
 			goto guess_loop
 		:too_high
-			fputs(1, .str_too_high)
+			puts(.str_too_high)
 			goto guess_loop
 
 :str_intro
@@ -61,7 +61,7 @@ function getrand
 	local n
 	
 	ptime = &getrand_time
-	syscall(228, 1, ptime)
+	syscall(228, 0, ptime) ; clock_gettime(CLOCK_REALTIME, ptime)
 	ptime += 8 ; nanoseconds at offset 8 in struct timespec
 	n = *4ptime
 	n %= x
@@ -127,7 +127,11 @@ function fputs
 	length = strlen(s)
 	syscall(1, fd, s, length)
 	return
-	
+
+function puts
+	argument s
+	fputs(1, s)
+	return
 
 function fputn
 	argument fd

@@ -4,8 +4,8 @@ D=:global_variables
 8C=D
 ; initialize static_memory_end
 C=:static_memory_end
-; 0x80000 = 512KB for code
-D=x480000
+; 0x100000 = 1MB for code
+D=x500000
 8C=D
 ; initialize labels_end
 C=:labels_end
@@ -1980,11 +1980,11 @@ align
 	x85
 
 :input_filename
-	str in04b
+	str in04
 	x0
 
 :output_filename
-	str out04b
+	str out04
 	x0
 
 :input_file_error

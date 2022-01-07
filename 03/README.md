@@ -165,4 +165,4 @@ you need to make sure you store away any information you'll need after the funct
 And the language definitely won't be as nice to use as something with real variables. But overall,
 I'm very happy with this compiler, especially considering it's written in a language with 2-letter label
 names.
-With that, let's move on to the [next stage](../04a/README.md).
+With that, let's move on to the [next stage](../04/README.md).

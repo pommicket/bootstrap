@@ -26,8 +26,8 @@ command codes.
 - [stage 02](02/README.md) - a language with labels
 - [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
 - more coming soon (hopefully)
+- [stage 04](04/README.md) - a language with nice functions and local variables
 - [stage 04a](04a/README.md) - (interlude) a very simple preprocessor
-- [stage 04b](04b/README.md) - a language with nice functions and local variables
 
 ## prerequisite knowledge
 
@@ -114,4 +114,4 @@ shall not be held liable in connection with it.
 ## contributing
 
 If you notice a mistake/want to clarify something, you can submit a pull request
-via GitHub, or email `pommicket at pommicket.com`. Translations are welcome!
+via GitHub, or email `pommicket at pommicket.com`.
