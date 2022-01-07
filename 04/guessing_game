@@ -1,6 +1,4 @@
-global 0x1000 exit_code
-global y
-y = 4
+global exit_code
 exit_code = main()
 exit(exit_code)
 

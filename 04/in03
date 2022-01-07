@@ -1554,6 +1554,7 @@ align
 ; set <rax> to address of variable in rsi
 :set_rax_to_address_of_variable
 	J=:local_variables
+	R=I
 	call :ident_lookup
 	C=A
 	?C=0:try_global
@@ -1579,6 +1580,7 @@ align
 		
 		return
 	:try_global
+		I=R
 		J=:global_variables
 		call :ident_lookup
 		C=A

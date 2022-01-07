@@ -1,0 +1,244 @@
+; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
+byte 0x48
+byte 0x81
+byte 0xc4
+byte 40
+byte 0
+byte 0
+byte 0
+
+global output_fd
+
+goto main
+
+function main
+	argument argv2
+	argument argv1
+	argument argv0
+	argument argc
+	local input_filename
+	local output_filename
+	
+	if argc < 3 goto default_filenames
+		input_filename = argv1
+		output_filename = argv2
+		goto got_filenames
+	:default_filenames
+		input_filename = .str_default_input_filename
+		output_filename = .str_default_output_filename
+	:got_filenames
+	
+	output_fd = syscall(2, output_filename, 0x241, 420) ; 420 = octal 644
+	if output_fd >= 0 goto output_file_good
+	file_error(output_filename)
+	:output_file_good
+	exit(0)
+
+:str_default_input_filename
+	string in04a
+	byte 0
+
+:str_default_output_filename
+	string out04a
+	byte 0
+
+function file_error
+	argument name
+	fputs(2, .str_file_error)
+	fputs(2, name)
+	fputc(2, 10)
+	exit(1)
+	
+:str_file_error
+	string Error opening file:
+	byte 32
+	byte 0
+
+
+; returns a pointer to a null-terminated string containing the number given
+function itos
+	global 32 itos_string
+	argument x
+	local c
+	local p
+	p = &itos_string
+	p += 30
+	:itos_loop
+		c = x % 10
+		c += '0
+		*1p = c
+		x /= 10
+		if x == 0 goto itos_loop_end
+		p -= 1
+		goto itos_loop
+	:itos_loop_end
+	return p
+
+
+; returns the number at the start of the given string
+function stoi
+	argument s
+	local p
+	local n
+	local c
+	n = 0
+	p = s
+	:stoi_loop
+		c = *1p
+		if c < '0 goto stoi_loop_end
+		if c > '9 goto stoi_loop_end
+		n *= 10
+		n += c - '0
+		p += 1
+		goto stoi_loop
+	:stoi_loop_end
+	return n
+
+
+function strlen
+	argument s
+	local c
+	local p
+	p = s
+	:strlen_loop
+		c = *1p
+		if c == 0 goto strlen_loop_end
+		p += 1
+		goto strlen_loop
+	:strlen_loop_end
+	return p - s
+
+function fputs
+	argument fd
+	argument s
+	local length
+	length = strlen(s)
+	syscall(1, fd, s, length)
+	return
+
+function puts
+	argument s
+	fputs(1, s)
+	return
+
+function fputn
+	argument fd
+	argument n
+	local s
+	s = itos(n)
+	fputs(fd, s)
+	return
+
+function fputc
+	argument fd
+	argument c
+	local p
+	p = &c
+	syscall(1, fd, p, 1)
+	return
+
+function putc
+	argument c
+	fputc(1, c)
+	return
+	
+function exit
+	argument status_code
+	syscall(0x3c, status_code)
+
+
+function syscall
+	; I've done some testing, and this should be okay even if
+	; rbp-56 goes beyond the end of the stack.
+	; mov rax, [rbp-16]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc7
+	
+	; mov rax, [rbp-24]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rsi, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc6
+	
+	; mov rax, [rbp-32]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xe0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov rdx, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-40]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r10, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc2
+	
+	; mov rax, [rbp-48]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xd0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r8, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc0
+	
+	; mov rax, [rbp-56]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xc8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	; mov r9, rax
+	byte 0x49
+	byte 0x89
+	byte 0xc1
+	
+	; mov rax, [rbp-8]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; syscall
+	byte 0x0f
+	byte 0x05
+	
+	return
