@@ -23,6 +23,8 @@ function split_into_preprocessing_tokens
 		p += n
 		goto pptokens_read_loop
 	:pptokens_read_loop_end
+	p -= 1
+	if *1p != 10 goto no_newline_at_end_of_file
 	
 	; okay we read the file. first, delete every backslash-newline sequence (phase 2)
 	local newlines ; we add more newlines to keep line numbers right
@@ -331,7 +333,11 @@ function split_into_preprocessing_tokens
 	:str_bad_pptoken
 		string Bad preprocessing token.
 		byte 0
-
+	:no_newline_at_end_of_file
+		compile_error(filename, 0, .str_no_newline_at_end_of_file)
+	:str_no_newline_at_end_of_file
+		string No newline at end of file.
+		byte 0
 ; can the given character appear in a C89 ppnumber?
 function is_ppnumber_char
 	argument c
@@ -433,7 +439,8 @@ function translation_phase_4
 			pptoken_copy_and_advance(&in, &out)
 			goto phase4_line
 	:pp_directive
-		pptoken_skip(&in)
+		pptoken_skip(&in) ; skip #
+		pptoken_skip_spaces(&in)
 		c = *1in
 		if c == 10 goto phase4_next_line ; "null directive" C89 § 3.8.7
 		b = str_equals(in, .str_error)
@@ -453,9 +460,14 @@ function translation_phase_4
 		pptoken_skip_spaces(&in)
 		macro_name = in
 		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
 		c = *1in
 		if c == '( goto function_macro_definition
 			; it's an object-like macro, e.g. #define X 47
+			
+			b = look_up_object_macro(macro_name)
+			if b != 0 goto macro_redefinition
+			
 			p = object_macros + object_macros_size
 			; copy name
 			p = strcpy(p, macro_name)
@@ -469,7 +481,73 @@ function translation_phase_4
 			goto phase4_line
 		:function_macro_definition
 			; a function-like macro, e.g. #define JOIN(a,b) a##b
-			byte 0xcc
+			local param_names
+			local param_name
+			local param_idx
+			
+			b = look_up_function_macro(macro_name)
+			if b != 0 goto macro_redefinition
+			
+			param_names = malloc(4000)
+			pptoken_skip(&in) ; skip opening parenthesis
+			pptoken_skip_spaces(&in)
+			param_name = param_names
+			:macro_params_loop
+				c = *1in
+				if c == 10 goto missing_closing_bracket
+				b = isalpha_or_underscore(c)
+				if b == 0 goto bad_macro_params
+				param_name = strcpy(param_name, in)
+				param_name += 1
+				pptoken_skip(&in)
+				pptoken_skip_spaces(&in)
+				c = *1in
+				if c == ') goto macro_params_loop_end
+				if c != ', goto bad_macro_params
+				pptoken_skip(&in) ; skip ,
+				pptoken_skip_spaces(&in)
+				goto macro_params_loop
+			:macro_params_loop_end
+			
+			pptoken_skip(&in) ; skip )
+			pptoken_skip_spaces(&in)
+			
+			p = function_macros + function_macros_size
+			p = strcpy(p, macro_name)
+			p += 1
+			
+			:fmacro_body_loop
+				if *1in == 10 goto fmacro_body_loop_end
+				param_name = param_names
+				param_idx = 1
+				; check if this token matches any of the parameter names
+				:fmacro_param_check_loop
+					if *1param_name == 0 goto fmacro_param_check_loop_end
+					b = str_equals(in, param_name)
+					if b != 0 goto fmacro_param_match
+					param_name = memchr(param_name, 0)
+					param_name += 1
+					param_idx += 1
+					goto fmacro_param_check_loop
+				:fmacro_param_check_loop_end
+					; it's not a parameter; just copy it out
+					p = strcpy(p, in)
+					p += 1
+					pptoken_skip(&in)
+					goto fmacro_body_loop
+				:fmacro_param_match
+					; a match!
+					*1p = param_idx ; store the parameter index (1 = first argument) as a pptoken
+					p += 2
+					pptoken_skip(&in)
+					goto fmacro_body_loop
+			:fmacro_body_loop_end
+			*1p = 255
+			p += 1
+			function_macros_size = p - function_macros
+			free(param_names)
+			in += 2 ; skip newline and following null character
+			goto phase4_line
 	:str_directive_error
 		string : #error
 		byte 10
@@ -481,35 +559,92 @@ function translation_phase_4
 	:str_unrecognized_directive
 		string Unrecognized preprocessor directive.
 		byte 0
+	:macro_redefinition
+		; technically not an error if it was redefined to the same thing, but it's
+		; annoying to check for that
+		compile_error(filename, line_number, .str_macro_redefinition)
+	:str_macro_redefinition
+		string Macro redefinition.
+		byte 0
+	:missing_closing_bracket
+		compile_error(filename, line_number, .str_missing_closing_bracket)
+	:str_missing_closing_bracket
+		string Missing closing ).
+		byte 0
+	:bad_macro_params
+		compile_error(filename, line_number, .str_bad_macro_params)
+	:str_bad_macro_params
+		string Bad macro parameter list.
+		byte 0
+
+; returns a pointer to the replacement pptokens, or 0 if this macro is not defined
+function look_up_macro
+	argument macros
+	argument name
+	local p
+	local b
+	p = macros
+	:macro_lookup_loop
+		if *1p == 0 goto return_0
+		b = str_equals(p, name)
+		if b != 0 goto macro_lookup_loop_end
+		; advance to next macro
+		p = memchr(p, 255)
+		p += 1
+		goto macro_lookup_loop
+	:macro_lookup_loop_end
+	p = memchr(p, 0)
+	p += 1
+	return p
 
 function look_up_object_macro
 	argument name
-	local p
-	p = object_macros
-	:objmacro_lookup_loop
-		@TODO
+	return look_up_macro(object_macros, name)
+
+function look_up_function_macro
+	argument name
+	return look_up_macro(function_macros, name)
 
 function print_object_macros
+	print_macros(object_macros)
+	return
+
+function print_function_macros
+	print_macros(function_macros)
+	return
+	
+function print_macros
+	argument macros
 	local p
 	local c
-	p = object_macros
-	:print_objmacros_loop
+	p = macros
+	:print_macros_loop
 		if *1p == 0 goto return_0 ; done!
 		puts(p)
 		putc(':)
 		putc(32)
 		p = memchr(p, 0)
 		p += 1
-		:print_objreplacement_loop
+		:print_replacement_loop
+			c = *1p
+			if c == 255 goto print_replacement_loop_end
+			if c < 32 goto print_macro_param
 			putc('{)
 			puts(p)
 			putc('})
 			p = memchr(p, 0)
 			p += 1
-			c = *1p
-			if c == 255 goto print_objreplacement_loop_end
-			goto print_objreplacement_loop
-		:print_objreplacement_loop_end
+			goto print_replacement_loop
+			:print_macro_param
+				putc('{)
+				putc('#)
+				putn(c)
+				putc('})
+				p += 2
+				goto print_replacement_loop
+		:print_replacement_loop_end
 			p += 1
 			fputc(1, 10)
-			goto print_objmacros_loop
+			goto print_macros_loop
+
+	

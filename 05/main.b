@@ -61,6 +61,7 @@ function main
 	pptokens = translation_phase_4(input_filename, pptokens)
 	;print_pptokens(pptokens)
 	print_object_macros()
+	print_function_macros()
 	exit(0)
 
 :usage_error

@@ -205,6 +205,11 @@ function fputn
 	fputs(fd, s)
 	return
 
+function putn
+	argument n
+	fputn(1, n)
+	return
+	
 function fputc
 	argument fd
 	argument c
