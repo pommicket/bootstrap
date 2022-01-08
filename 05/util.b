@@ -90,6 +90,28 @@ function memchr
 	:memchr_loop_end
 	return p
 
+; copy from *p_src to *p_dest until terminator is reached, setting both to point to their respective terminators
+function memccpy_advance
+	argument p_dest
+	argument p_src
+	argument terminator
+	local src
+	local dest
+	local c
+	src = *8p_src
+	dest = *8p_dest
+	:memccpy_advance_loop
+		c = *1src
+		*1dest = c
+		if c == terminator goto memccpy_advance_loop_end
+		src += 1
+		dest += 1
+		goto memccpy_advance_loop
+	:memccpy_advance_loop_end
+	*8p_src = src
+	*8p_dest = dest
+	return
+
 function strlen
 	argument s
 	local p
@@ -101,6 +123,7 @@ function strlen
 	:strlen_loop_end
 	return p - s
 
+; like C strcpy, but returns a pointer to the terminating null character in dest
 function strcpy
 	argument dest
 	argument src
@@ -118,7 +141,21 @@ function strcpy
 		goto strcpy_loop
 	:strcpy_loop_end
 	return p
-	
+
+function str_equals
+	argument a
+	argument b
+	local c
+	local d
+	:str_equals_loop
+		c = *1a
+		d = *1b
+		if c != d goto return_0
+		if c == 0 goto return_1
+		a += 1
+		b += 1
+		goto str_equals_loop
+
 function str_startswith
 	argument s
 	argument prefix
@@ -149,6 +186,16 @@ function puts
 	argument s
 	fputs(1, s)
 	return
+
+function print_separator
+	fputs(1, .str_separator)
+	return
+
+:str_separator
+	byte 10
+	string ------------------------------------------------
+	byte 10
+	byte 0
 
 function fputn
 	argument fd

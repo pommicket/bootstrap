@@ -8,6 +8,13 @@ byte 0
 byte 0
 goto main
 
+
+global object_macros_size
+global function_macros_size
+; these are allocated in main()
+global object_macros
+global function_macros
+
 function compile_error
 	argument file
 	argument line
@@ -15,12 +22,12 @@ function compile_error
 	fputs(2, file)
 	fputc(2, ':)
 	fputn(2, line)
-	fputs(2, .str_error)
+	fputs(2, .str_error_prefix)
 	fputs(2, message)
 	fputc(2, 10)
 	exit(1)
 	
-:str_error
+:str_error_prefix
 	string : Error:
 	byte 32
 	byte 0
@@ -38,6 +45,9 @@ function main
 	local output_filename
 	local pptokens
 	
+	object_macros = malloc(4000000)
+	function_macros = malloc(4000000)
+	
 	input_filename = .str_default_input_filename
 	output_filename = .str_default_output_filename
 	if argc == 1 goto have_filenames
@@ -47,6 +57,10 @@ function main
 	:have_filenames
 	pptokens = split_into_preprocessing_tokens(input_filename)
 	print_pptokens(pptokens)
+	print_separator()
+	pptokens = translation_phase_4(input_filename, pptokens)
+	;print_pptokens(pptokens)
+	print_object_macros()
 	exit(0)
 
 :usage_error

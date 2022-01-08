@@ -360,3 +360,156 @@ function print_pptokens
 	:print_pptokens_loop_end
 	putc(10)
 	return
+
+function pptoken_copy_and_advance
+	argument p_in
+	argument p_out
+	local in
+	local out
+	in = *8p_in
+	out = *8p_out
+	out = strcpy(out, in)
+	in = memchr(in, 0)
+	*8p_in = in + 1
+	*8p_out = out + 1
+	return
+
+function pptoken_skip
+	argument p_in
+	local in
+	in = *8p_in
+	in = memchr(in, 0)
+	*8p_in = in + 1
+	return
+
+; skip any space tokens here
+function pptoken_skip_spaces
+	argument p_in
+	local in
+	in = *8p_in
+	:pptoken_skip_spaces_loop
+		if *1in != 32 goto pptoken_skip_spaces_loop_end
+		pptoken_skip(&in)
+		goto pptoken_skip_spaces_loop
+	:pptoken_skip_spaces_loop_end
+	*8p_in = in
+	return
+
+; phase 4:
+; Preprocessing directives are executed and macro invocations are expanded.
+; A #include preprocessing directive causes the named header or source file to be processed from phase 1 through phase 4, recursively.
+function translation_phase_4
+	argument filename
+	argument input
+	local output
+	local in
+	local out
+	local p
+	local c
+	local b
+	local line_number
+		
+	output = malloc(16000000)
+	out = output
+	in = input
+	line_number = 0
+	
+	:phase4_line
+		line_number += 1
+		c = *1in
+		if c == 0 goto phase4_end
+		if c == '# goto pp_directive ; NOTE: ## cannot appear at the start of a line
+		
+		:process_pptoken
+			c = *1in
+			if c == 10 goto phase4_next_line
+			b = isdigit(c)
+			if b != 0 goto phase4_next_pptoken
+		
+		:phase4_next_pptoken
+			pptoken_copy_and_advance(&in, &out)
+			goto process_pptoken
+		:phase4_next_line
+			pptoken_copy_and_advance(&in, &out)
+			goto phase4_line
+	:pp_directive
+		pptoken_skip(&in)
+		c = *1in
+		if c == 10 goto phase4_next_line ; "null directive" C89 § 3.8.7
+		b = str_equals(in, .str_error)
+		if b != 0 goto pp_directive_error
+		b = str_equals(in, .str_define)
+		if b != 0 goto pp_directive_define
+		goto unrecognized_directive
+	:pp_directive_error
+		fputs(2, filename)
+		fputc(2, ':)
+		fputn(2, line_number)
+		fputs(2, .str_directive_error)
+		exit(1)
+	:pp_directive_define
+		local macro_name
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		macro_name = in
+		pptoken_skip(&in)
+		c = *1in
+		if c == '( goto function_macro_definition
+			; it's an object-like macro, e.g. #define X 47
+			p = object_macros + object_macros_size
+			; copy name
+			p = strcpy(p, macro_name)
+			p += 1
+			; copy contents
+			memccpy_advance(&p, &in, 10) ; copy until newline
+			*1p = 255 ; replace newline with special "macro end" character
+			p += 1
+			object_macros_size = p - object_macros
+			in += 2 ; skip newline and following null character
+			goto phase4_line
+		:function_macro_definition
+			; a function-like macro, e.g. #define JOIN(a,b) a##b
+			byte 0xcc
+	:str_directive_error
+		string : #error
+		byte 10
+		byte 0
+	:phase4_end
+		return output
+	:unrecognized_directive
+		compile_error(filename, line_number, .str_unrecognized_directive)
+	:str_unrecognized_directive
+		string Unrecognized preprocessor directive.
+		byte 0
+
+function look_up_object_macro
+	argument name
+	local p
+	p = object_macros
+	:objmacro_lookup_loop
+		@TODO
+
+function print_object_macros
+	local p
+	local c
+	p = object_macros
+	:print_objmacros_loop
+		if *1p == 0 goto return_0 ; done!
+		puts(p)
+		putc(':)
+		putc(32)
+		p = memchr(p, 0)
+		p += 1
+		:print_objreplacement_loop
+			putc('{)
+			puts(p)
+			putc('})
+			p = memchr(p, 0)
+			p += 1
+			c = *1p
+			if c == 255 goto print_objreplacement_loop_end
+			goto print_objreplacement_loop
+		:print_objreplacement_loop_end
+			p += 1
+			fputc(1, 10)
+			goto print_objmacros_loop

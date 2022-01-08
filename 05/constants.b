@@ -106,3 +106,27 @@
 :str_hash_hash
 	string ##
 	byte 0
+:str_error
+	string error
+	byte 0
+:str_define
+	string define
+	byte 0
+:str_include
+	string include
+	byte 0
+:str_ifdef
+	string ifdef
+	byte 0
+:str_ifndef
+	string ifndef
+	byte 0
+:str_if
+	string if
+	byte 0
+:str_elif
+	string elif
+	byte 0
+:str_else
+	string else
+	byte 0
