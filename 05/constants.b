@@ -30,3 +30,79 @@
 #define KEYWORD_IF 130
 #define KEYWORD_STATIC 131
 #define KEYWORD_WHILE 132
+
+:str_comment_start
+	string /*
+	byte 0
+:str_comment_end
+	string */
+	byte 0
+:str_lshift_eq
+	string <<=
+	byte 0
+:str_rshift_eq
+	string >>=
+	byte 0
+:str_eq_eq
+	string ==
+	byte 0
+:str_not_eq
+	string !=
+	byte 0
+:str_gt_eq
+	string >=
+	byte 0
+:str_lt_eq
+	string <=
+	byte 0
+:str_plus_plus
+	string ++
+	byte 0
+:str_minus_minus
+	string --
+	byte 0
+:str_plus_eq
+	string +=
+	byte 0
+:str_minus_eq
+	string -=
+	byte 0
+:str_times_eq
+	string *=
+	byte 0
+:str_div_eq
+	string /=
+	byte 0
+:str_remainder_eq
+	string %=
+	byte 0
+:str_and_eq
+	string &=
+	byte 0
+:str_or_eq
+	string |=
+	byte 0
+:str_xor_eq
+	string ^=
+	byte 0
+:str_and_and
+	string &&
+	byte 0
+:str_or_or
+	string ||
+	byte 0
+:str_lshift
+	string <<
+	byte 0
+:str_rshift
+	string >>
+	byte 0
+:str_arrow
+	string ->
+	byte 0
+:str_dotdotdot
+	string ...
+	byte 0
+:str_hash_hash
+	string ##
+	byte 0

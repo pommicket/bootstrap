@@ -8,6 +8,23 @@ byte 0
 byte 0
 goto main
 
+function compile_error
+	argument file
+	argument line
+	argument message
+	fputs(2, file)
+	fputc(2, ':)
+	fputn(2, line)
+	fputs(2, .str_error)
+	fputs(2, message)
+	fputc(2, 10)
+	exit(1)
+	
+:str_error
+	string : Error:
+	byte 32
+	byte 0
+
 #include util.b
 #include constants.b
 #include preprocess.b
@@ -19,6 +36,7 @@ function main
 	argument argc
 	local input_filename
 	local output_filename
+	local pptokens
 	
 	input_filename = .str_default_input_filename
 	output_filename = .str_default_output_filename
@@ -27,7 +45,8 @@ function main
 	input_filename = argv1
 	output_filename = argv2
 	:have_filenames
-	split_into_preprocessing_tokens(input_filename)
+	pptokens = split_into_preprocessing_tokens(input_filename)
+	print_pptokens(pptokens)
 	exit(0)
 
 :usage_error

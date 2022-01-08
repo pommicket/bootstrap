@@ -82,11 +82,9 @@ function memchr
 	argument mem
 	argument c
 	local p
-	local a
 	p = mem
 	:memchr_loop
-		a = *1p
-		if a == c goto memchr_loop_end
+		if *1p == c goto memchr_loop_end
 		p += 1
 		goto memchr_loop
 	:memchr_loop_end
@@ -94,12 +92,10 @@ function memchr
 
 function strlen
 	argument s
-	local c
 	local p
 	p = s
 	:strlen_loop
-		c = *1p
-		if c == 0 goto strlen_loop_end
+		if *1p == 0 goto strlen_loop_end
 		p += 1
 		goto strlen_loop
 	:strlen_loop_end
@@ -165,9 +161,7 @@ function fputn
 function fputc
 	argument fd
 	argument c
-	local p
-	p = &c
-	syscall(1, fd, p, 1)
+	syscall(1, fd, &c, 1)
 	return
 
 function putc
@@ -179,10 +173,8 @@ function putc
 function fgetc
 	argument fd
 	local c
-	local p
 	c = 0
-	p = &c
-	syscall(0, fd, p, 1)
+	syscall(0, fd, &c, 1)
 	return c
 
 ; read a line from fd as a null-terminated string
@@ -249,6 +241,48 @@ function isupper
 	argument c
 	if c < 'A goto return_0
 	if c <= 'Z goto return_1
+	goto return_0
+
+function islower
+	argument c
+	if c < 'a goto return_0
+	if c <= 'z goto return_1
+	goto return_0
+
+function isdigit
+	argument c
+	if c < '0 goto return_0
+	if c <= '9 goto return_1
+	goto return_0
+
+function isalpha
+	argument c
+	if c < 'A goto return_0
+	if c <= 'Z goto return_1
+	if c < 'a goto return_0
+	if c <= 'z goto return_1
+	goto return_0
+
+; characters which can start identifiers in C
+function isalpha_or_underscore
+	argument c
+	if c < 'A goto return_0
+	if c <= 'Z goto return_1
+	if c == '_ goto return_1
+	if c < 'a goto return_0
+	if c <= 'z goto return_1
+	goto return_0
+
+; characters which can appear in identifiers in C
+function isalnum_or_underscore
+	argument c
+	if c < '0 goto return_0
+	if c <= '9 goto return_1
+	if c < 'A goto return_0
+	if c <= 'Z goto return_1
+	if c == '_ goto return_1
+	if c < 'a goto return_0
+	if c <= 'z goto return_1
 	goto return_0
 
 function exit
