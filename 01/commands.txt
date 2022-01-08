@@ -33,8 +33,6 @@ sw - mov word [rbx], ax
 lw - mov ax, word [rbx]
 sb - mov byte [rbx], al
 lb - mov al, byte [rbx]
-Sq - mov qword [rsp], rax
-Lq - mov rax, qword [rsp]
 
 nA - neg rax
 +B - add rax, rbx
