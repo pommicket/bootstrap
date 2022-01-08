@@ -107,12 +107,10 @@ function stoi
 
 function strlen
 	argument s
-	local c
 	local p
 	p = s
 	:strlen_loop
-		c = *1p
-		if c == 0 goto strlen_loop_end
+		if *1p == 0 goto strlen_loop_end
 		p += 1
 		goto strlen_loop
 	:strlen_loop_end
