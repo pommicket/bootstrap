@@ -1238,6 +1238,12 @@ align
 	?C=D:term_number
 	D='.
 	?C=D:term_label
+	D='*
+	?C=D:term_dereference
+	D='&
+	?C=D:term_addressof
+	D='~
+	?C=D:term_bitwise_not
 	D=d58
 	?C<D:term_number
 	; (fallthrough)
@@ -1273,16 +1279,6 @@ align
 	; store pointer to rvalue
 	C=:rvalue
 	8C=I
-	
-	C=1I
-	D='&
-	?C=D:rvalue_addressof
-	
-	D='~
-	?C=D:rvalue_bitwise_not
-	
-	D='*
-	?C=D:rvalue_dereference
 	
 	J=I
 	:rvalue_loop
@@ -1506,50 +1502,6 @@ align
 :rvalue_shr
 	call :set_rcx_to_rsi
 	!:emit_shr_rax_cl
-
-:rvalue_addressof
-	I+=d1
-	!:set_rax_to_address_of_variable
-
-:rvalue_bitwise_not
-	I+=d1
-	call :set_rax_to_term
-	J=d4
-	I=:not_rax
-	D=d3
-	syscall x1
-	return
-:not_rax
-	x48
-	xf7
-	xd0	
-
-:rvalue_dereference_size
-	reserve d1
-	
-:rvalue_dereference
-	I+=d1
-	D=1I
-	C=:rvalue_dereference_size
-	1C=D
-	I+=d1
-	call :set_rax_to_variable
-	call :set_rbx_to_rax
-	call :zero_rax
-	C=:rvalue_dereference_size
-	C=1C
-	
-	D='1
-	?C=D:set_al_to_[rbx]
-	D='2
-	?C=D:set_ax_to_[rbx]
-	D='4
-	?C=D:set_eax_to_[rbx]
-	D='8
-	?C=D:set_rax_to_[rbx]
-	
-	!:bad_term
-	
 	
 ; set <rax> to address of variable in rsi
 :set_rax_to_address_of_variable
@@ -1600,7 +1552,51 @@ align
 	call :read_number
 	I=A
 	!:set_rax_to_immediate
+
+:term_bitwise_not
+	I+=d1
+	call :set_rax_to_term
+	J=d4
+	I=:not_rax
+	D=d3
+	syscall x1
+	return
+:not_rax
+	x48
+	xf7
+	xd0
+
+:term_dereference_size
+	reserve d1
 	
+:term_dereference
+	I+=d1
+	D=1I
+	C=:term_dereference_size
+	1C=D
+	I+=d1
+	call :set_rax_to_variable
+	call :set_rbx_to_rax
+	call :zero_rax
+	C=:term_dereference_size
+	C=1C
+	
+	D='1
+	?C=D:set_al_to_[rbx]
+	D='2
+	?C=D:set_ax_to_[rbx]
+	D='4
+	?C=D:set_eax_to_[rbx]
+	D='8
+	?C=D:set_rax_to_[rbx]
+	
+	!:bad_term
+
+:term_addressof
+	I+=d1
+	!:set_rax_to_address_of_variable
+
+
 ; set rax to the number in the string at rsi
 :read_number
 	C=1I

@@ -15,8 +15,7 @@ function strlen
 	local p
 	p = s
 	:strlen_loop
-		c = *1p
-		if c == 0 goto strlen_loop_end
+		if *1p == 0 goto strlen_loop_end
 		p += 1
 		goto strlen_loop
 	:strlen_loop_end
@@ -24,9 +23,7 @@ function strlen
 
 function putc
 	argument c
-	local p
-	p = &c
-	syscall(1, 1, p, 1)
+	syscall(1, 1, &c, 1)
 	return
 
 function puts

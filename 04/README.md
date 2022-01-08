@@ -227,6 +227,9 @@ A *term* is one of:
 - `{variable name}` - the value of a (local or global) variable
 - `.{label name}` - the address of a label
 - `{number}`
+- `&{variable}` - address of variable
+- `*1{variable}` / `*2{variable}` / `*4{variable}` / `*8{variable}` - dereference 1, 2, 4, or 8 bytes
+- `~{term}` - bitwise not
 
 An *l-value* is the left-hand side of an assignment expression,
 and it is one of:
@@ -239,9 +242,6 @@ and it is one of:
 An *r-value* is an expression, which can be more complicated than a term.
 r-values are one of:
 - `{term}`
-- `&{variable}` - address of variable
-- `*1{variable}` / `*2{variable}` / `*4{variable}` / `*8{variable}` - dereference 1, 2, 4, or 8 bytes
-- `~{term}` - bitwise not
 - `{function}({term}, {term}, ...)`
 - `{term} + {term}`
 - `{term} - {term}`
