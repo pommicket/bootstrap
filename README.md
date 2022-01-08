@@ -25,9 +25,9 @@ hexadecimal digit pairs to a binary file.
 command codes.
 - [stage 02](02/README.md) - a language with labels
 - [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
-- more coming soon (hopefully)
 - [stage 04](04/README.md) - a language with nice functions and local variables
 - [stage 04a](04a/README.md) - (interlude) a simple preprocessor
+- more coming soon (hopefully)
 
 ## prerequisite knowledge
 
