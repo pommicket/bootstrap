@@ -61,6 +61,8 @@ function split_into_preprocessing_tokens
 	:backslashnewline_loop_end
 	*1out = 0
 	
+	; @NONSTANDARD: this is where trigraphs would go
+	
 	; split file into preprocessing tokens, remove comments (phase 3)
 	; we're still doing the trick with newlines, this time for ones inside comments
 	; this is needed because the following is legal C:
@@ -693,7 +695,11 @@ function macro_replacement
 		if *1in == ') goto empty_fmacro_invocation
 		
 		local arguments
+		local fmacro_out
+		local fmacro_out_start
 		arguments = malloc(4000)
+		fmacro_out_start = malloc(8000) ; direct fmacro output. this will need to be re-scanned for macros
+		fmacro_out = fmacro_out_start
 		
 		; store the arguments (separated by 255-characters)
 		p = arguments
@@ -719,16 +725,28 @@ function macro_replacement
 		:freplace_loop
 			if *1p == 255 goto freplace_loop_end
 			if *1p < 32 goto fmacro_argument
-			macro_replacement(filename, line_number, &p, &out)
+			if *1p == '# goto freplace_hash_operator
+			pptoken_copy_and_advance(&p, &fmacro_out)
 			goto freplace_loop
+			:freplace_hash_operator
+				; don't output # / ## tokens
+				pptoken_skip(&p)
+				goto freplace_loop
 		:freplace_loop_end
+		
+		fmacro_out = fmacro_out_start
+		:frescan_loop
+			if *1fmacro_out == 0 goto frescan_loop_end
+			macro_replacement(filename, line_number, &fmacro_out, &out)
+			goto frescan_loop
+		:frescan_loop_end
+		
 		free(arguments)
+		free(fmacro_out_start)
 		goto done_replacement
 		
 	:fmacro_argument
-		; @TODO: stringify (#), paste (##) operators
-	
-		; write argument to *out
+		; write argument to *fmacro_out
 		local arg_idx
 		arg_idx = *1p
 		q = arguments
@@ -741,11 +759,9 @@ function macro_replacement
 			goto fmacro_argfind_loop
 		:fmacro_arg_found
 		; q = argument
-		:fmacro_argreplace_loop
-			if *1q == 255 goto fmacro_argreplaced
-			macro_replacement(filename, line_number, &q, &out)
-			goto fmacro_argreplace_loop
-		:fmacro_argreplaced
+		
+		fmacro_out = memccpy(fmacro_out, q, 255)
+		*1fmacro_out = 0
 		p += 2 ; skip arg idx & null separator
 		goto freplace_loop
 		

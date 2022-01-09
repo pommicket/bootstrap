@@ -112,6 +112,14 @@ function memccpy_advance
 	*8p_dest = dest
 	return
 
+; copy from src to dest until terminator is reached, returning pointer to terminator in dest.
+function memccpy
+	argument dest
+	argument src
+	argument terminator
+	memccpy_advance(&dest, &src, terminator)
+	return dest
+
 ; just like C
 function memcpy
 	argument dest
