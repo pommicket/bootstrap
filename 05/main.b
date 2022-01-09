@@ -45,6 +45,8 @@ function main
 	local output_filename
 	local pptokens
 	
+	dat_banned_macros = 255
+	
 	object_macros = malloc(4000000)
 	function_macros = malloc(4000000)
 	
@@ -59,7 +61,7 @@ function main
 	print_pptokens(pptokens)
 	print_separator()
 	pptokens = translation_phase_4(input_filename, pptokens)
-	;print_pptokens(pptokens)
+	print_pptokens(pptokens)
 	print_object_macros()
 	print_function_macros()
 	exit(0)
