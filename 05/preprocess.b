@@ -441,7 +441,7 @@ function translation_phase_4
 			pptoken_copy_and_advance(&in, &out)
 			goto phase4_line
 	:phase4_try_replacements
-		macro_replacement(&in, &out)
+		macro_replacement(filename, line_number, &in, &out)
 		goto phase4_line
 	:pp_directive
 		pptoken_skip(&in) ; skip #
@@ -498,7 +498,7 @@ function translation_phase_4
 			param_name = param_names
 			:macro_params_loop
 				c = *1in
-				if c == 10 goto missing_closing_bracket
+				if c == 10 goto phase4_missing_closing_bracket
 				b = isalpha_or_underscore(c)
 				if b == 0 goto bad_macro_params
 				param_name = strcpy(param_name, in)
@@ -563,17 +563,15 @@ function translation_phase_4
 		string Unrecognized preprocessor directive.
 		byte 0
 	:macro_redefinition
+		; @NONSTANDARD:
 		; technically not an error if it was redefined to the same thing, but it's
 		; annoying to check for that
 		compile_error(filename, line_number, .str_macro_redefinition)
 	:str_macro_redefinition
 		string Macro redefinition.
 		byte 0
-	:missing_closing_bracket
+	:phase4_missing_closing_bracket
 		compile_error(filename, line_number, .str_missing_closing_bracket)
-	:str_missing_closing_bracket
-		string Missing closing ).
-		byte 0
 	:bad_macro_params
 		compile_error(filename, line_number, .str_bad_macro_params)
 	:str_bad_macro_params
@@ -608,7 +606,12 @@ function look_up_function_macro
 	argument name
 	return look_up_macro(function_macros, name)
 
+; replace pptoken(s) at *p_in into *p_out, advancing both
+; NOTE: if *p_in starts with a function-like macro replacement, it is replaced fully,
+;       otherwise this function only reads 1 token from *p_in
 function macro_replacement
+	argument filename
+	argument line_number
 	argument p_in
 	argument p_out
 	; "banned" macros prevent #define x x from being a problem
@@ -623,6 +626,7 @@ function macro_replacement
 	local banned_fmacros
 	local banned_objmacros
 	local b
+	local c
 	local p
 	local q
 	local replacement
@@ -660,10 +664,10 @@ function macro_replacement
 	replacement = look_up_object_macro(in)
 	if replacement == 0 goto no_replacement
 	p = replacement
-	pptoken_skip(&in)
+	pptoken_skip(&in) ; skip macro
 	:objreplace_loop
 		if *1p == 255 goto done_replacement
-		macro_replacement(&p, &out)
+		macro_replacement(filename, line_number, &p, &out)
 		goto objreplace_loop
 	
 	:fmacro_replacement
@@ -684,21 +688,121 @@ function macro_replacement
 		
 		replacement = look_up_function_macro(in)
 		if replacement == 0 goto no_replacement
+		pptoken_skip(&in) ; skip macro name
+		pptoken_skip(&in) ; skip opening bracket
+		if *1in == ') goto empty_fmacro_invocation
+		
+		local arguments
+		arguments = malloc(4000)
+		
+		; store the arguments (separated by 255-characters)
+		p = arguments
+		:fmacro_arg_loop
+			b = fmacro_arg_end(filename, line_number, in)
+			b -= in
+			memcpy(p, in, b) ; copy the argument to its proper place
+			p += b
+			in += b ; skip argument
+			c = *1in
+			in += 2 ; skip , or )
+			*1p = 255
+			p += 1
+			if c == ', goto fmacro_arg_loop
+		*1p = 255 ; use an additional 255-character to mark the end (note: macro arguments may not be empty)
+		
+		; print arguments:
+		; p += 1
+		; p -= arguments
+		; syscall(1, 1, arguments, p)
+		
 		p = replacement
 		:freplace_loop
-			if *1p == 255 goto done_replacement
-			byte 0xcc
+			if *1p == 255 goto freplace_loop_end
+			if *1p < 32 goto fmacro_argument
+			macro_replacement(filename, line_number, &p, &out)
+			goto freplace_loop
 		:freplace_loop_end
+		free(arguments)
+		goto done_replacement
+		
+	:fmacro_argument
+		; @TODO: stringify (#), paste (##) operators
+	
+		; write argument to *out
+		local arg_idx
+		arg_idx = *1p
+		q = arguments
+		:fmacro_argfind_loop
+			if *1q == 255 goto fmacro_too_few_arguments
+			if arg_idx == 1 goto fmacro_arg_found
+			q = memchr(q, 255)
+			q += 1
+			arg_idx -= 1
+			goto fmacro_argfind_loop
+		:fmacro_arg_found
+		; q = argument
+		:fmacro_argreplace_loop
+			if *1q == 255 goto fmacro_argreplaced
+			macro_replacement(filename, line_number, &q, &out)
+			goto fmacro_argreplace_loop
+		:fmacro_argreplaced
+		p += 2 ; skip arg idx & null separator
+		goto freplace_loop
+		
 	:no_replacement
 		pptoken_copy_and_advance(&in, &out)
 		; (fallthrough)
-	:done_replacement
+	:done_replacement	
 		*8p_in = in
 		*8p_out = out
 		; unban any macros we just banned
 		*1old_banned_objmacros_end = 255
 		*1old_banned_fmacros_end = 255
 		return
+	
+	:empty_fmacro_invocation
+		compile_error(filename, line_number, .str_empty_fmacro_invocation)
+	:str_empty_fmacro_invocation
+		string No arguments provided to function-like macro.
+		byte 0
+	:fmacro_too_few_arguments
+		compile_error(filename, line_number, .str_fmacro_too_few_arguments)
+	:str_fmacro_too_few_arguments
+		string Too few arguments to function-like macro.
+		byte 0
+		
+function fmacro_arg_end
+	argument filename
+	argument line_number
+	argument in
+	local bracket_depth
+	bracket_depth = 1
+	:fmacro_arg_end_loop
+		if *1in == 0 goto fmacro_missing_closing_bracket
+		if *1in == '( goto fmacro_arg_opening_bracket
+		if *1in == ') goto fmacro_arg_closing_bracket
+		if *1in == ', goto fmacro_arg_potential_end
+		pptoken_skip(&in)
+		goto fmacro_arg_end_loop
+		:fmacro_arg_potential_end
+			if bracket_depth == 1 goto fmacro_arg_end_loop_end
+			pptoken_skip(&in)
+			goto fmacro_arg_end_loop
+		:fmacro_arg_opening_bracket
+			bracket_depth += 1
+			pptoken_skip(&in)
+			goto fmacro_arg_end_loop
+		:fmacro_arg_closing_bracket
+			bracket_depth -= 1
+			if bracket_depth == 0 goto fmacro_arg_end_loop_end
+			pptoken_skip(&in)
+			goto fmacro_arg_end_loop
+	:fmacro_arg_end_loop_end
+	
+	return in
+	
+	:fmacro_missing_closing_bracket
+		compile_error(filename, line_number, .str_missing_closing_bracket)
 	
 function print_object_macros
 	print_macros(object_macros)

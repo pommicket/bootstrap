@@ -31,6 +31,9 @@
 #define KEYWORD_STATIC 131
 #define KEYWORD_WHILE 132
 
+:str_missing_closing_bracket
+	string Missing closing ).
+	byte 0
 :str_comment_start
 	string /*
 	byte 0

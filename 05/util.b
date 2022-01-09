@@ -112,6 +112,23 @@ function memccpy_advance
 	*8p_dest = dest
 	return
 
+; just like C
+function memcpy
+	argument dest
+	argument src
+	argument n
+	local p
+	local q
+	p = dest
+	q = src
+	:memcpy_loop
+		if n == 0 goto return_0
+		*1p = *1q
+		p += 1
+		q += 1
+		n -= 1
+		goto memcpy_loop
+
 function strlen
 	argument s
 	local p
