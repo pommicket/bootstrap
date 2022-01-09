@@ -1,4 +1,4 @@
-#define TEST(x,y,z) x hello y there z
-TEST((55,(33,3)),22,(3,49))
+#define TEST(x,y,z) x##y#z
+TEST(22,4594,hello there folks)
 main(void) {
 }

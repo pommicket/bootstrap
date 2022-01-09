@@ -729,7 +729,38 @@ function macro_replacement
 			pptoken_copy_and_advance(&p, &fmacro_out)
 			goto freplace_loop
 			:freplace_hash_operator
-				; don't output # / ## tokens
+				; handle paste and stringify operators
+				; NOTE: we already ensured that there's no spaces following #,
+				;       and no spaces surrounding ## in split_into_preprocessing_tokens
+				p += 1
+				if *1p == '# goto freplace_hashhash_operator
+				
+				; stringify operator
+				p += 1 ; skip null separator following #
+				q = fmacro_get_arg(filename, line_number, arguments, *1p)
+				*1fmacro_out = '"
+				fmacro_out += 1
+				; @NONSTANDARD: this doesn't work if the argument contains " or \
+				:fmacro_stringify_loop
+					c = *1q
+					q += 1
+					if c == 255 goto fmacro_stringify_loop_end
+					if c == 0 goto fmacro_stringify_loop
+					*1fmacro_out = c
+					fmacro_out += 1
+					goto fmacro_stringify_loop
+				:fmacro_stringify_loop_end
+				*1fmacro_out = '"
+				fmacro_out += 1
+				*1fmacro_out = 0
+				fmacro_out += 1
+				p += 2 ; skip arg idx & null separator
+				goto freplace_loop
+				
+			:freplace_hashhash_operator
+				; the paste operator (e.g. #define JOIN(a,b) a##b)
+				; wow! surprisingly simple!
+				fmacro_out -= 1
 				pptoken_skip(&p)
 				goto freplace_loop
 		:freplace_loop_end
@@ -747,19 +778,7 @@ function macro_replacement
 		
 	:fmacro_argument
 		; write argument to *fmacro_out
-		local arg_idx
-		arg_idx = *1p
-		q = arguments
-		:fmacro_argfind_loop
-			if *1q == 255 goto fmacro_too_few_arguments
-			if arg_idx == 1 goto fmacro_arg_found
-			q = memchr(q, 255)
-			q += 1
-			arg_idx -= 1
-			goto fmacro_argfind_loop
-		:fmacro_arg_found
-		; q = argument
-		
+		q = fmacro_get_arg(filename, line_number, arguments, *1p)
 		fmacro_out = memccpy(fmacro_out, q, 255)
 		*1fmacro_out = 0
 		p += 2 ; skip arg idx & null separator
@@ -781,12 +800,27 @@ function macro_replacement
 	:str_empty_fmacro_invocation
 		string No arguments provided to function-like macro.
 		byte 0
+		
+function fmacro_get_arg
+	argument filename
+	argument line_number
+	argument arguments
+	argument arg_idx
+	:fmacro_argfind_loop
+		if *1arguments == 255 goto fmacro_too_few_arguments
+		if arg_idx == 1 goto fmacro_arg_found
+		arguments = memchr(arguments, 255)
+		arguments += 1
+		arg_idx -= 1
+		goto fmacro_argfind_loop
+	:fmacro_arg_found
+	return arguments
 	:fmacro_too_few_arguments
 		compile_error(filename, line_number, .str_fmacro_too_few_arguments)
 	:str_fmacro_too_few_arguments
 		string Too few arguments to function-like macro.
 		byte 0
-		
+
 function fmacro_arg_end
 	argument filename
 	argument line_number
