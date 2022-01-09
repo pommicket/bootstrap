@@ -1,10 +1,13 @@
-; returns a string of null character-separated preprocessing tokens
+; returns a string of null character-separated preprocessing tokens and space characters
 ; this corresponds to translation phases 1-3 in the C89 standard
+; each sequence of two or more spaces is replaced with a single space
+; spaces following # and around ## are removed
 function split_into_preprocessing_tokens
 	argument filename
 	local fd
 	local file_contents
 	local pptokens
+	local pptokens2
 	local p
 	local b
 	local c
@@ -316,7 +319,54 @@ function split_into_preprocessing_tokens
 			goto pptokens_loop	
 	:pptokens_loop_end
 	
-	free(file_contents)
+	pptokens2 = file_contents ; repurpose file contents
+	
+	; replace each sequence of two or more spaces with a single space
+	; "Whether each nonempty sequence of other white-space characters is
+	; retained or replaced by one space character is implementation-defined." (C89 § 2.1.1.2)
+	in = pptokens
+	out = pptokens2
+	:join_spaces_loop
+		if *1in == 0 goto join_spaces_loop_end
+		c = *1in
+		pptoken_copy_and_advance(&in, &out)
+		if c == 32 goto join_spaces
+		goto join_spaces_loop
+		:join_spaces
+			pptoken_skip_spaces(&in)
+			goto join_spaces_loop
+	:join_spaces_loop_end
+	*1out = 0
+	
+	; delete space surrounding ## and following #
+	in = pptokens2
+	out = pptokens
+	:delete_hash_spaces_loop
+		c = *1in
+		if c == 0 goto delete_hash_spaces_loop_end
+		pptoken_copy_and_advance(&in, &out)
+		if c == '# goto delete_hash_spaces_hash
+		
+		:delete_hash_spaces_hash
+			p = in + 1
+			if *1p == '# goto delete_surrounding_space
+			:delete_hash_spaces_skip_spaces
+			pptoken_skip_spaces(&in)
+			goto delete_hash_spaces_loop
+			
+		:delete_surrounding_space
+			p = out - 2 ; ## can't appear at start of file
+			if *1p != 32 goto delete_hash_spaces_skip_spaces ; no space before ##
+			; space before ##
+			; remove it
+			out -= 2
+			*1out = 0
+			goto delete_hash_spaces_skip_spaces
+			
+	:delete_hash_spaces_loop_end
+	*1out = 0
+	
+	free(pptokens2)
 	close(fd)
 	return pptokens
 	
@@ -444,7 +494,7 @@ function translation_phase_4
 			goto phase4_line
 	:phase4_try_replacements
 		macro_replacement(filename, line_number, &in, &out)
-		goto phase4_line
+		goto process_pptoken
 	:pp_directive
 		pptoken_skip(&in) ; skip #
 		pptoken_skip_spaces(&in)
@@ -454,6 +504,8 @@ function translation_phase_4
 		if b != 0 goto pp_directive_error
 		b = str_equals(in, .str_define)
 		if b != 0 goto pp_directive_define
+		puts(in)
+		putc(10)
 		goto unrecognized_directive
 	:pp_directive_error
 		fputs(2, filename)
