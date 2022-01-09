@@ -777,10 +777,11 @@ function macro_replacement
 		goto done_replacement
 		
 	:fmacro_argument
-		; write argument to *fmacro_out
+		; write argument to *fmacro_out, performing any necessary macro substitutions
 		q = fmacro_get_arg(filename, line_number, arguments, *1p)
-		fmacro_out = memccpy(fmacro_out, q, 255)
-		*1fmacro_out = 0
+		:fmacro_arg_replace_loop
+			macro_replacement(filename, line_number, &q, &fmacro_out)
+			if *1q != 255 goto fmacro_arg_replace_loop
 		p += 2 ; skip arg idx & null separator
 		goto freplace_loop
 		
