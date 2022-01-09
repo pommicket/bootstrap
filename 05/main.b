@@ -45,7 +45,8 @@ function main
 	local output_filename
 	local pptokens
 	
-	dat_banned_macros = 255
+	dat_banned_objmacros = 255
+	dat_banned_fmacros = 255
 	
 	object_macros = malloc(4000000)
 	function_macros = malloc(4000000)

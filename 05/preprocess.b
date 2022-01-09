@@ -611,59 +611,95 @@ function look_up_function_macro
 function macro_replacement
 	argument p_in
 	argument p_out
-	global 2000 dat_banned_macros ; 255-terminated array of strings (initialized in main)
-	local old_banned_macros_end
-	local banned_macros
+	; "banned" macros prevent #define x x from being a problem
+	; C89 § 3.8.3.4
+	; "If the name of the macro being replaced is found during this scan
+	; of the replacement list, it is not replaced. Further, if any nested
+	; replacements encounter the name of the macro being replaced, it is not replaced."
+	global 2000 dat_banned_objmacros ; 255-terminated array of strings (initialized in main)
+	local old_banned_objmacros_end
+	global 2000 dat_banned_fmacros
+	local old_banned_fmacros_end
+	local banned_fmacros
+	local banned_objmacros
 	local b
 	local p
+	local q
 	local replacement
 	local in
 	local out
 	
 	in = *8p_in
 	out = *8p_out
+	banned_objmacros = &dat_banned_objmacros
+	banned_fmacros = &dat_banned_fmacros
+	old_banned_objmacros_end = memchr(banned_objmacros, 255)
+	old_banned_fmacros_end = memchr(banned_fmacros, 255)
 	
-	; "banned" macros prevent #define x x from being a problem
-	; C89 § 3.8.3.4
-	; "If the name of the macro being replaced is found during this scan
-	; of the replacement list, it is not replaced. Further, if any nested
-	; replacements encounter the name of the macro being replaced, it is not replaced." 
+	p = in
+	pptoken_skip(&p)
+	if *1p == '( goto fmacro_replacement
 	
-	banned_macros = &dat_banned_macros
-	p = banned_macros
+	p = banned_objmacros
 	
-	old_banned_macros_end = memchr(banned_macros, 255)
 	
-	:check_banned_macros_loop
-		if *1p == 255 goto check_banned_macros_loop_end
+	:check_banned_objmacros_loop
+		if *1p == 255 goto check_banned_objmacros_loop_end
 		b = str_equals(in, p)
-		if b != 0 goto no_replacement
+		if b != 0 goto done_replacement
 		p = memchr(p, 0)
 		p += 1
-		goto check_banned_macros_loop
-	:check_banned_macros_loop_end
+		goto check_banned_objmacros_loop
+	:check_banned_objmacros_loop_end
 	
-	p = strcpy(old_banned_macros_end, in)
+	; add this to list of banned macros
+	p = strcpy(old_banned_objmacros_end, in)
 	p += 1
 	*1p = 255
+	
 	replacement = look_up_object_macro(in)
 	if replacement == 0 goto no_replacement
 	p = replacement
 	pptoken_skip(&in)
 	:objreplace_loop
-		if *1p == 255 goto objreplace_loop_end
+		if *1p == 255 goto done_replacement
 		macro_replacement(&p, &out)
 		goto objreplace_loop
+	
+	:fmacro_replacement
+		p = banned_fmacros
+		:check_banned_fmacros_loop
+			if *1p == 255 goto check_banned_fmacros_loop_end
+			b = str_equals(in, p)
+			if b != 0 goto no_replacement
+			p = memchr(p, 0)
+			p += 1
+			goto check_banned_fmacros_loop
+		:check_banned_fmacros_loop_end
+		
+		; add this to list of banned macros
+		p = strcpy(old_banned_fmacros_end, in)
+		p += 1
+		*1p = 255
+		
+		replacement = look_up_function_macro(in)
+		if replacement == 0 goto no_replacement
+		p = replacement
+		:freplace_loop
+			if *1p == 255 goto done_replacement
+			byte 0xcc
+		:freplace_loop_end
 	:no_replacement
 		pptoken_copy_and_advance(&in, &out)
 		; (fallthrough)
-	:objreplace_loop_end
+	:done_replacement
 		*8p_in = in
 		*8p_out = out
-		; unban this macro
-		*1old_banned_macros_end = 255
+		; unban any macros we just banned
+		*1old_banned_objmacros_end = 255
+		*1old_banned_fmacros_end = 255
 		return
-		
+	
 function print_object_macros
 	print_macros(object_macros)
 	return
