@@ -506,7 +506,7 @@ function translation_phase_4
 			pptoken_copy_and_advance(&in, &out)
 			goto phase4_line
 	:phase4_try_replacements
-		macro_replacement(filename, line_number, &in, &out)
+		macro_replacement(filename, &line_number, &in, &out)
 		goto process_pptoken
 	:pp_directive
 		pptoken_skip(&in) ; skip #
@@ -769,6 +769,25 @@ function look_up_function_macro
 	argument name
 	return look_up_macro(function_macros, name)
 
+; replace macros at *p_in until terminator is reached
+;function macro_replacement_to_terminator
+;	argument filename
+;	argument p_line_number
+;	argument p_in
+;	argument p_out
+;	argument terminator
+;	local in
+;	local out
+;	in = *8p_in
+;	out = *8p_out
+;	:macro_replacement_to_terminator_loop
+;		if *1in == terminator goto macro_replacement_to_terminator_loop_end
+;		macro_replacement(filename, p_line_number, &in, &out)
+;	:macro_replacement_to_terminator_loop_end
+;	*8p_in = in
+;	*8p_out = out
+;	return
+
 ; @NONSTANDARD:
 ;  Macro replacement isn't handled properly in the following ways:
 ;    - function-like macros are not evaluated if the ( is not on the same line as the name of the macro
@@ -784,9 +803,11 @@ function look_up_function_macro
 ; replace pptoken(s) at *p_in into *p_out, advancing both
 ; NOTE: if *p_in starts with a function-like macro replacement, it is replaced fully,
 ;       otherwise this function only reads 1 token from *p_in
+; NOTE: a pointer to the line number is passed in because function-like macro invocations
+;       can span across multiple lines
 function macro_replacement
 	argument filename
-	argument line_number
+	argument p_line_number
 	argument p_in
 	argument p_out
 	; "banned" macros prevent #define x x from being a problem
@@ -855,7 +876,7 @@ function macro_replacement
 	pptoken_skip(&in) ; skip macro
 	:objreplace_loop
 		if *1p == 255 goto done_replacement
-		macro_replacement(filename, line_number, &p, &out)
+		macro_replacement(filename, p_line_number, &p, &out)
 		goto objreplace_loop
 	
 	:fmacro_replacement
@@ -889,7 +910,7 @@ function macro_replacement
 		; store the arguments (separated by 255-characters)
 		p = arguments
 		:fmacro_arg_loop
-			b = fmacro_arg_end(filename, line_number, in)
+			b = fmacro_arg_end(filename, p_line_number, in)
 			b -= in
 			memcpy(p, in, b) ; copy the argument to its proper place
 			p += b
@@ -925,7 +946,7 @@ function macro_replacement
 				
 				; stringify operator
 				p += 1 ; skip null separator following #
-				q = fmacro_get_arg(filename, line_number, arguments, *1p)
+				q = fmacro_get_arg(filename, p_line_number, arguments, *1p)
 				*1fmacro_out = '"
 				fmacro_out += 1
 				:fmacro_stringify_loop
@@ -979,7 +1000,7 @@ function macro_replacement
 		fmacro_out = fmacro_out_start
 		:frescan_loop
 			if *1fmacro_out == 0 goto frescan_loop_end
-			macro_replacement(filename, line_number, &fmacro_out, &out)
+			macro_replacement(filename, p_line_number, &fmacro_out, &out)
 			goto frescan_loop
 		:frescan_loop_end
 		
@@ -993,15 +1014,15 @@ function macro_replacement
 		q = p - 2 ; skip these characters: null separator, second '#'
 		if *1q == '# goto fmacro_argument_no_rescan ; this argument is immediately preceded by ##
 		; write argument to *fmacro_out, performing any necessary macro substitutions
-		q = fmacro_get_arg(filename, line_number, arguments, *1p)
+		q = fmacro_get_arg(filename, p_line_number, arguments, *1p)
 		:fmacro_arg_replace_loop
-			macro_replacement(filename, line_number, &q, &fmacro_out)
+			macro_replacement(filename, p_line_number, &q, &fmacro_out)
 			if *1q != 255 goto fmacro_arg_replace_loop
 		p += 2 ; skip arg idx & null separator
 		goto freplace_loop
 		
 		:fmacro_argument_no_rescan
-			q = fmacro_get_arg(filename, line_number, arguments, *1p)
+			q = fmacro_get_arg(filename, p_line_number, arguments, *1p)
 			fmacro_out = memccpy(fmacro_out, q, 255)
 			*1fmacro_out = 0
 			p += 2 ; skip arg idx & null separator
@@ -1019,7 +1040,7 @@ function macro_replacement
 		return
 	
 	:empty_fmacro_invocation
-		compile_error(filename, line_number, .str_empty_fmacro_invocation)
+		compile_error(filename, *8p_line_number, .str_empty_fmacro_invocation)
 	:str_empty_fmacro_invocation
 		string No arguments provided to function-like macro.
 		byte 0
@@ -1036,7 +1057,7 @@ function macro_replacement
 		goto done_replacement
 	:handle___LINE__
 		pptoken_skip(&in)
-		p = itos(line_number)
+		p = itos(*8p_line_number)
 		out = strcpy(out, p)
 		out += 1
 		goto done_replacement
@@ -1071,7 +1092,7 @@ function macro_replacement
 		
 function fmacro_get_arg
 	argument filename
-	argument line_number
+	argument p_line_number
 	argument arguments
 	argument arg_idx
 	:fmacro_argfind_loop
@@ -1084,14 +1105,14 @@ function fmacro_get_arg
 	:fmacro_arg_found
 	return arguments
 	:fmacro_too_few_arguments
-		compile_error(filename, line_number, .str_fmacro_too_few_arguments)
+		compile_error(filename, *8p_line_number, .str_fmacro_too_few_arguments)
 	:str_fmacro_too_few_arguments
 		string Too few arguments to function-like macro.
 		byte 0
 
 function fmacro_arg_end
 	argument filename
-	argument line_number
+	argument p_line_number
 	argument in
 	local bracket_depth
 	bracket_depth = 1
@@ -1099,6 +1120,7 @@ function fmacro_arg_end
 		if *1in == 0 goto fmacro_missing_closing_bracket
 		if *1in == '( goto fmacro_arg_opening_bracket
 		if *1in == ') goto fmacro_arg_closing_bracket
+		if *1in == 10 goto fmacro_arg_newline
 		if *1in == ', goto fmacro_arg_potential_end
 		pptoken_skip(&in)
 		goto fmacro_arg_end_loop
@@ -1115,12 +1137,16 @@ function fmacro_arg_end
 			if bracket_depth == 0 goto fmacro_arg_end_loop_end
 			pptoken_skip(&in)
 			goto fmacro_arg_end_loop
+		:fmacro_arg_newline
+			*8p_line_number += 1
+			pptoken_skip(&in)
+			goto fmacro_arg_end_loop
 	:fmacro_arg_end_loop_end
 	
 	return in
 	
 	:fmacro_missing_closing_bracket
-		compile_error(filename, line_number, .str_missing_closing_bracket)
+		compile_error(filename, *8p_line_number, .str_missing_closing_bracket)
 	
 function print_object_macros
 	print_macros(object_macros)
