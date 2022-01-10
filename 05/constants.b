@@ -142,6 +142,9 @@
 :str_else
 	string else
 	byte 0
+:str_endif
+	string endif
+	byte 0
 :str___FILE__
 	string __FILE__
 	byte 0

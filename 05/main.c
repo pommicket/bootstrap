@@ -9,6 +9,13 @@ F(2
 
 #include INC_FILE /* include macro test */
 
+a
+#ifndef INC_FILEd
+
 xglue(LINE_,NUMBER)
+#else
+Hello
+#endif
+b
 
 #pragma

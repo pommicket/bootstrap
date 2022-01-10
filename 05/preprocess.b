@@ -531,6 +531,14 @@ function translation_phase_4
 		if b != 0 goto pp_directive_line
 		b = str_equals(in, .str_include)
 		if b != 0 goto pp_directive_include
+		b = str_equals(in, .str_ifdef)
+		if b != 0 goto pp_directive_ifdef
+		b = str_equals(in, .str_ifndef)
+		if b != 0 goto pp_directive_ifndef
+		b = str_equals(in, .str_else)
+		if b != 0 goto pp_directive_else
+		b = str_equals(in, .str_endif)
+		if b != 0 goto pp_directive_endif
 		goto unrecognized_directive
 	:pp_directive_error
 		fputs(2, filename)
@@ -784,7 +792,43 @@ function translation_phase_4
 		out += 1
 		
 		goto process_pptoken
-		
+	:pp_directive_ifdef
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		macro_name = in
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		if *1in != 10 goto bad_ifdef
+		p = look_up_object_macro(macro_name)
+		if p != 0 goto process_pptoken ; macro is defined; keep processing
+		p = look_up_function_macro(macro_name)
+		if p != 0 goto process_pptoken ; macro is defined; keep processing
+		preprocessor_skip_if(filename, &line_number, &in, &out)
+		goto process_pptoken
+	:pp_directive_ifndef
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		macro_name = in
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		if *1in != 10 goto bad_ifdef
+		p = look_up_object_macro(macro_name)
+		if p != 0 goto ifndef_skip ; macro is defined; skip
+		p = look_up_function_macro(macro_name)
+		if p != 0 goto ifndef_skip ; macro is defined; skip
+		goto process_pptoken ; macro not defined; keep processing
+		:ifndef_skip
+		preprocessor_skip_if(filename, &line_number, &in, &out)
+		goto process_pptoken
+	:pp_directive_else
+		; assume we got here from an if, so skip this
+		pptoken_skip(&in)
+		preprocessor_skip_if(filename, &line_number, &in, &out)
+		goto process_pptoken
+	:pp_directive_endif
+		; assume we got here from an if/elif/else, just ignore it.
+		pptoken_skip(&in)
+		goto process_pptoken
 	:unrecognized_directive
 		compile_error(filename, line_number, .str_unrecognized_directive)
 	:str_unrecognized_directive
@@ -810,6 +854,11 @@ function translation_phase_4
 	:str_bad_undef
 		string Bad #undef.
 		byte 0
+	:bad_ifdef
+		compile_error(filename, line_number, .str_bad_ifdef)
+	:str_bad_ifdef
+		string Bad #ifdef.
+		byte 0
 	:bad_line_directive
 		compile_error(filename, line_number, .str_bad_line_directive)
 	:str_bad_line_directive
@@ -824,6 +873,89 @@ function translation_phase_4
 	
 	:phase4_end
 		return out
+	
+
+; skip body of #if / #elif / #else. This will advance *p_in to:
+;      - the next unmatched #elif
+;   OR - right after the next #else
+;   OR - right after the next #endif
+; whichever comes first
+; @NONSTANDARD: this doesn't properly handle #endif's, etc. which appear in a different file from their corresponding #if's.
+; NOTE: p_out is needed for newlines
+function preprocessor_skip_if
+	argument filename
+	argument p_line_number
+	argument p_in
+	argument p_out
+	local in
+	local out
+	local p
+	local b
+	local line_number_start
+	local prev_if_depth
+	local if_depth
+	in = *8p_in
+	out = *8p_out
+	if_depth = 0
+	line_number_start = *8p_line_number
+	:preprocessor_skip_if_loop
+		prev_if_depth = if_depth
+		if *1in == 0 goto no_matching_endif
+		if *1in == 10 goto skip_if_newline
+		if *1in == '# goto skip_if_hash
+		pptoken_skip(&in)
+		goto preprocessor_skip_if_loop
+		:skip_if_newline
+			*8p_line_number += 1
+			pptoken_copy_and_advance(&in, &out)
+			goto preprocessor_skip_if_loop
+		:skip_if_hash
+			p = in + 1
+			if *1p != '# goto skip_if_directive
+			; it's ##, not #
+			pptoken_skip(&in)
+			goto preprocessor_skip_if_loop
+		:skip_if_directive
+			pptoken_skip(&in) ; skip #
+			b = str_equals(in, .str_else)
+			if b != 0 goto skip_if_else
+			b = str_equals(in, .str_endif)
+			if b != 0 goto skip_if_endif
+			b = str_equals(in, .str_elif)
+			if b != 0 goto skip_if_elif
+			b = str_equals(in, .str_if)
+			if b != 0 goto skip_if_inc_depth
+			b = str_equals(in, .str_ifdef)
+			if b != 0 goto skip_if_inc_depth
+			b = str_equals(in, .str_ifndef)
+			if b != 0 goto skip_if_inc_depth
+			goto preprocessor_skip_if_loop ; some unimportant directive
+		:skip_if_elif
+			if if_depth > 0 goto preprocessor_skip_if_loop
+			in -= 2 ; return to #
+			goto preprocessor_skip_if_loop_end
+		:skip_if_inc_depth
+			if_depth += 1
+			goto preprocessor_skip_if_loop
+		:skip_if_endif
+			if_depth -= 1
+			; (fallthrough)
+		:skip_if_else
+			pptoken_skip(&in) ; skip endif/else
+			if prev_if_depth > 0 goto preprocessor_skip_if_loop
+			goto preprocessor_skip_if_loop_end
+	:preprocessor_skip_if_loop_end
+	
+	*8p_in = in
+	*8p_out = out
+	return
+	
+	:no_matching_endif
+		compile_error(filename, line_number_start, .str_no_matching_endif)
+	:str_no_matching_endif
+		string #if/#elif/#else without matching #endif.
+		byte 0
+	
 	
 ; returns a pointer to the replacement pptokens, or 0 if this macro is not defined
 function look_up_macro
