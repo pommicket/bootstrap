@@ -464,6 +464,7 @@ function translation_phase_4
 	local p
 	local c
 	local b
+	local macro_name
 	local line_number
 		
 	output = malloc(16000000)
@@ -503,8 +504,8 @@ function translation_phase_4
 		if b != 0 goto pp_directive_error
 		b = str_equals(in, .str_define)
 		if b != 0 goto pp_directive_define
-		puts(in)
-		putc(10)
+		b = str_equals(in, .str_undef)
+		if b != 0 goto pp_directive_undef
 		goto unrecognized_directive
 	:pp_directive_error
 		fputs(2, filename)
@@ -512,8 +513,25 @@ function translation_phase_4
 		fputn(2, line_number)
 		fputs(2, .str_directive_error)
 		exit(1)
+	:pp_directive_undef
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		macro_name = in
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		if *1in != 10 goto bad_undef
+		p = look_up_object_macro(macro_name)
+		if p == 0 goto undef_not_object
+		p -= 2
+		*1p = '@ ; replace last character of macro name with @ to "undefine" it
+		:undef_not_object
+		p = look_up_function_macro(macro_name)
+		if p == 0 goto undef_not_function
+		p -= 2
+		*1p = '@
+		:undef_not_function
+		goto process_pptoken
 	:pp_directive_define
-		local macro_name
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
 		macro_name = in
@@ -604,6 +622,7 @@ function translation_phase_4
 			function_macros_size = p - function_macros
 			free(param_names)
 			goto phase4_next_line
+	
 	:str_directive_error
 		string : #error
 		byte 10
@@ -629,6 +648,11 @@ function translation_phase_4
 		compile_error(filename, line_number, .str_bad_macro_params)
 	:str_bad_macro_params
 		string Bad macro parameter list.
+		byte 0
+	:bad_undef
+		compile_error(filename, line_number, .str_bad_undef)
+	:str_bad_undef
+		string Bad #undef.
 		byte 0
 
 ; returns a pointer to the replacement pptokens, or 0 if this macro is not defined
@@ -699,11 +723,10 @@ function macro_replacement
 	
 	p = banned_objmacros
 	
-	
 	:check_banned_objmacros_loop
 		if *1p == 255 goto check_banned_objmacros_loop_end
 		b = str_equals(in, p)
-		if b != 0 goto done_replacement
+		if b != 0 goto no_replacement
 		p = memchr(p, 0)
 		p += 1
 		goto check_banned_objmacros_loop
@@ -762,6 +785,7 @@ function macro_replacement
 			in += b ; skip argument
 			c = *1in
 			in += 2 ; skip , or )
+			pptoken_skip_spaces(&in)
 			*1p = 255
 			p += 1
 			if c == ', goto fmacro_arg_loop

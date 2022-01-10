@@ -115,6 +115,9 @@
 :str_define
 	string define
 	byte 0
+:str_undef
+	string undef
+	byte 0
 :str_include
 	string include
 	byte 0

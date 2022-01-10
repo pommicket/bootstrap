@@ -1,3 +1,6 @@
+#define z sz
+z
+
 #define STRINGIFY2(x) # x
 #define STRINGIFY(x) STRINGIFY2(x)
 #define JOIN2(x,y) x ##  y
