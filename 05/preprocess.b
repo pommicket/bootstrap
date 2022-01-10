@@ -832,6 +832,17 @@ function macro_replacement
 	:check_banned_objmacros_loop_end
 	
 	:objmacro_replacement
+	b = str_equals(in, .str___FILE__)
+	if b != 0 goto handle___FILE__
+	b = str_equals(in, .str___LINE__)
+	if b != 0 goto handle___LINE__
+	b = str_equals(in, .str___DATE__)
+	if b != 0 goto handle___DATE__
+	b = str_equals(in, .str___TIME__)
+	if b != 0 goto handle___TIME__
+	b = str_equals(in, .str___STDC__)
+	if b != 0 goto handle___STDC__
+	
 	replacement = look_up_object_macro(in)
 	if replacement == 0 goto no_replacement
 	
@@ -1012,6 +1023,51 @@ function macro_replacement
 	:str_empty_fmacro_invocation
 		string No arguments provided to function-like macro.
 		byte 0
+	
+	:handle___FILE__
+		pptoken_skip(&in)
+		*1out = '"
+		out += 1
+		out = strcpy(out, filename)
+		*1out = '"
+		out += 1
+		*1out = 0
+		out += 1
+		goto done_replacement
+	:handle___LINE__
+		pptoken_skip(&in)
+		p = itos(line_number)
+		out = strcpy(out, p)
+		out += 1
+		goto done_replacement
+	:handle___DATE__
+		pptoken_skip(&in)
+		out = strcpy(out, .str_compilation_date)
+		out += 1
+		goto done_replacement
+	:handle___TIME__
+		pptoken_skip(&in)
+		out = strcpy(out, .str_compilation_time)
+		out += 1
+		goto done_replacement
+	:handle___STDC__
+		pptoken_skip(&in)
+		out = strcpy(out, .str_stdc)
+		out += 1
+		goto done_replacement
+	:str_compilation_date
+		; "If the date of translation is not available, an implementation-defined valid date shall be supplied." C89 § 3.8.8
+		string "Jan 01 1970"
+		byte 0
+	:str_compilation_time
+		; "If the time of translation is not available, an implementation-defined valid time shall be supplied." C89 § 3.8.8
+		string "00:00:00"
+		byte 0
+	:str_stdc
+		; (see @NONSTANDARD) a bit of a lie, but oh well
+		string 1
+		byte 0
+	
 		
 function fmacro_get_arg
 	argument filename

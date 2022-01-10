@@ -142,3 +142,18 @@
 :str_else
 	string else
 	byte 0
+:str___FILE__
+	string __FILE__
+	byte 0
+:str___LINE__
+	string __LINE__
+	byte 0
+:str___DATE__
+	string __DATE__
+	byte 0
+:str___TIME__
+	string __TIME__
+	byte 0
+:str___STDC__
+	string __STDC__
+	byte 0
