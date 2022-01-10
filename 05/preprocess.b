@@ -531,14 +531,19 @@ function translation_phase_4
 		fputs(2, .str_directive_error)
 		exit(1)
 	:pp_directive_line
-		; @NONSTANDARD: we don't do macro replacements in #line directives
+		global 1000 dat_directive_line_text
+		
+		local temp_out
+		temp_out = &dat_directive_line_text
+		macro_replacement_to_terminator(filename, &line_number, &in, &temp_out, 10)
+		temp_out = &dat_directive_line_text
 		
 		; at this stage, we just turn #line directives into a nicer format:
 		;    {$line_number filename} e.g.  {$77 main.c}
 		local new_line_number
-		pptoken_skip(&in)
-		pptoken_skip_spaces(&in)
-		new_line_number = stoi(in)
+		pptoken_skip(&temp_out)
+		pptoken_skip_spaces(&temp_out)
+		new_line_number = stoi(temp_out)
 		new_line_number -= 1 ; #line directive applies to the following line
 		*1out = '$
 		out += 1
@@ -547,14 +552,14 @@ function translation_phase_4
 		out = strcpy(out, p)
 		*1out = 32
 		out += 1
-		pptoken_skip(&in)
-		pptoken_skip_spaces(&in)
-		if *1in == 10 goto ppdirective_line_no_filename
-		if *1in != '" goto bad_line_directive
+		pptoken_skip(&temp_out)
+		pptoken_skip_spaces(&temp_out)
+		if *1temp_out == 10 goto ppdirective_line_no_filename
+		if *1temp_out != '" goto bad_line_directive
 		; copy filename
-		in += 1
+		temp_out += 1
 		filename = out
-		out = memccpy(out, in, '")
+		out = memccpy(out, temp_out, '")
 		*1out = 0
 		out += 1
 		goto ppdirective_line_cont
@@ -562,7 +567,6 @@ function translation_phase_4
 		out = strcpy(out, filename)
 		out += 1
 		:ppdirective_line_cont
-		pptoken_skip_to_newline(&in)
 		line_number = new_line_number
 		goto process_pptoken
 	:pp_directive_undef
@@ -769,24 +773,25 @@ function look_up_function_macro
 	argument name
 	return look_up_macro(function_macros, name)
 
-; replace macros at *p_in until terminator is reached
-;function macro_replacement_to_terminator
-;	argument filename
-;	argument p_line_number
-;	argument p_in
-;	argument p_out
-;	argument terminator
-;	local in
-;	local out
-;	in = *8p_in
-;	out = *8p_out
-;	:macro_replacement_to_terminator_loop
-;		if *1in == terminator goto macro_replacement_to_terminator_loop_end
-;		macro_replacement(filename, p_line_number, &in, &out)
-;	:macro_replacement_to_terminator_loop_end
-;	*8p_in = in
-;	*8p_out = out
-;	return
+; replace macros at *p_in until terminator character is reached
+function macro_replacement_to_terminator
+	argument filename
+	argument p_line_number
+	argument p_in
+	argument p_out
+	argument terminator
+	local in
+	local out
+	in = *8p_in
+	out = *8p_out
+	:macro_replacement_to_terminator_loop
+		if *1in == terminator goto macro_replacement_to_terminator_loop_end
+		macro_replacement(filename, p_line_number, &in, &out)
+		goto macro_replacement_to_terminator_loop
+	:macro_replacement_to_terminator_loop_end
+	*8p_in = in
+	*8p_out = out
+	return
 
 ; @NONSTANDARD:
 ;  Macro replacement isn't handled properly in the following ways:
