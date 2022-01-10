@@ -118,6 +118,12 @@
 :str_undef
 	string undef
 	byte 0
+:str_pragma
+	string pragma
+	byte 0
+:str_line
+	string line
+	byte 0
 :str_include
 	string include
 	byte 0

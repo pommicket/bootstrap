@@ -26,9 +26,26 @@ function compile_error
 	fputs(2, message)
 	fputc(2, 10)
 	exit(1)
+
+function compile_warning
+	argument file
+	argument line
+	argument message
+	fputs(2, file)
+	fputc(2, ':)
+	fputn(2, line)
+	fputs(2, .str_warning_prefix)
+	fputs(2, message)
+	fputc(2, 10)
+	return
 	
 :str_error_prefix
 	string : Error:
+	byte 32
+	byte 0
+
+:str_warning_prefix
+	string : Warning:
 	byte 32
 	byte 0
 

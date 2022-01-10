@@ -452,6 +452,18 @@ function pptoken_skip_spaces
 	*8p_in = in
 	return
 
+function pptoken_skip_to_newline
+	argument p_in
+	local in
+	in = *8p_in
+	:pptoken_skip_to_newline_loop
+		if *1in == 10 goto pptoken_skip_to_newline_end
+		pptoken_skip(&in)
+		goto pptoken_skip_to_newline_loop
+	:pptoken_skip_to_newline_end
+	*8p_in = in
+	return
+	
 ; phase 4:
 ; Preprocessing directives are executed and macro invocations are expanded.
 ; A #include preprocessing directive causes the named header or source file to be processed from phase 1 through phase 4, recursively.
@@ -506,6 +518,10 @@ function translation_phase_4
 		if b != 0 goto pp_directive_define
 		b = str_equals(in, .str_undef)
 		if b != 0 goto pp_directive_undef
+		b = str_equals(in, .str_pragma)
+		if b != 0 goto pp_directive_pragma
+		b = str_equals(in, .str_line)
+		if b != 0 goto pp_directive_line
 		goto unrecognized_directive
 	:pp_directive_error
 		fputs(2, filename)
@@ -513,6 +529,39 @@ function translation_phase_4
 		fputn(2, line_number)
 		fputs(2, .str_directive_error)
 		exit(1)
+	:pp_directive_line
+		; at this stage, we just turn #line directives into a nicer format:
+		;    {$line_number filename} e.g.  {$77 main.c}
+		local new_line_number
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		new_line_number = stoi(in)
+		new_line_number -= 1 ; #line directive applies to the following line
+		*1out = '$
+		out += 1
+		; copy line number
+		p = itos(new_line_number)
+		out = strcpy(out, p)
+		*1out = 32
+		out += 1
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		if *1in == 10 goto ppdirective_line_no_filename
+		if *1in != '" goto bad_line_directive
+		; copy filename
+		in += 1
+		filename = out
+		out = memccpy(out, in, '")
+		*1out = 0
+		out += 1
+		goto ppdirective_line_cont
+		:ppdirective_line_no_filename
+		out = strcpy(out, filename)
+		out += 1
+		:ppdirective_line_cont
+		pptoken_skip_to_newline(&in)
+		line_number = new_line_number
+		goto process_pptoken
 	:pp_directive_undef
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
@@ -622,7 +671,14 @@ function translation_phase_4
 			function_macros_size = p - function_macros
 			free(param_names)
 			goto phase4_next_line
-	
+	:pp_directive_pragma
+		; we don't have any pragmas
+		compile_warning(filename, line_number, .str_unrecognized_pragma)
+		pptoken_skip_to_newline(&in)
+		goto process_pptoken
+	:str_unrecognized_pragma
+		string Unrecognized #pragma.
+		byte 0
 	:str_directive_error
 		string : #error
 		byte 10
@@ -653,6 +709,11 @@ function translation_phase_4
 		compile_error(filename, line_number, .str_bad_undef)
 	:str_bad_undef
 		string Bad #undef.
+		byte 0
+	:bad_line_directive
+		compile_error(filename, line_number, .str_bad_line_directive)
+	:str_bad_line_directive
+		string Bad #line.
 		byte 0
 
 ; returns a pointer to the replacement pptokens, or 0 if this macro is not defined

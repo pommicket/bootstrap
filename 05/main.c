@@ -11,13 +11,10 @@ JOIN(X, X)
 
 STRINGIFY(X)
 
-   #define E 5
-#define D E
-#define C D
-#define B C
-#define A B
+#line 6
 
-  int x = E;
+#line 7 "some_file.c"
+#pragma whatever
 
 main(void) {
 }
