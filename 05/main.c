@@ -1,5 +1,7 @@
-#define z sz
+#define z s z
 z
+#define f(x) f(2 * x)
+f(f(4))
 
 #define STRINGIFY2(x) # x
 #define STRINGIFY(x) STRINGIFY2(x)

@@ -408,9 +408,9 @@ function print_pptokens
 	p = pptokens
 	:print_pptokens_loop
 		if *1p == 0 goto print_pptokens_loop_end
-		putc('{)
+		; putc('{)
 		puts(p)
-		putc('})
+		; putc('})
 		p += strlen(p)
 		p += 1
 		goto print_pptokens_loop
@@ -780,6 +780,7 @@ function macro_replacement
 	
 	p = in
 	pptoken_skip(&p)
+	pptoken_skip_spaces(&p)
 	if *1p == '( goto fmacro_replacement
 	
 	p = banned_objmacros
@@ -793,13 +794,15 @@ function macro_replacement
 		goto check_banned_objmacros_loop
 	:check_banned_objmacros_loop_end
 	
+	
+	replacement = look_up_object_macro(in)
+	if replacement == 0 goto no_replacement
+	
 	; add this to list of banned macros
 	p = strcpy(old_banned_objmacros_end, in)
 	p += 1
 	*1p = 255
 	
-	replacement = look_up_object_macro(in)
-	if replacement == 0 goto no_replacement
 	p = replacement
 	pptoken_skip(&in) ; skip macro
 	:objreplace_loop
@@ -818,14 +821,13 @@ function macro_replacement
 			goto check_banned_fmacros_loop
 		:check_banned_fmacros_loop_end
 		
-		; add this to list of banned macros
-		p = strcpy(old_banned_fmacros_end, in)
-		p += 1
-		*1p = 255
-		
 		replacement = look_up_function_macro(in)
 		if replacement == 0 goto no_replacement
+		local macro_name
+		macro_name = in
+		
 		pptoken_skip(&in) ; skip macro name
+		pptoken_skip_spaces(&in)
 		pptoken_skip(&in) ; skip opening bracket
 		if *1in == ') goto empty_fmacro_invocation
 		
@@ -900,6 +902,14 @@ function macro_replacement
 				pptoken_skip(&p)
 				goto freplace_loop
 		:freplace_loop_end
+		
+		; add this to list of banned macros
+		; it's important that we do this now and not earlier because this is valid:
+		;  #define f(x) x x
+		;  const char *s = f(f("a"));  /* this preprocesses to  s = "a" "a" "a" "a" */
+		p = strcpy(old_banned_fmacros_end, macro_name)
+		p += 1
+		*1p = 255
 		
 		fmacro_out = fmacro_out_start
 		:frescan_loop
