@@ -166,7 +166,8 @@ function split_into_preprocessing_tokens
 		if c == '# goto pptoken_single_character
 		if c == '. goto pptoken_dot
 		
-		goto bad_pptoken
+		; " each non-white-space character that cannot be one of the above"
+		goto pptoken_single_character
 		
 		:pptoken_comment
 			; emit a space ("Each comment is replaced by one space character.")
@@ -379,11 +380,11 @@ function split_into_preprocessing_tokens
 	:str_unterminated_string
 		string Unterminated string or character literal.
 		byte 0
-	:bad_pptoken
-		compile_error(filename, line_number, .str_bad_pptoken)
-	:str_bad_pptoken
-		string Bad preprocessing token.
-		byte 0
+;	:bad_pptoken
+;		compile_error(filename, line_number, .str_bad_pptoken)
+;	:str_bad_pptoken
+;		string Bad preprocessing token.
+;		byte 0
 	:no_newline_at_end_of_file
 		compile_error(filename, 0, .str_no_newline_at_end_of_file)
 	:str_no_newline_at_end_of_file
@@ -408,9 +409,9 @@ function print_pptokens
 	p = pptokens
 	:print_pptokens_loop
 		if *1p == 0 goto print_pptokens_loop_end
-		; putc('{)
+		putc('{)
 		puts(p)
-		; putc('})
+		putc('})
 		p += strlen(p)
 		p += 1
 		goto print_pptokens_loop
@@ -530,6 +531,8 @@ function translation_phase_4
 		fputs(2, .str_directive_error)
 		exit(1)
 	:pp_directive_line
+		; @NONSTANDARD: we don't do macro replacements in #line directives
+		
 		; at this stage, we just turn #line directives into a nicer format:
 		;    {$line_number filename} e.g.  {$77 main.c}
 		local new_line_number
@@ -581,6 +584,7 @@ function translation_phase_4
 		:undef_not_function
 		goto process_pptoken
 	:pp_directive_define
+		local definition
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
 		macro_name = in
@@ -597,8 +601,19 @@ function translation_phase_4
 			; copy name
 			p = strcpy(p, macro_name)
 			p += 1
+			
+			definition = in
 			; copy contents
 			memccpy_advance(&p, &in, 10) ; copy until newline
+			
+			if in == definition goto objmacro_cont
+			
+			; remove terminal space if there is one
+			p -= 2
+			if *1p == 32 goto objmacro_cont
+			p += 2
+			
+			:objmacro_cont
 			*1p = 255 ; replace newline with special "macro end" character
 			p += 1
 			object_macros_size = p - object_macros
@@ -640,6 +655,8 @@ function translation_phase_4
 			p = strcpy(p, macro_name)
 			p += 1
 			
+			definition = in
+			
 			:fmacro_body_loop
 				if *1in == 10 goto fmacro_body_loop_end
 				param_name = param_names
@@ -666,6 +683,14 @@ function translation_phase_4
 					pptoken_skip(&in)
 					goto fmacro_body_loop
 			:fmacro_body_loop_end
+			
+			if in == definition goto fmacro_cont
+			; remove terminal space if there is one
+			p -= 2
+			if *1p == 32 goto fmacro_cont
+			p += 2
+			:fmacro_cont
+			
 			*1p = 255
 			p += 1
 			function_macros_size = p - function_macros
@@ -744,6 +769,18 @@ function look_up_function_macro
 	argument name
 	return look_up_macro(function_macros, name)
 
+; @NONSTANDARD:
+;  Macro replacement isn't handled properly in the following ways:
+;    - function-like macros are not evaluated if the ( is not on the same line as the name of the macro
+;    - if an object-like macro is defined to a function-like macro, the function-like macro is not evaluated, e.g.:
+;        #define f(x) 2*x
+;        #define g f
+;        g(2)   => f(2) rather than 2*2
+;    - when a macro refers to itself, it can be re-evaluated where that shouldn't happen, e.g.
+;        #define z z[0]
+;        #define f(x) x
+;        f(f(z)) => z[0][0] rather than z[0]
+;  These shouldn't be too much of an issue, though.
 ; replace pptoken(s) at *p_in into *p_out, advancing both
 ; NOTE: if *p_in starts with a function-like macro replacement, it is replaced fully,
 ;       otherwise this function only reads 1 token from *p_in
@@ -794,7 +831,7 @@ function macro_replacement
 		goto check_banned_objmacros_loop
 	:check_banned_objmacros_loop_end
 	
-	
+	:objmacro_replacement
 	replacement = look_up_object_macro(in)
 	if replacement == 0 goto no_replacement
 	
@@ -822,7 +859,7 @@ function macro_replacement
 		:check_banned_fmacros_loop_end
 		
 		replacement = look_up_function_macro(in)
-		if replacement == 0 goto no_replacement
+		if replacement == 0 goto objmacro_replacement ; not a fmacro, check if it's an objmacro
 		local macro_name
 		macro_name = in
 		
@@ -848,10 +885,12 @@ function macro_replacement
 			in += b ; skip argument
 			c = *1in
 			in += 2 ; skip , or )
-			pptoken_skip_spaces(&in)
 			*1p = 255
 			p += 1
-			if c == ', goto fmacro_arg_loop
+			if c == ') goto fmacro_arg_loop_end
+			pptoken_skip_spaces(&in)
+			goto fmacro_arg_loop
+		:fmacro_arg_loop_end
 		*1p = 255 ; use an additional 255-character to mark the end (note: macro arguments may not be empty)
 		
 		; print arguments:
@@ -878,15 +917,30 @@ function macro_replacement
 				q = fmacro_get_arg(filename, line_number, arguments, *1p)
 				*1fmacro_out = '"
 				fmacro_out += 1
-				; @NONSTANDARD: this doesn't work if the argument contains " or \
 				:fmacro_stringify_loop
 					c = *1q
 					q += 1
 					if c == 255 goto fmacro_stringify_loop_end
+					if c == '\ goto fmacro_stringify_escape
+					if c == '" goto fmacro_stringify_escape
+					if c == 10 goto fmacro_stringify_space ; replace newline with space
+					if c == 32 goto fmacro_stringify_space
 					if c == 0 goto fmacro_stringify_loop
-					*1fmacro_out = c
-					fmacro_out += 1
-					goto fmacro_stringify_loop
+					:fmacro_stringify_emit
+						*1fmacro_out = c
+						fmacro_out += 1
+						goto fmacro_stringify_loop
+					:fmacro_stringify_escape
+						*1fmacro_out = '\
+						fmacro_out += 1
+						goto fmacro_stringify_emit
+					:fmacro_stringify_space
+						b = fmacro_out - 1
+						if *1b == 32 goto fmacro_stringify_loop ; don't emit two spaces in a row
+						*1fmacro_out = 32
+						fmacro_out += 1
+						goto fmacro_stringify_loop
+						
 				:fmacro_stringify_loop_end
 				*1fmacro_out = '"
 				fmacro_out += 1
