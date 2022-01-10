@@ -1,12 +1,14 @@
-#define f(x) x x
+#define F(x) x x
 
-f(2
+F(2
 3)
 
 #define STRINGIFY(x) #x
-#define MY_FILE STRINGIFY(some_file.c)
 #define LINE_NUMBER 1982
+#define INC_FILE STRINGIFY(macro_test.c)
 
-#line LINE_NUMBER MY_FILE
+#include INC_FILE /* include macro test */
+
+xglue(LINE_,NUMBER)
 
 #pragma

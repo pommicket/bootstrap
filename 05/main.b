@@ -61,6 +61,7 @@ function main
 	local input_filename
 	local output_filename
 	local pptokens
+	local processed_pptokens
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -78,7 +79,10 @@ function main
 	pptokens = split_into_preprocessing_tokens(input_filename)
 	print_pptokens(pptokens)
 	print_separator()
-	pptokens = translation_phase_4(input_filename, pptokens)
+	processed_pptokens = malloc(16000000)
+	translation_phase_4(input_filename, pptokens, processed_pptokens)
+	free(pptokens)
+	pptokens = processed_pptokens
 	print_pptokens(pptokens)
 	print_object_macros()
 	print_function_macros()

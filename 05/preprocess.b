@@ -380,11 +380,6 @@ function split_into_preprocessing_tokens
 	:str_unterminated_string
 		string Unterminated string or character literal.
 		byte 0
-;	:bad_pptoken
-;		compile_error(filename, line_number, .str_bad_pptoken)
-;	:str_bad_pptoken
-;		string Bad preprocessing token.
-;		byte 0
 	:no_newline_at_end_of_file
 		compile_error(filename, 0, .str_no_newline_at_end_of_file)
 	:str_no_newline_at_end_of_file
@@ -471,7 +466,7 @@ function pptoken_skip_to_newline
 function translation_phase_4
 	argument filename
 	argument input
-	local output
+	argument output
 	local in
 	local out
 	local p
@@ -479,10 +474,21 @@ function translation_phase_4
 	local b
 	local macro_name
 	local line_number
-		
-	output = malloc(16000000)
+	local temp_out
+	
 	out = output
 	in = input
+	
+	; output line directive to put us in the right place for included files
+	*1out = '$
+	out += 1
+	*1out = '1
+	out += 1
+	*1out = 32
+	out += 1
+	out = strcpy(out, filename)
+	out += 1
+		
 	line_number = 0
 	
 	:phase4_line
@@ -523,6 +529,8 @@ function translation_phase_4
 		if b != 0 goto pp_directive_pragma
 		b = str_equals(in, .str_line)
 		if b != 0 goto pp_directive_line
+		b = str_equals(in, .str_include)
+		if b != 0 goto pp_directive_include
 		goto unrecognized_directive
 	:pp_directive_error
 		fputs(2, filename)
@@ -530,10 +538,13 @@ function translation_phase_4
 		fputn(2, line_number)
 		fputs(2, .str_directive_error)
 		exit(1)
+	:str_directive_error
+		string : #error
+		byte 10
+		byte 0
 	:pp_directive_line
 		global 1000 dat_directive_line_text
 		
-		local temp_out
 		temp_out = &dat_directive_line_text
 		macro_replacement_to_terminator(filename, &line_number, &in, &temp_out, 10)
 		temp_out = &dat_directive_line_text
@@ -708,12 +719,72 @@ function translation_phase_4
 	:str_unrecognized_pragma
 		string Unrecognized #pragma.
 		byte 0
-	:str_directive_error
-		string : #error
-		byte 10
-		byte 0
-	:phase4_end
-		return output
+	:pp_directive_include
+		global 1000 dat_directive_include_text
+		local inc_filename
+		temp_out = &dat_directive_include_text
+		inc_filename = malloc(4000)
+		pptoken_skip(&in)
+		macro_replacement_to_terminator(filename, &line_number, &in, &temp_out, 10)
+		temp_out = &dat_directive_include_text
+		pptoken_skip_spaces(&temp_out)
+		if *1temp_out == '" goto pp_include_string
+		if *1temp_out == '< goto pp_include_angle_brackets
+		goto bad_include
+	
+		:pp_include_string
+			p = inc_filename
+			temp_out += 1
+			:pp_include_string_loop
+				c = *1temp_out
+				temp_out += 1
+				if c == '" goto pp_include_string_loop_end
+				if c == 10 goto bad_include ; no terminating quote
+				*1p = c
+				p += 1
+				goto pp_include_string_loop
+			:pp_include_string_loop_end
+			temp_out += 1 ; skip null separator after terminating quote
+			pptoken_skip_spaces(&temp_out)
+			if *1temp_out != 0 goto bad_include ; stuff after filename
+			goto pp_include_have_filename
+		:pp_include_angle_brackets
+			p = inc_filename
+			temp_out += 1
+			:pp_include_angle_brackets_loop
+				c = *1temp_out
+				temp_out += 1
+				if c == '> goto pp_include_angle_brackets_loop_end
+				if c == 10 goto bad_include ; no terminating >
+				if c == 0 goto pp_include_angle_brackets_loop ; separators between pptokens
+				*1p = c
+				p += 1
+				goto pp_include_angle_brackets_loop
+			:pp_include_angle_brackets_loop_end
+			temp_out += 1 ; skip null separator after terminating >
+			pptoken_skip_spaces(&temp_out)
+			if *1temp_out != 0 goto bad_include ; stuff after filename
+			goto pp_include_have_filename
+		:pp_include_have_filename
+		
+		local included_pptokens
+		included_pptokens = split_into_preprocessing_tokens(inc_filename)
+		out = translation_phase_4(inc_filename, included_pptokens, out)
+		free(included_pptokens)
+		free(inc_filename)
+		
+		; output a line directive to put us back in the right place
+		*1out = '$
+		out += 1
+		p = itos(line_number)
+		out = strcpy(out, p)
+		*1out = 32
+		out += 1
+		out = strcpy(out, filename)
+		out += 1
+		
+		goto process_pptoken
+		
 	:unrecognized_directive
 		compile_error(filename, line_number, .str_unrecognized_directive)
 	:str_unrecognized_directive
@@ -744,7 +815,16 @@ function translation_phase_4
 	:str_bad_line_directive
 		string Bad #line.
 		byte 0
-
+	:bad_include
+		compile_error(filename, line_number, .str_bad_include)
+	:str_bad_include
+		string Bad #include.
+		byte 0
+	
+	
+	:phase4_end
+		return out
+	
 ; returns a pointer to the replacement pptokens, or 0 if this macro is not defined
 function look_up_macro
 	argument macros
