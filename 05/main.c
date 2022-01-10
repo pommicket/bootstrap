@@ -4,17 +4,17 @@
 #define JOIN(x,y) JOIN2(x, y)
 #define X 22
 
-JOIN2(X, X)
+JOIN(X, X)
 
 STRINGIFY(X)
 
-#define E 5
+   #define E 5
 #define D E
 #define C D
 #define B C
 #define A B
 
-int x = E;
+  int x = E;
 
 main(void) {
 }

@@ -1,7 +1,7 @@
 ; returns a string of null character-separated preprocessing tokens and space characters
 ; this corresponds to translation phases 1-3 in the C89 standard
 ; each sequence of two or more spaces is replaced with a single space
-; spaces following # and around ## are removed
+; spaces around # and ## are removed
 function split_into_preprocessing_tokens
 	argument filename
 	local fd
@@ -338,31 +338,30 @@ function split_into_preprocessing_tokens
 	:join_spaces_loop_end
 	*1out = 0
 	
-	; delete space surrounding ## and following #
+	; delete space surrounding ## and #
+	; we want to delete spaces before # so that all preprocessor directives are at the start of the line
+	;   (this makes recognizing them slightly easier)
 	in = pptokens2
 	out = pptokens
 	:delete_hash_spaces_loop
 		c = *1in
 		if c == 0 goto delete_hash_spaces_loop_end
-		pptoken_copy_and_advance(&in, &out)
 		if c == '# goto delete_hash_spaces_hash
+		pptoken_copy_and_advance(&in, &out)
+		goto delete_hash_spaces_loop
 		
 		:delete_hash_spaces_hash
-			p = in + 1
-			if *1p == '# goto delete_surrounding_space
-			:delete_hash_spaces_skip_spaces
-			pptoken_skip_spaces(&in)
-			goto delete_hash_spaces_loop
-			
-		:delete_surrounding_space
-			p = out - 2 ; ## can't appear at start of file
-			if *1p != 32 goto delete_hash_spaces_skip_spaces ; no space before ##
-			; space before ##
+			if out == pptokens goto copy_and_delete_spaces_after_hash ; little edge case
+			p = out - 2
+			if *1p != 32 goto copy_and_delete_spaces_after_hash ; no space before ##
+			; space before #/##
 			; remove it
 			out -= 2
 			*1out = 0
-			goto delete_hash_spaces_skip_spaces
-			
+			:copy_and_delete_spaces_after_hash
+			pptoken_copy_and_advance(&in, &out)
+			pptoken_skip_spaces(&in)
+			goto delete_hash_spaces_loop		
 	:delete_hash_spaces_loop_end
 	*1out = 0
 	
@@ -829,6 +828,10 @@ function macro_replacement
 		goto done_replacement
 		
 	:fmacro_argument
+		q = p + 3 ; skip these characters: arg idx, null separator, first '#'
+		if *1q == '# goto fmacro_argument_no_rescan ; this argument is immediately followed by ## so it shouldn't be scanned for replacements
+		q = p - 2 ; skip these characters: null separator, second '#'
+		if *1q == '# goto fmacro_argument_no_rescan ; this argument is immediately preceded by ##
 		; write argument to *fmacro_out, performing any necessary macro substitutions
 		q = fmacro_get_arg(filename, line_number, arguments, *1p)
 		:fmacro_arg_replace_loop
@@ -837,6 +840,13 @@ function macro_replacement
 		p += 2 ; skip arg idx & null separator
 		goto freplace_loop
 		
+		:fmacro_argument_no_rescan
+			q = fmacro_get_arg(filename, line_number, arguments, *1p)
+			fmacro_out = memccpy(fmacro_out, q, 255)
+			*1fmacro_out = 0
+			p += 2 ; skip arg idx & null separator
+			goto freplace_loop
+			
 	:no_replacement
 		pptoken_copy_and_advance(&in, &out)
 		; (fallthrough)
