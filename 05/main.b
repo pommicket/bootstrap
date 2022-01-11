@@ -64,6 +64,13 @@ function compile_warning
 	byte 32
 	byte 0
 
+; powers of 10, stored in the following format:
+;   ulong significand
+;   ulong exponent
+; where for i = -1023..1023, powers_of_10 + 16*i points to an entry where
+;          (significand / 2^58) * 2^exponent
+global powers_of_10
+
 #include util.b
 #include constants.b
 #include preprocess.b
@@ -80,6 +87,8 @@ function main
 	local processed_pptokens
 	local tokens
 	
+	fill_in_powers_of_10()
+	print_powers_of_10()
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -132,3 +141,106 @@ function main
 :str_default_output_filename
 	string a.out
 	byte 0
+
+function normalize_float
+	argument p_significand
+	argument p_exponent
+	local significand
+	local exponent
+	
+	significand = *8p_significand
+	exponent = *8p_exponent
+	
+	:float_reduce_loop
+		if significand [ 0x400000000000000 goto float_reduce_loop_end
+		significand >= 1
+		exponent += 1
+		goto float_reduce_loop
+	:float_reduce_loop_end
+	:float_increase_loop
+		if significand ]= 0x200000000000000 goto float_increase_loop_end
+		significand <= 1
+		exponent -= 1
+		goto float_increase_loop
+	:float_increase_loop_end
+	*8p_significand = significand
+	*8p_exponent = exponent
+	return
+		
+function fill_in_powers_of_10
+	local i
+	local p
+	local significand
+	local exponent
+	powers_of_10 = malloc(40000)
+	powers_of_10 += 20000
+	significand = 1 < 57
+	exponent = 1
+	i = 0
+	:pow10_loop_positive
+		p = powers_of_10
+		p += i < 4
+		*8p = significand
+		p += 8
+		*8p = exponent
+		
+		significand *= 10
+		normalize_float(&significand, &exponent)
+		
+		i += 1
+		if i < 1024 goto pow10_loop_positive
+	significand = 1 < 57
+	exponent = 1
+	i = 0
+	:pow10_loop_negative
+		p = powers_of_10
+		p += i < 4
+		*8p = significand
+		p += 8
+		*8p = exponent
+		
+		significand *= 32
+		exponent -= 5
+		significand /= 10
+		normalize_float(&significand, &exponent)
+		
+		i -= 1
+		if i > -1024 goto pow10_loop_negative
+	return
+
+function print_powers_of_10
+	local i
+	local j
+	local b
+	local p
+	local significand
+	i = -325
+	:print_powers_of_10_loop
+		putc(49)
+		putc(48)
+		putc('^)
+		putn_signed(i)
+		putc(61)
+		
+		p = powers_of_10
+		p += i < 4
+		significand = *8p
+		putc('.)
+		j = 57
+		:pow10_binary_loop
+			b = significand > j
+			b &= 1
+			b += '0
+			putc(b)
+			j -= 1
+			if j >= 0 goto pow10_binary_loop
+		putc('*)
+		putc('2)
+		putc('^)
+		p += 8
+		putn_signed(*8p)
+		putc(10)
+				
+		i += 1
+		if i < 325 goto print_powers_of_10_loop
+	return

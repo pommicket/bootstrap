@@ -267,11 +267,31 @@ function fputn
 	fputs(fd, s)
 	return
 
+function fputn_signed
+	argument fd
+	argument n
+	if n < 0 goto fputn_negative
+	
+	fputn(fd, n)
+	return
+	
+	:fputn_negative
+		fputc(fd, '-)
+		n = 0 - n
+		fputn(fd, n)
+		return
+		
 function putn
 	argument n
 	fputn(1, n)
 	return
-	
+
+function putn_signed
+	argument n
+	fputn_signed(1, n)
+	return
+
+
 function fputc
 	argument fd
 	argument c
