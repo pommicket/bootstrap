@@ -18,55 +18,51 @@
 ;   highest
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)
 
-; pattern for binary operators is: 0x10px where p is precedence
-; NB: these four can also be unary: & * + -
-#define MASK_SYMBOL_PRECEDENCE 0x0ff0
-#define SYMBOL_COMMA 0x1010
-#define SYMBOL_EQ 0x1020
-#define SYMBOL_PLUS_EQ 0x1021
-#define SYMBOL_MINUS_EQ 0x1022
-#define SYMBOL_TIMES_EQ 0x1023
-#define SYMBOL_DIV_EQ 0x1024
-#define SYMBOL_PERCENT_EQ 0x1025
-#define SYMBOL_LSHIFT_EQ 0x1026
-#define SYMBOL_RSHIFT_EQ 0x1027
-#define SYMBOL_AND_EQ 0x1028
-#define SYMBOL_XOR_EQ 0x1029
-#define SYMBOL_OR_EQ 0x102a
-#define SYMBOL_QUESTION 0x1030
-#define SYMBOL_OR_OR 0x1040
-#define SYMBOL_AND_AND 0x1050
-#define SYMBOL_OR 0x1060
-#define SYMBOL_XOR 0x1070
-#define SYMBOL_AND 0x1080
-#define SYMBOL_EQ_EQ 0x1090
-#define SYMBOL_NOT_EQ 0x1091
-#define SYMBOL_LT 0x10a0
-#define SYMBOL_GT 0x10a1
-#define SYMBOL_LT_EQ 0x10a2
-#define SYMBOL_GT_EQ 0x10a3
-#define SYMBOL_LSHIFT 0x10b0
-#define SYMBOL_RSHIFT 0x10b1
-#define SYMBOL_PLUS 0x10c0
-#define SYMBOL_MINUS 0x10c1
-#define SYMBOL_TIMES 0x10d0
-#define SYMBOL_DIV 0x10d1
-#define SYMBOL_PERCENT 0x10d2
-
-#define SYMBOL_PLUS_PLUS 100
-#define SYMBOL_MINUS_MINUS 101
-#define SYMBOL_NOT 102
-#define SYMBOL_TILDE 103
-#define SYMBOL_ARROW 104
-#define SYMBOL_DOTDOTDOT 105
-#define SYMBOL_COLON 106
-#define SYMBOL_LBRACE 107
-#define SYMBOL_RBRACE 108
-#define SYMBOL_LSQUARE 109
-#define SYMBOL_RSQUARE 110
-#define SYMBOL_LPAREN 111
-#define SYMBOL_RPAREN 112
-#define SYMBOL_SEMICOLON 113
+#define SYMBOL_COMMA 200
+#define SYMBOL_EQ 201
+#define SYMBOL_PLUS_EQ 202
+#define SYMBOL_MINUS_EQ 203
+#define SYMBOL_TIMES_EQ 204
+#define SYMBOL_DIV_EQ 205
+#define SYMBOL_PERCENT_EQ 206
+#define SYMBOL_LSHIFT_EQ 207
+#define SYMBOL_RSHIFT_EQ 208
+#define SYMBOL_AND_EQ 209
+#define SYMBOL_XOR_EQ 210
+#define SYMBOL_OR_EQ 211
+#define SYMBOL_QUESTION 212
+#define SYMBOL_OR_OR 213
+#define SYMBOL_AND_AND 214
+#define SYMBOL_OR 215
+#define SYMBOL_XOR 216
+#define SYMBOL_AND 217
+#define SYMBOL_EQ_EQ 218
+#define SYMBOL_NOT_EQ 219
+#define SYMBOL_LT 220
+#define SYMBOL_GT 221
+#define SYMBOL_LT_EQ 222
+#define SYMBOL_GT_EQ 223
+#define SYMBOL_LSHIFT 224
+#define SYMBOL_RSHIFT 225
+#define SYMBOL_PLUS 226
+#define SYMBOL_MINUS 227
+#define SYMBOL_TIMES 228
+#define SYMBOL_DIV 229
+#define SYMBOL_PERCENT 230
+#define SYMBOL_PLUS_PLUS 231
+#define SYMBOL_MINUS_MINUS 232
+#define SYMBOL_NOT 233
+#define SYMBOL_TILDE 234
+#define SYMBOL_ARROW 235
+#define SYMBOL_DOTDOTDOT 236
+#define SYMBOL_COLON 237
+#define SYMBOL_LBRACE 238
+#define SYMBOL_RBRACE 239
+#define SYMBOL_LSQUARE 240
+#define SYMBOL_RSQUARE 241
+#define SYMBOL_LPAREN 242
+#define SYMBOL_RPAREN 243
+#define SYMBOL_SEMICOLON 244
 
 
 #define TOKEN_IDENTIFIER 1
@@ -108,6 +104,225 @@
 #define KEYWORD_IF 50
 #define KEYWORD_STATIC 51
 #define KEYWORD_WHILE 52
+
+:keyword_table
+	byte SYMBOL_SEMICOLON
+	byte 59
+	byte 0
+	byte SYMBOL_EQ
+	string =
+	byte 0
+	byte SYMBOL_LBRACE
+	string {
+	byte 0
+	byte SYMBOL_RBRACE
+	string }
+	byte 0
+	byte SYMBOL_LSQUARE
+	string [
+	byte 0
+	byte SYMBOL_RSQUARE
+	string ]
+	byte 0
+	byte SYMBOL_LPAREN
+	string (
+	byte 0
+	byte SYMBOL_RPAREN
+	string )
+	byte 0
+	byte SYMBOL_COMMA
+	string ,
+	byte 0
+	byte SYMBOL_PLUS_EQ
+	string +=
+	byte 0
+	byte SYMBOL_MINUS_EQ
+	string -=
+	byte 0
+	byte SYMBOL_TIMES_EQ
+	string *=
+	byte 0
+	byte SYMBOL_DIV_EQ
+	string /=
+	byte 0
+	byte SYMBOL_PERCENT_EQ
+	string %=
+	byte 0
+	byte SYMBOL_LSHIFT_EQ
+	string <<=
+	byte 0
+	byte SYMBOL_RSHIFT_EQ
+	string >>=
+	byte 0
+	byte SYMBOL_AND_EQ
+	string &=
+	byte 0
+	byte SYMBOL_XOR_EQ
+	string ^=
+	byte 0
+	byte SYMBOL_OR_EQ
+	string |=
+	byte 0
+	byte SYMBOL_QUESTION
+	string ?
+	byte 0
+	byte SYMBOL_OR_OR
+	string ||
+	byte 0
+	byte SYMBOL_AND_AND
+	string &&
+	byte 0
+	byte SYMBOL_OR
+	string |
+	byte 0
+	byte SYMBOL_XOR
+	string ^
+	byte 0
+	byte SYMBOL_AND
+	string &
+	byte 0
+	byte SYMBOL_EQ_EQ
+	string ==
+	byte 0
+	byte SYMBOL_NOT_EQ
+	string !=
+	byte 0
+	byte SYMBOL_LT
+	string <
+	byte 0
+	byte SYMBOL_GT
+	string >
+	byte 0
+	byte SYMBOL_LT_EQ
+	string <=
+	byte 0
+	byte SYMBOL_GT_EQ
+	string >=
+	byte 0
+	byte SYMBOL_LSHIFT
+	string <<
+	byte 0
+	byte SYMBOL_RSHIFT
+	string >>
+	byte 0
+	byte SYMBOL_PLUS
+	string +
+	byte 0
+	byte SYMBOL_MINUS
+	string -
+	byte 0
+	byte SYMBOL_TIMES
+	string *
+	byte 0
+	byte SYMBOL_DIV
+	string /
+	byte 0
+	byte SYMBOL_PERCENT
+	string %
+	byte 0
+	byte SYMBOL_PLUS_PLUS
+	string ++
+	byte 0
+	byte SYMBOL_MINUS_MINUS
+	string --
+	byte 0
+	byte SYMBOL_NOT
+	string !
+	byte 0
+	byte SYMBOL_TILDE
+	string ~
+	byte 0
+	byte SYMBOL_ARROW
+	string ->
+	byte 0
+	byte SYMBOL_DOTDOTDOT
+	string ...
+	byte 0
+	byte SYMBOL_COLON
+	string :
+	byte 0
+	byte KEYWORD_DOUBLE
+	string double
+	byte 0
+	byte KEYWORD_INT
+	string int
+	byte 0
+	byte KEYWORD_STRUCT
+	string struct
+	byte 0
+	byte KEYWORD_BREAK
+	string break
+	byte 0
+	byte KEYWORD_ELSE
+	string else
+	byte 0
+	byte KEYWORD_LONG
+	string long
+	byte 0
+	byte KEYWORD_SWITCH
+	string switch
+	byte 0
+	byte KEYWORD_CASE
+	string case
+	byte 0
+	byte KEYWORD_ENUM
+	string enum
+	byte 0
+	byte KEYWORD_TYPEDEF
+	string typedef
+	byte 0
+	byte KEYWORD_CHAR
+	string char
+	byte 0
+	byte KEYWORD_EXTERN
+	string extern
+	byte 0
+	byte KEYWORD_RETURN
+	string return
+	byte 0
+	byte KEYWORD_UNION
+	string union
+	byte 0
+	byte KEYWORD_FLOAT
+	string float
+	byte 0
+	byte KEYWORD_SHORT
+	string short
+	byte 0
+	byte KEYWORD_UNSIGNED
+	string unsigned
+	byte 0
+	byte KEYWORD_CONTINUE
+	string continue
+	byte 0
+	byte KEYWORD_FOR
+	string for
+	byte 0
+	byte KEYWORD_VOID
+	string void
+	byte 0
+	byte KEYWORD_DEFAULT
+	string default
+	byte 0
+	byte KEYWORD_GOTO
+	string goto
+	byte 0
+	byte KEYWORD_SIZEOF
+	string sizeof
+	byte 0
+	byte KEYWORD_DO
+	string do
+	byte 0
+	byte KEYWORD_IF
+	string if
+	byte 0
+	byte KEYWORD_STATIC
+	string static
+	byte 0
+	byte KEYWORD_WHILE
+	string while
+	byte 0
+	byte 255
 
 :str_missing_closing_paren
 	string Missing closing ).
@@ -295,82 +510,6 @@
 :str_endif
 	string endif
 	byte 0
-:str_double
-	string double
-	byte 0
-:str_int
-	string int
-	byte 0
-:str_struct
-	string struct
-	byte 0
-:str_break
-	string break
-	byte 0
-:str_long
-	string long
-	byte 0
-:str_switch
-	string switch
-	byte 0
-:str_case
-	string case
-	byte 0
-:str_enum
-	string enum
-	byte 0
-:str_typedef
-	string typedef
-	byte 0
-:str_char
-	string char
-	byte 0
-:str_extern
-	string extern
-	byte 0
-:str_return
-	string return
-	byte 0
-:str_union
-	string union
-	byte 0
-:str_float
-	string float
-	byte 0
-:str_short
-	string short
-	byte 0
-:str_unsigned
-	string unsigned
-	byte 0
-:str_continue
-	string continue
-	byte 0
-:str_for
-	string for
-	byte 0
-:str_void
-	string void
-	byte 0
-:str_default
-	string default
-	byte 0
-:str_goto
-	string goto
-	byte 0
-:str_sizeof
-	string sizeof
-	byte 0
-:str_do
-	string do
-	byte 0
-:str_static
-	string static
-	byte 0
-:str_while
-	string while
-	byte 0
-
 :str___FILE__
 	string __FILE__
 	byte 0

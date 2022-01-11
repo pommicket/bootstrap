@@ -1,2 +1,4 @@
 
 sizeof(int)
+double  * = &;
+
