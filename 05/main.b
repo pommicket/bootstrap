@@ -88,7 +88,6 @@ function main
 	local tokens
 	
 	fill_in_powers_of_10()
-	print_powers_of_10()
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -141,6 +140,10 @@ function main
 :str_default_output_filename
 	string a.out
 	byte 0
+
+; NOTE: this language doesn't have proper support for floating-point numbers,
+; but we need to do some float stuff. floats are stored as a 58-bit significand
+; and an exponent. the significand ranges from 0 (inclusive) to 0x400000000000000 (exclusive)
 
 function normalize_float
 	argument p_significand

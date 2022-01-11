@@ -120,6 +120,8 @@ function tokenize
 	local n
 	local p
 	local data
+	local significand
+	local exponent
 	
 	in = pptokens
 	:tokenize_loop
@@ -236,9 +238,6 @@ function tokenize
 			out += 2 ; no info
 			data = c
 			goto token_output
-		:tokenize_float
-			; @TODO
-			byte 0xcc
 		:tokenize_string_literal
 			n = rodata_end_offset - RODATA_OFFSET
 			n += RODATA_ADDR ; address of string
@@ -261,6 +260,11 @@ function tokenize
 			out += 2 ; no info
 			data = n
 			goto token_output
+		:tokenize_float
+			significand = 0
+			exponent = 0
+			; @TODO
+			byte 0xcc
 	:tokenize_loop_end
 	
 	return 0

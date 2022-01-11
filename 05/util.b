@@ -1,4 +1,31 @@
-
+; multiply two 64-bit signed numbers to a 128-bit number
+function full_multiply_signed
+	argument a
+	argument b
+	argument p_lower
+	argument p_upper
+	local lower
+	local upper
+	
+	lower = a * b
+	; mov rax, rdx
+	byte 0x48
+	byte 0x89
+	byte 0xd0
+	; mov [rbp-48] (upper), rax
+	byte 0x48
+	byte 0x89
+	byte 0x85
+	byte 0xd0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	*8p_lower = lower
+	*8p_upper = upper
+	return
+	
+	
 function file_error
 	argument name
 	fputs(2, .str_file_error)
