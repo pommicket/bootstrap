@@ -129,7 +129,7 @@ function split_into_preprocessing_tokens
 		if b != 0 goto pptoken_2_chars
 		b = str_startswith(in, .str_div_eq)
 		if b != 0 goto pptoken_2_chars
-		b = str_startswith(in, .str_remainder_eq)
+		b = str_startswith(in, .str_percent_eq)
 		if b != 0 goto pptoken_2_chars
 		b = str_startswith(in, .str_and_eq)
 		if b != 0 goto pptoken_2_chars
@@ -533,6 +533,10 @@ function translation_phase_4
 		if b != 0 goto pp_directive_include
 		b = str_equals(in, .str_ifdef)
 		if b != 0 goto pp_directive_ifdef
+		b = str_equals(in, .str_if)
+		if b != 0 goto pp_directive_if
+		b = str_equals(in, .str_elif)
+		if b != 0 goto pp_directive_else ; treat elif the same as else at this point
 		b = str_equals(in, .str_ifndef)
 		if b != 0 goto pp_directive_ifndef
 		b = str_equals(in, .str_else)
@@ -822,13 +826,29 @@ function translation_phase_4
 		goto process_pptoken
 	:pp_directive_else
 		; assume we got here from an if, so skip this
-		pptoken_skip(&in)
+		pptoken_skip_to_newline(&in)
 		preprocessor_skip_if(filename, &line_number, &in, &out)
 		goto process_pptoken
 	:pp_directive_endif
 		; assume we got here from an if/elif/else, just ignore it.
 		pptoken_skip(&in)
 		goto process_pptoken
+	:pp_directive_if
+		local if_pptokens
+		pptoken_skip(&in)
+		pptoken_skip_spaces(&in)
+		
+		if_pptokens = malloc(4000)
+		p = if_pptokens
+		macro_replacement_to_terminator(filename, line_number, &in, &p, 10)
+		;@TODO: there's no point in doing this until we have parsing
+		;       we'll have to evaluate constant expressions anyways for array declarations
+		fputs(2, .str_if_not_implemented)
+		byte 0xcc
+		:str_if_not_implemented
+			string #if not implemented.
+			byte 10
+			byte 0
 	:unrecognized_directive
 		compile_error(filename, line_number, .str_unrecognized_directive)
 	:str_unrecognized_directive
@@ -843,7 +863,7 @@ function translation_phase_4
 		string Macro redefinition.
 		byte 0
 	:phase4_missing_closing_bracket
-		compile_error(filename, line_number, .str_missing_closing_bracket)
+		compile_error(filename, line_number, .str_missing_closing_paren)
 	:bad_macro_params
 		compile_error(filename, line_number, .str_bad_macro_params)
 	:str_bad_macro_params
@@ -876,7 +896,7 @@ function translation_phase_4
 	
 
 ; skip body of #if / #elif / #else. This will advance *p_in to:
-;      - the next unmatched #elif
+;      - right before the next unmatched #elif, replacing it with a #if
 ;   OR - right after the next #else
 ;   OR - right after the next #endif
 ; whichever comes first
@@ -932,7 +952,16 @@ function preprocessor_skip_if
 			goto preprocessor_skip_if_loop ; some unimportant directive
 		:skip_if_elif
 			if if_depth > 0 goto preprocessor_skip_if_loop
-			in -= 2 ; return to #
+			; replace #elif with #if (kinda sketchy)
+			*1in = '#
+			in += 1
+			*1in = 0
+			in += 1
+			*1in = 'i
+			in += 1
+			*1in = 'f
+			in -= 5
+			*1in = 10 ; we need a newline so the #elif actually gets handled
 			goto preprocessor_skip_if_loop_end
 		:skip_if_inc_depth
 			if_depth += 1
@@ -1363,7 +1392,7 @@ function fmacro_arg_end
 	return in
 	
 	:fmacro_missing_closing_bracket
-		compile_error(filename, *8p_line_number, .str_missing_closing_bracket)
+		compile_error(filename, *8p_line_number, .str_missing_closing_paren)
 	
 function print_object_macros
 	print_macros(object_macros)

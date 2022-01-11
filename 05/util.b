@@ -370,6 +370,8 @@ function exit
 	return 0
 :return_1
 	return 1
+:return_minus1
+	return -1
 
 function syscall
 	; I've done some testing, and this should be okay even if
