@@ -351,6 +351,16 @@ function close
 	syscall(3, fd)
 	return
 
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+function lseek
+	argument fd
+	argument offset
+	argument whence
+	return syscall(8, fd, offset, whence)
+
 function isupper
 	argument c
 	if c < 'A goto return_0

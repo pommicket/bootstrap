@@ -8,6 +8,8 @@ byte 0
 byte 0
 goto main
 
+global output_fd
+
 
 global object_macros_size
 global function_macros_size
@@ -78,6 +80,7 @@ function main
 	local processed_pptokens
 	local tokens
 	
+	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
 	
@@ -104,9 +107,15 @@ function main
 	print_separator()
 	;print_object_macros()
 	;print_function_macros()
+	
+	output_fd = open_w(output_filename)
+	rodata_end_offset = RODATA_OFFSET
+	
 	tokens = malloc(16000000)
 	tokenize(pptokens, tokens)
 	print_tokens(tokens)
+	; NOTE: do NOT free pptokens as identifiers still reference them.
+	
 	exit(0)
 
 :usage_error

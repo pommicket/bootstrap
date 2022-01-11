@@ -96,6 +96,10 @@ function get_keyword_str
 		string @BAD_KEYWORD_ID
 		byte 0
 	
+
+; file offset to write next piece of read-only data; initialized in main.b
+global rodata_end_offset
+
 ; turn pptokens into tokens, written to out.
 ; tokens are 16 bytes and have the following format:
 ;    uchar type
@@ -104,6 +108,7 @@ function get_keyword_str
 ;    uint line
 ;    ulong data
 ; This corresponds to translation phases 5-6 and the first half of 7
+; IMPORTANT: this function uses pointers to pptokens, so they should NOT be freed!
 function tokenize
 	argument pptokens
 	argument out
@@ -113,6 +118,7 @@ function tokenize
 	local b
 	local c
 	local n
+	local p
 	local data
 	
 	in = pptokens
@@ -122,6 +128,7 @@ function tokenize
 		if c == 32 goto tokenize_skip_pptoken
 		if c == 10 goto tokenize_newline
 		if c == '' goto tokenize_constant_char
+		if c == '" goto tokenize_string_literal
 		if c == 0 goto tokenize_loop_end
 		
 		b = get_keyword_id(in)
@@ -130,7 +137,22 @@ function tokenize
 		b = isdigit_or_dot(c)
 		if b != 0 goto tokenize_number
 		
-		byte 0xcc
+		; it's an identifier. we just need to make sure it's made up of identifier characters.
+		p = in
+		b = isalpha_or_underscore(*1p)
+		if b == 0 goto bad_token
+		
+		:ident_check_loop
+			b = isalnum_or_underscore(*1p)
+			if b == 0 goto bad_token
+			p += 1
+			if *1p != 0 goto ident_check_loop
+		; all good.
+		*1out = TOKEN_IDENTIFIER
+		out += 2 ; no info
+		data = in ; data will point to the identifier name
+		pptoken_skip(&in)
+		goto token_output
 		
 		:tokenize_newline
 			line_number += 1
@@ -217,7 +239,28 @@ function tokenize
 		:tokenize_float
 			; @TODO
 			byte 0xcc
-		
+		:tokenize_string_literal
+			n = rodata_end_offset - RODATA_OFFSET
+			n += RODATA_ADDR ; address of string
+			lseek(output_fd, rodata_end_offset, SEEK_SET)
+			:string_literal_loop
+				in += 1 ; skip opening "
+				:string_literal_char_loop
+					if *1in == '" goto string_literal_char_loop_end
+					c = read_c_char(&in)
+					if c ] 255 goto bad_char_in_string
+					fputc(output_fd, c)
+					goto string_literal_char_loop					
+				:string_literal_char_loop_end
+				pptoken_skip(&in) ; skip closing "
+				pptoken_skip_spaces(&in)
+				if *1in == '" goto string_literal_loop ; string concatenation, e.g. "Hello, " "world!"
+			fputc(output_fd, 0) ; null terminator
+			rodata_end_offset = lseek(output_fd, 0, SEEK_CUR)
+			*1out = TOKEN_STRING_LITERAL
+			out += 2 ; no info
+			data = n
+			goto token_output
 	:tokenize_loop_end
 	
 	return 0
@@ -236,7 +279,17 @@ function tokenize
 	:str_bad_char_constant
 		string Bad character constant. Note that multibyte constants are not supported.
 		byte 0
-
+	:bad_char_in_string
+		compile_error(file, line_number, .str_bad_char_in_string)
+	:str_bad_char_in_string
+		string Bad character in string literal.
+		byte 0
+	:bad_token
+		compile_error(file, line_number, .str_bad_token)
+	:str_bad_token
+		string Bad token.
+		byte 0
+		
 ; return character or escaped character from *p_in, advancing accordingly
 ; returns -1 on bad character
 function read_c_char
@@ -390,6 +443,8 @@ function print_tokens
 		if *1p > 20 goto print_token_keyword 
 		if *1p == TOKEN_CONSTANT_INT goto print_token_int
 		if *1p == TOKEN_CONSTANT_CHAR goto print_token_char
+		if *1p == TOKEN_STRING_LITERAL goto print_token_string_literal
+		if *1p == TOKEN_IDENTIFIER goto print_token_identifier
 		fputs(2, .str_print_bad_token)
 		exit(1)
 		:print_token_keyword
@@ -401,6 +456,13 @@ function print_tokens
 			goto print_token_info
 		:print_token_char
 			puts(.str_constant_char)
+			goto print_token_data
+		:print_token_string_literal
+			puts(.str_string_literal)
+			goto print_token_data
+		:print_token_identifier
+			s = p + 8
+			puts(*8s)
 			goto print_token_data
 		:print_token_info
 		p += 1
@@ -428,6 +490,9 @@ function print_tokens
 		byte 0
 	:str_constant_char
 		string character
+		byte 0
+	:str_string_literal
+		string string
 		byte 0
 	:str_print_bad_token
 		string Unrecognized token type in print_tokens. Aborting.

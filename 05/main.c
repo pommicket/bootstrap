@@ -1,7 +1,4 @@
-'\xfa' 'w' 'e' 'l' 'l' '\'' '\\'
-sizeof(int)
-0x332l
-0xffffffffffffffff
-0755u
-double  * = &;
-
+"Hello ther" "e good fellow."
+char * = "How are you"" d""o""i""ng today?\n";
+hi
+_TEST _ING _1

@@ -1,3 +1,10 @@
+; this is the format of the executables we produce:
+;   elf header + code 4MB  addresses 0x400000-0x7fffff
+;   read-only data    4MB  addresses 0x800000-0xbfffff
+;   read-write data   4MB  addresses 0xc00000-0xffffff
+#define RODATA_OFFSET 0x400000
+#define RODATA_ADDR 0x800000
+
 ; C OPERATOR PRECEDENCE
 ;   lowest
 ;   1 ,
@@ -69,7 +76,7 @@
 #define TOKEN_CONSTANT_FLOAT 2
 #define TOKEN_CONSTANT_INT 3
 #define TOKEN_CONSTANT_CHAR 4
-#define TOKEN_STRING 5
+#define TOKEN_STRING_LITERAL 5
 
 ; these are stored in the "info" field of the token
 #define NUMBER_NO_SUFFIX 0
