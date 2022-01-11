@@ -369,6 +369,12 @@ function isdigit
 	if c <= '9 goto return_1
 	goto return_0
 
+function isoctdigit
+	argument c
+	if c < '0 goto return_0
+	if c <= '7 goto return_1
+	goto return_0	
+
 function isalpha
 	argument c
 	if c < 'A goto return_0

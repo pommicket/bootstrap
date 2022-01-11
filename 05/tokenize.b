@@ -103,6 +103,7 @@ function get_keyword_str
 ;    ushort file
 ;    uint line
 ;    ulong data
+; This corresponds to translation phases 5-6 and the first half of 7
 function tokenize
 	argument pptokens
 	argument out
@@ -120,6 +121,7 @@ function tokenize
 		if c == '$ goto tokenize_line_directive
 		if c == 32 goto tokenize_skip_pptoken
 		if c == 10 goto tokenize_newline
+		if c == '' goto tokenize_constant_char
 		if c == 0 goto tokenize_loop_end
 		
 		b = get_keyword_id(in)
@@ -202,7 +204,16 @@ function tokenize
 			out += 1
 			data = n
 			goto token_output
-	
+		:tokenize_constant_char
+			in += 1
+			c = read_c_char(&in)
+			if *1in != '' goto bad_char_constant
+			if c ] 255 goto bad_char_constant
+			pptoken_skip(&in)
+			*1out = TOKEN_CONSTANT_CHAR
+			out += 2 ; no info
+			data = c
+			goto token_output
 		:tokenize_float
 			; @TODO
 			byte 0xcc
@@ -220,8 +231,104 @@ function tokenize
 	:str_bad_number_token
 		string Bad number literal.
 		byte 0
+	:bad_char_constant
+		compile_error(file, line_number, .str_bad_char_constant)
+	:str_bad_char_constant
+		string Bad character constant. Note that multibyte constants are not supported.
+		byte 0
 
-
+; return character or escaped character from *p_in, advancing accordingly
+; returns -1 on bad character
+function read_c_char
+	argument p_in
+	local in
+	local c
+	local x
+	in = *8p_in
+	if *1in == '\ goto escape_sequence
+	; no escape sequence; just a normal character
+	c = *1in
+	in += 1
+	goto escape_sequence_return
+	
+	:escape_sequence
+		in += 1
+		c = *1in
+		in += 1
+		if c == 'x goto escape_sequence_hex
+		if c == '' goto escape_sequence_single_quote
+		if c == '" goto escape_sequence_double_quote
+		if c == '? goto escape_sequence_question
+		if c == '\ goto escape_sequence_backslash
+		if c == 'a goto escape_sequence_bell
+		if c == 'b goto escape_sequence_backspace
+		if c == 'f goto escape_sequence_form_feed
+		if c == 'n goto escape_sequence_newline
+		if c == 'r goto escape_sequence_carriage_return
+		if c == 't goto escape_sequence_tab
+		if c == 'v goto escape_sequence_vertical_tab
+		; octal
+		in -= 1
+		x = isoctdigit(*1in)
+		if x == 0 goto return_minus1
+		c = *1in - '0
+		in += 1
+		x = isoctdigit(*1in)
+		if x == 0 goto escape_sequence_return
+		c <= 3
+		c += *1in - '0
+		in += 1
+		x = isoctdigit(*1in)
+		if x == 0 goto escape_sequence_return
+		c <= 3
+		c += *1in - '0
+		in += 1
+		if c ] 255 goto return_minus1 ; e.g. '\712'
+		goto escape_sequence_return
+	:escape_sequence_hex
+		x = in
+		c = strtoi(&in, 16)
+		if in == x goto return_minus1 ; e.g. '\xhello'
+		if c ] 255 goto return_minus1 ; e.g. '\xabc'
+		goto escape_sequence_return
+	:escape_sequence_single_quote
+		c = ''
+		goto escape_sequence_return
+	:escape_sequence_double_quote
+		c = '"
+		goto escape_sequence_return
+	:escape_sequence_question
+		c = '?
+		goto escape_sequence_return
+	:escape_sequence_backslash
+		c = '\
+		goto escape_sequence_return
+	:escape_sequence_bell
+		c = 7
+		goto escape_sequence_return
+	:escape_sequence_backspace
+		c = 8
+		goto escape_sequence_return
+	:escape_sequence_form_feed
+		c = 12
+		goto escape_sequence_return
+	:escape_sequence_newline
+		c = 10
+		goto escape_sequence_return
+	:escape_sequence_carriage_return
+		c = 13
+		goto escape_sequence_return
+	:escape_sequence_tab
+		c = 9
+		goto escape_sequence_return
+	:escape_sequence_vertical_tab
+		c = 11
+		goto escape_sequence_return
+	:escape_sequence_return
+	*8p_in = in
+	return c
+		
+		
 function read_number_suffix
 	argument file
 	argument line_number
@@ -282,6 +389,7 @@ function print_tokens
 		if *1p == 0 goto print_tokens_loop_end
 		if *1p > 20 goto print_token_keyword 
 		if *1p == TOKEN_CONSTANT_INT goto print_token_int
+		if *1p == TOKEN_CONSTANT_CHAR goto print_token_char
 		fputs(2, .str_print_bad_token)
 		exit(1)
 		:print_token_keyword
@@ -291,7 +399,9 @@ function print_tokens
 		:print_token_int
 			puts(.str_constant_int)
 			goto print_token_info
-		
+		:print_token_char
+			puts(.str_constant_char)
+			goto print_token_data
 		:print_token_info
 		p += 1
 		putc('~)
@@ -315,6 +425,9 @@ function print_tokens
 	return
 	:str_constant_int
 		string integer
+		byte 0
+	:str_constant_char
+		string character
 		byte 0
 	:str_print_bad_token
 		string Unrecognized token type in print_tokens. Aborting.
