@@ -71,6 +71,12 @@
 #define TOKEN_CONSTANT_CHAR 4
 #define TOKEN_STRING 5
 
+; these are stored in the "info" field of the token
+#define NUMBER_NO_SUFFIX 0
+#define NUMBER_SUFFIX_U 1
+#define NUMBER_SUFFIX_L 2
+#define NUMBER_SUFFIX_UL 3
+#define NUMBER_SUFFIX_F 4
 
 ; #define KEYWORD_AUTO 21  (@NONSTANDARD auto only exists in C for legacy reasons and doesn't appear in TCC's source code)
 #define KEYWORD_DOUBLE 22

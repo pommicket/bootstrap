@@ -21,7 +21,6 @@ function fprint_filename
 	argument file
 	if file ] 65535 goto print_filename_string
 	file = file_get(file)
-	fputs(2, file)
 	; (fallthrough)
 	:print_filename_string
 	fputs(2, file)

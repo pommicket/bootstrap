@@ -58,25 +58,49 @@ function itos
 	:itos_loop_end
 	return p
 
-
-; returns the number at the start of the given string
+; returns the number in the given base at the start of the string, advancing the string past it.
+function strtoi
+	argument p_s
+	argument base
+	local s
+	local c
+	local n
+	n = 0
+	s = *8p_s
+	:strtoi_loop
+		c = *1s
+		if c < '0 goto strtoi_loop_end
+		if c <= '9 goto strtoi_decimal_digit
+		if c < 'A goto strtoi_loop_end
+		if c <= 'F goto strtoi_upper_hexdigit
+		if c < 'a goto strtoi_loop_end
+		if c <= 'f goto strtoi_lower_hexdigit
+		goto strtoi_loop_end
+		
+		:strtoi_decimal_digit
+			c -= '0
+			goto strtoi_digit
+		:strtoi_upper_hexdigit
+			c += 10 - 'A
+			goto strtoi_digit
+		:strtoi_lower_hexdigit
+			c += 10 - 'a
+			goto strtoi_digit
+		:strtoi_digit
+			if c >= base goto strtoi_loop_end
+			n *= base
+			n += c
+			s += 1
+			goto strtoi_loop
+			
+	:strtoi_loop_end
+	*8p_s = s
+	return n
+	
+; returns the decimal number at the start of the given string
 function stoi
 	argument s
-	local p
-	local n
-	local c
-	n = 0
-	p = s
-	:stoi_loop
-		c = *1p
-		if c < '0 goto stoi_loop_end
-		if c > '9 goto stoi_loop_end
-		n *= 10
-		n += c - '0
-		p += 1
-		goto stoi_loop
-	:stoi_loop_end
-	return n
+	return strtoi(&s, 10)
 
 function memchr
 	argument mem
@@ -88,6 +112,19 @@ function memchr
 		p += 1
 		goto memchr_loop
 	:memchr_loop_end
+	return p
+
+function strchr
+	argument str
+	argument c
+	local p
+	p = str
+	:strchr_loop
+		if *1p == 0 goto return_0
+		if *1p == c goto strchr_loop_end
+		p += 1
+		goto strchr_loop
+	:strchr_loop_end
 	return p
 
 ; copy from *p_src to *p_dest until terminator is reached, setting both to point to their respective terminators
@@ -360,6 +397,17 @@ function isalnum_or_underscore
 	if c == '_ goto return_1
 	if c < 'a goto return_0
 	if c <= 'z goto return_1
+	goto return_0
+
+; is the given character one of:
+;   .0123456789
+; (these are the characters which can appear at the start of a number in C)
+function isdigit_or_dot
+	argument c
+	if c < '. goto return_0
+	if c == '. goto return_1
+	if c < '0 goto return_0
+	if c <= '9 goto return_1
 	goto return_0
 
 function exit
