@@ -308,6 +308,28 @@ function fputn_signed
 		fputn(fd, n)
 		return
 		
+function fputx
+	argument fd
+	argument n
+	local m
+	local x
+	m = 60
+	:fputx_loop
+		x = n > m
+		x &= 0xf
+		x += .hex_digits
+		fputc(fd, *1x)
+		m -= 4
+		if m >= 0 goto fputx_loop
+	return
+:hex_digits
+	string 0123456789abcdef
+
+function putx
+	argument n
+	fputx(1, n)
+	return
+
 function putn
 	argument n
 	fputn(1, n)

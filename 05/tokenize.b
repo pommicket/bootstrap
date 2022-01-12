@@ -310,6 +310,13 @@ function tokenize
 			data = significand
 			exponent += 1023 ; float format
 			data |= exponent < 52
+			
+			*1out = TOKEN_CONSTANT_FLOAT
+			out += 1
+			; suffix
+			*1out = read_number_suffix(file, line_number, &in)
+			out += 1
+			goto token_output
 			:float_no_integer
 			byte 0xcc
 			:float_zero
@@ -500,6 +507,7 @@ function print_tokens
 		if *1p > 20 goto print_token_keyword 
 		if *1p == TOKEN_CONSTANT_INT goto print_token_int
 		if *1p == TOKEN_CONSTANT_CHAR goto print_token_char
+		if *1p == TOKEN_CONSTANT_FLOAT goto print_token_float
 		if *1p == TOKEN_STRING_LITERAL goto print_token_string_literal
 		if *1p == TOKEN_IDENTIFIER goto print_token_identifier
 		fputs(2, .str_print_bad_token)
@@ -521,6 +529,12 @@ function print_tokens
 			s = p + 8
 			puts(*8s)
 			goto print_token_data
+		:print_token_float
+			p += 8
+			puts(.str_constant_float)
+			putx(*8p)
+			p += 8
+			goto print_tokens_loop
 		:print_token_info
 		p += 1
 		putc('~)
@@ -544,6 +558,9 @@ function print_tokens
 	return
 	:str_constant_int
 		string integer
+		byte 0
+	:str_constant_float
+		string float
 		byte 0
 	:str_constant_char
 		string character
