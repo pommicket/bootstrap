@@ -68,7 +68,7 @@ function compile_warning
 ;   ulong significand
 ;   ulong exponent
 ; where for i = -1023..1023, powers_of_10 + 16*i points to an entry where
-;          (significand / 2^58) * 2^exponent
+;          10^i = significand * 2^exponent
 global powers_of_10
 
 #include util.b
@@ -183,7 +183,7 @@ function fill_in_powers_of_10
 	powers_of_10 = malloc(40000)
 	powers_of_10 += 20000
 	significand = 1 < 57
-	exponent = 1
+	exponent = -57
 	i = 0
 	:pow10_loop_positive
 		p = powers_of_10
@@ -198,7 +198,7 @@ function fill_in_powers_of_10
 		i += 1
 		if i < 1024 goto pow10_loop_positive
 	significand = 1 < 57
-	exponent = 1
+	exponent = -57
 	i = 0
 	:pow10_loop_negative
 		p = powers_of_10
@@ -233,7 +233,6 @@ function print_powers_of_10
 		p = powers_of_10
 		p += i < 4
 		significand = *8p
-		putc('.)
 		j = 57
 		:pow10_binary_loop
 			b = significand > j

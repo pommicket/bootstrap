@@ -283,12 +283,21 @@ function tokenize
 			; first, deal with the fractional part
 			p = powers_of_10
 			p += pow10 < 4
-			full_multiply_signed(fraction, *8p, &upper, &lower)
-			; effectively we want the upper 58 bits of this multiplication
-			significand = lower > 58
-			significand |= upper < 6
+			full_multiply_signed(fraction, *8p, &lower, &upper)
+			if upper == 0 goto fmultiply_no_upper
+				n = leftmost_1bit(upper)
+				n += 1
+				significand = lower > n
+				exponent += n
+				n = 64 - n
+				significand |= upper < n
+				goto fmultiply_cont
+			:fmultiply_no_upper
+				significand = lower
+				goto fmultiply_cont
+			:fmultiply_cont
 			p += 8
-			exponent = *8p
+			exponent += *8p
 			
 			putn(significand)
 			putc(32)
@@ -300,8 +309,7 @@ function tokenize
 			n += 1
 			significand = right_shift(significand, n)
 			exponent += n
-			n = 58 - exponent
-			significand += left_shift(integer, n)
+			significand += right_shift(integer, exponent)
 			putn(significand)
 			putc(32)
 			putn_signed(exponent)
@@ -320,9 +328,6 @@ function tokenize
 			significand &= ~b
 			data = significand
 			exponent += 1023 ; float format
-			putc('*)
-			putn(exponent)
-			putc(10)
 			
 			data |= exponent < 52
 			
