@@ -122,6 +122,7 @@ function tokenize
 	local data
 	local significand
 	local exponent
+	local new_exponent
 	local pow10
 	local integer
 	local fraction
@@ -305,24 +306,25 @@ function tokenize
 			putc(10)
 			if integer == 0 goto float_no_integer
 			; now deal with the integer part
-			n = leftmost_1bit(integer)
-			n += 1
+			new_exponent = leftmost_1bit(integer)
+			new_exponent -= 58
+			n = new_exponent - exponent
 			significand = right_shift(significand, n)
-			exponent += n
+			exponent = new_exponent
 			significand += right_shift(integer, exponent)
-			putn(significand)
-			putc(32)
-			putn_signed(exponent)
-			putc(10)
 			if *1in != 'e goto float_no_exponent
 			
 			:float_no_exponent
 			if significand == 0 goto float_zero
 			normalize_float(&significand, &exponent)
-			; reduce to 52-bit significant
-			significand >= 6
-			exponent += 6
-			exponent += 51  ; 1001010111... => 1.001010111... 
+			putn(significand)
+			putc(32)
+			putn_signed(exponent)
+			putc(10)
+			; reduce to 53-bit significant (top bit is removed to get 52)
+			significand >= 5
+			exponent += 5
+			exponent += 52  ; 1001010111... => 1.001010111... 
 			n = leftmost_1bit(significand)
 			b = 1 < n
 			significand &= ~b
