@@ -267,6 +267,7 @@ function tokenize
 			data = n
 			goto token_output
 		:tokenize_float
+			; @NONSTANDARD: this doesn't allow for floats whose integral part is >=2^64, e.g. 1000000000000000000000000.0
 			significand = 0
 			exponent = 0
 			pow10 = 0
@@ -312,16 +313,19 @@ function tokenize
 			significand = right_shift(significand, n)
 			exponent = new_exponent
 			significand += right_shift(integer, exponent)
-			if *1in != 'e goto float_no_exponent
+			:float_no_integer
+			if *1in == 'e goto float_exponent
+			if *1in == 'E goto float_exponent
 			
-			:float_no_exponent
+			:float_have_significand_and_exponent
 			if significand == 0 goto float_zero
 			normalize_float(&significand, &exponent)
 			putn(significand)
 			putc(32)
 			putn_signed(exponent)
 			putc(10)
-			; reduce to 53-bit significant (top bit is removed to get 52)
+			significand += 15 ; ensure number rounds to the nearest representable float (this is what gcc does)
+			; reduce to 53-bit significand (top bit is removed to get 52)
 			significand >= 5
 			exponent += 5
 			exponent += 52  ; 1001010111... => 1.001010111... 
@@ -333,15 +337,52 @@ function tokenize
 			
 			data |= exponent < 52
 			
+			:float_have_data
 			*1out = TOKEN_CONSTANT_FLOAT
 			out += 1
 			; suffix
 			*1out = read_number_suffix(file, line_number, &in)
 			out += 1
 			goto token_output
-			:float_no_integer
-			byte 0xcc
+			:float_exponent
+				in += 1
+				if *1in == '+ goto float_exponent_plus
+				if *1in == '- goto float_exponent_minus
+				; e.g. 1e100
+				pow10 = strtoi(&in, 10)
+				:float_have_exponent
+				p = powers_of_10
+				p += pow10 < 4
+				full_multiply_signed(significand, *8p, &lower, &upper)
+				if upper == 0 goto fmultiply2_no_upper
+					n = leftmost_1bit(upper)
+					n += 1
+					significand = lower > n
+					exponent += n
+					n = 64 - n
+					significand |= upper < n
+					goto fmultiply2_cont
+				:fmultiply2_no_upper
+					significand = lower
+					goto fmultiply2_cont
+				:fmultiply2_cont
+				p += 8
+				exponent += *8p
+				goto float_have_significand_and_exponent
+			:float_exponent_plus
+				; e.g. 1e+100
+				in += 1
+				pow10 = strtoi(&in, 10)
+				goto float_have_exponent
+			:float_exponent_minus
+				; e.g. 1e-100
+				in += 1
+				pow10 = strtoi(&in, 10)
+				pow10 = 0 - pow10
+				goto float_have_exponent
 			:float_zero
+			data = 0
+			goto float_have_data
 	:tokenize_loop_end
 	
 	return 0
