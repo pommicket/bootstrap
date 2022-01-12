@@ -88,6 +88,7 @@ function main
 	local tokens
 	
 	fill_in_powers_of_10()
+	print_powers_of_10()
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255

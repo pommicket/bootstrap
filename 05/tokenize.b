@@ -288,18 +288,29 @@ function tokenize
 			significand = lower > 58
 			significand |= upper < 6
 			p += 8
-			significand >= 0 - *8p
+			exponent = *8p
+			
+			putn(significand)
+			putc(32)
+			putn_signed(exponent)
+			putc(10)
 			if integer == 0 goto float_no_integer
-			; we now have significand / 2^58 = fraction*10^pow10
 			; now deal with the integer part
-			exponent = leftmost_1bit(integer)
-			significand >= exponent
+			n = leftmost_1bit(integer)
+			n += 1
+			significand = right_shift(significand, n)
+			exponent += n
 			n = 58 - exponent
-			significand += integer < n
+			significand += left_shift(integer, n)
+			putn(significand)
+			putc(32)
+			putn_signed(exponent)
+			putc(10)
 			if *1in != 'e goto float_no_exponent
 			
 			:float_no_exponent
 			if significand == 0 goto float_zero
+			normalize_float(&significand, &exponent)
 			; reduce to 52-bit significant
 			significand >= 6
 			exponent += 6
@@ -309,6 +320,10 @@ function tokenize
 			significand &= ~b
 			data = significand
 			exponent += 1023 ; float format
+			putc('*)
+			putn(exponent)
+			putc(10)
+			
 			data |= exponent < 52
 			
 			*1out = TOKEN_CONSTANT_FLOAT

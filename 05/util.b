@@ -24,7 +24,26 @@ function full_multiply_signed
 	*8p_lower = lower
 	*8p_upper = upper
 	return
-	
+
+; allows for negative shifts
+function right_shift
+	argument x
+	argument n
+	if n < 0 goto right_shift_negative
+	return x > n
+	:right_shift_negative
+	n = 0 - n
+	return x < n
+
+; allows for negative shifts
+function left_shift
+	argument x
+	argument n
+	if n < 0 goto right_shift_negative
+	return x < n
+	:left_shift_negative
+	n = 0 - n
+	return x > n
 	
 function file_error
 	argument name
