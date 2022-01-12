@@ -283,28 +283,9 @@ function tokenize
 			:float_no_fraction
 			; construct the number integer + fraction*10^pow10
 			; first, deal with the fractional part
-			p = powers_of_10
-			p += pow10 < 4
-			full_multiply_signed(fraction, *8p, &lower, &upper)
-			if upper == 0 goto fmultiply_no_upper
-				n = leftmost_1bit(upper)
-				n += 1
-				significand = lower > n
-				exponent += n
-				n = 64 - n
-				significand |= upper < n
-				goto fmultiply_cont
-			:fmultiply_no_upper
-				significand = lower
-				goto fmultiply_cont
-			:fmultiply_cont
-			p += 8
-			exponent += *8p
+			significand = fraction
+			float_multiply_by_power_of_10(&significand, &exponent, pow10)
 			
-			putn(significand)
-			putc(32)
-			putn_signed(exponent)
-			putc(10)
 			if integer == 0 goto float_no_integer
 			; now deal with the integer part
 			new_exponent = leftmost_1bit(integer)
@@ -324,7 +305,9 @@ function tokenize
 			putc(32)
 			putn_signed(exponent)
 			putc(10)
-			significand += 15 ; ensure number rounds to the nearest representable float (this is what gcc does)
+			; make number round to the nearest representable float roughly (this is what gcc does)
+			; this fails for 5e-100 probably because of imprecision, but mostly works
+			significand += 15
 			; reduce to 53-bit significand (top bit is removed to get 52)
 			significand >= 5
 			exponent += 5
@@ -333,6 +316,9 @@ function tokenize
 			b = 1 < n
 			significand &= ~b
 			data = significand
+			
+			if exponent <= -1023 goto float_zero ; this number is too small in magnitude to be represented as a double. it becomes 0
+			if exponent >= 1024 goto float_infinity ; number too big to be represented as a double.
 			exponent += 1023 ; float format
 			
 			data |= exponent < 52
@@ -351,23 +337,7 @@ function tokenize
 				; e.g. 1e100
 				pow10 = strtoi(&in, 10)
 				:float_have_exponent
-				p = powers_of_10
-				p += pow10 < 4
-				full_multiply_signed(significand, *8p, &lower, &upper)
-				if upper == 0 goto fmultiply2_no_upper
-					n = leftmost_1bit(upper)
-					n += 1
-					significand = lower > n
-					exponent += n
-					n = 64 - n
-					significand |= upper < n
-					goto fmultiply2_cont
-				:fmultiply2_no_upper
-					significand = lower
-					goto fmultiply2_cont
-				:fmultiply2_cont
-				p += 8
-				exponent += *8p
+				float_multiply_by_power_of_10(&significand, &exponent, pow10)
 				goto float_have_significand_and_exponent
 			:float_exponent_plus
 				; e.g. 1e+100
@@ -381,8 +351,11 @@ function tokenize
 				pow10 = 0 - pow10
 				goto float_have_exponent
 			:float_zero
-			data = 0
-			goto float_have_data
+				data = 0
+				goto float_have_data
+			:float_infinity
+				data = 0x7ff0000000000000 ; double infinity
+				goto float_have_data
 	:tokenize_loop_end
 	
 	return 0
@@ -416,7 +389,42 @@ function tokenize
 	:str_bad_float
 		string Bad floating-point number.
 		byte 0
-		
+
+function float_multiply_by_power_of_10
+	argument p_significand
+	argument p_exponent
+	argument pow10
+	local significand
+	local exponent
+	local p
+	local lower
+	local upper
+	local n
+	significand = *8p_significand
+	exponent = *8p_exponent
+
+	p = powers_of_10
+	p += pow10 < 4
+	full_multiply_signed(significand, *8p, &lower, &upper)
+	if upper == 0 goto fmultiply2_no_upper
+		n = leftmost_1bit(upper)
+		n += 1
+		significand = lower > n
+		exponent += n
+		n = 64 - n
+		significand |= upper < n
+		goto fmultiply2_cont
+	:fmultiply2_no_upper
+		significand = lower
+		goto fmultiply2_cont
+	:fmultiply2_cont
+	p += 8
+	exponent += *8p
+	
+	*8p_significand = significand
+	*8p_exponent = exponent
+	return 0
+	
 ; return character or escaped character from *p_in, advancing accordingly
 ; returns -1 on bad character
 function read_c_char
