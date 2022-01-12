@@ -122,6 +122,11 @@ function tokenize
 	local data
 	local significand
 	local exponent
+	local pow10
+	local integer
+	local fraction
+	local lower
+	local upper
 	
 	in = pptokens
 	:tokenize_loop
@@ -263,8 +268,51 @@ function tokenize
 		:tokenize_float
 			significand = 0
 			exponent = 0
-			; @TODO
+			pow10 = 0
+			integer = strtoi(&in, 10)
+			fraction = 0
+			if *1in != '. goto float_no_fraction 
+			in += 1
+			p = in
+			fraction = strtoi(&in, 10)
+			; e.g. to turn 35 into .35, multiply by 10^-2
+			pow10 = p - in
+			if pow10 < -400 goto bad_float
+			:float_no_fraction
+			; construct the number integer + fraction*10^pow10
+			; first, deal with the fractional part
+			p = powers_of_10
+			p += pow10 < 4
+			full_multiply_signed(fraction, *8p, &upper, &lower)
+			; effectively we want the upper 58 bits of this multiplication
+			significand = lower > 58
+			significand |= upper < 6
+			p += 8
+			significand >= 0 - *8p
+			if integer == 0 goto float_no_integer
+			; we now have significand / 2^58 = fraction*10^pow10
+			; now deal with the integer part
+			exponent = leftmost_1bit(integer)
+			significand >= exponent
+			n = 58 - exponent
+			significand += integer < n
+			if *1in != 'e goto float_no_exponent
+			
+			:float_no_exponent
+			if significand == 0 goto float_zero
+			; reduce to 52-bit significant
+			significand >= 6
+			exponent += 6
+			exponent += 51  ; 1001010111... => 1.001010111... 
+			n = leftmost_1bit(significand)
+			b = 1 < n
+			significand &= ~b
+			data = significand
+			exponent += 1023 ; float format
+			data |= exponent < 52
+			:float_no_integer
 			byte 0xcc
+			:float_zero
 	:tokenize_loop_end
 	
 	return 0
@@ -292,6 +340,11 @@ function tokenize
 		compile_error(file, line_number, .str_bad_token)
 	:str_bad_token
 		string Bad token.
+		byte 0
+	:bad_float
+		compile_error(file, line_number, .str_bad_float)
+	:str_bad_float
+		string Bad floating-point number.
 		byte 0
 		
 ; return character or escaped character from *p_in, advancing accordingly

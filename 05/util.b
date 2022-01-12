@@ -477,6 +477,29 @@ function exit
 	argument status_code
 	syscall(0x3c, status_code)
 
+; return index of leftmost bit
+; error on 0
+function leftmost_1bit
+	argument x
+	local i
+	local b
+	if x == 0 goto leftmost1bit_0
+	
+	i = 63
+	:leftmost1bit_loop
+		b = 1 < i
+		b &= x
+		if b != 0 goto leftmost1bit_found
+		i -= 1
+		goto leftmost1bit_loop
+	:leftmost1bit_found
+		return i
+	:leftmost1bit_0
+		fputs(2, .str_leftmost1bit_0)
+		exit(1)
+	:str_leftmost1bit_0
+		string 0 passed to leftmost_1bit.
+		byte 0
 :return_0
 	return 0
 :return_1

@@ -152,6 +152,7 @@ function normalize_float
 	local exponent
 	
 	significand = *8p_significand
+	if significand == 0 goto normalize_0
 	exponent = *8p_exponent
 	
 	:float_reduce_loop
@@ -169,7 +170,10 @@ function normalize_float
 	*8p_significand = significand
 	*8p_exponent = exponent
 	return
-		
+	:normalize_0
+	*8p_exponent = 0
+	return
+
 function fill_in_powers_of_10
 	local i
 	local p
