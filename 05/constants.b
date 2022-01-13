@@ -20,12 +20,14 @@
 ;   b << >>
 ;   c + -
 ;   d * / %
+;   e8 cast
 ;   e unary prefixes ++ -- & * + - ~ !
 ;   f . -> () [] postfix ++ --
 ;   highest
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)
 
 #define SYMBOL_COMMA 200
+; NOTE: operator_right_associative requires SYMBOL_EQ to be the first assignment operator
 #define SYMBOL_EQ 201
 #define SYMBOL_PLUS_EQ 202
 #define SYMBOL_MINUS_EQ 203
@@ -37,6 +39,7 @@
 #define SYMBOL_AND_EQ 209
 #define SYMBOL_XOR_EQ 210
 #define SYMBOL_OR_EQ 211
+; NOTE: operator_right_associative requires SYMBOL_OR_EQ to be the last assignment operator
 #define SYMBOL_QUESTION 212
 #define SYMBOL_OR_OR 213
 #define SYMBOL_AND_AND 214
@@ -70,7 +73,7 @@
 #define SYMBOL_LPAREN 242
 #define SYMBOL_RPAREN 243
 #define SYMBOL_SEMICOLON 244
-
+#define SYMBOL_DOT 245
 
 #define TOKEN_IDENTIFIER 1
 #define TOKEN_CONSTANT_FLOAT 2
@@ -346,6 +349,9 @@
 	byte 0
 	byte SYMBOL_ARROW
 	string ->
+	byte 0
+	byte SYMBOL_DOT
+	string .
 	byte 0
 	byte SYMBOL_DOTDOTDOT
 	string ...

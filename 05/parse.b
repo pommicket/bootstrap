@@ -7,13 +7,81 @@ function parse_expression
 	local b
 	local c
 	local p
+	local n
+	local best
+	local best_precedence
+	local depth
 	local value
+	:parse_expression_top
 	
 	if tokens == tokens_end goto empty_expression
 	p = tokens + 16
 	if p == tokens_end goto single_token_expression
+	if *1tokens != SYMBOL_LPAREN goto parse_expression_not_entirely_in_parens
+	p = tokens_end - 16
+	if *1p != SYMBOL_RPAREN goto parse_expression_not_entirely_in_parens
 	
+	depth = 1 ; bracket depth
+	p = tokens + 16
+	a = tokens_end - 16 ; stop point
+	:expr_paren_check_loop
+		if p >= a goto expr_paren_check_loop_end
+		c = *1p
+		p += 16
+		if c == SYMBOL_LPAREN goto expr_paren_check_loop_incdepth
+		if c == SYMBOL_RPAREN goto expr_paren_check_loop_decdepth
+		goto expr_paren_check_loop
+		:expr_paren_check_loop_incdepth
+			depth += 1
+			goto expr_paren_check_loop
+		:expr_paren_check_loop_decdepth
+			depth -= 1
+			if depth == 0 goto parse_expression_not_entirely_in_parens
+			goto expr_paren_check_loop
+	:expr_paren_check_loop_end
+	
+	; if we made it this far, the expression is entirely in parenthesis, e.g. (x+2)
+	tokens += 16
+	tokens_end -= 16
+	goto parse_expression_top
+	
+	:parse_expression_not_entirely_in_parens
+	
+	; look for the operator with the lowest precedence not in brackets
+	depth = 0 ; paren/square bracket depth
+	b = 1 ; first token? -- i.e. is this operator unary
+	p = tokens
+	best = 0
+	best_precedence = 1000
+	:expr_find_operator_loop
+		if p >= tokens_end goto expr_find_operator_loop_end
+		c = *1p
+		p += 16
+		if c == SYMBOL_LPAREN goto expr_findop_incdepth
+		if c == SYMBOL_RPAREN goto expr_findop_decdepth
+		if c == SYMBOL_LSQUARE goto expr_findop_incdepth
+		if c == SYMBOL_RSQUARE goto expr_findop_decdepth
+		if depth > 0 goto expr_find_operator_loop
+		if depth < 0 goto expr_too_many_closing_brackets
+		a = operator_precedence(c, b)
+		n = a
+		n -= operator_right_associative(c) ; ensure that the leftmost += / -= / etc. is processed first
+		if n >= best_precedence goto expr_find_operator_loop
+		; new best!
+		best = p - 16
+		best_precedence = a
+		goto expr_find_operator_loop
+		
+		:expr_findop_incdepth
+			depth += 1
+			goto expr_find_operator_loop
+		:expr_findop_decdepth
+			depth -= 1
+			goto expr_find_operator_loop
+	:expr_find_operator_loop_end
+	putn(*1best)
 	goto unrecognized_expression
+	
 	
 	:single_token_expression
 		in = tokens
@@ -86,7 +154,11 @@ function parse_expression
 	:str_unrecognized_expression
 		string Unrecognized expression.
 		byte 0
-
+	:expr_too_many_closing_brackets
+		token_error(tokens, .str_too_many_closing_brackets)
+	:str_too_many_closing_brackets
+		string Too many closing brackets.
+		byte 0
 :return_type_int
 	return TYPE_INT
 :return_type_long
@@ -99,7 +171,74 @@ function parse_expression
 	return TYPE_FLOAT
 :return_type_double
 	return TYPE_DOUBLE
+
+; return precedence of given operator, or 0xffff if not an operator
+function operator_precedence
+	argument op
+	argument is_unary_prefix
+	if is_unary_prefix != 0 goto operator_precedence_unary
 	
+	; see "C OPERATOR PRECEDENCE" in constants.b
+	if op == SYMBOL_COMMA goto return_0x10
+	if op == SYMBOL_EQ goto return_0x20
+	if op == SYMBOL_PLUS_EQ goto return_0x20
+	if op == SYMBOL_MINUS_EQ goto return_0x20
+	if op == SYMBOL_TIMES_EQ goto return_0x20
+	if op == SYMBOL_DIV_EQ goto return_0x20
+	if op == SYMBOL_PERCENT_EQ goto return_0x20
+	if op == SYMBOL_LSHIFT_EQ goto return_0x20
+	if op == SYMBOL_RSHIFT_EQ goto return_0x20
+	if op == SYMBOL_AND_EQ goto return_0x20
+	if op == SYMBOL_OR_EQ goto return_0x20
+	if op == SYMBOL_XOR_EQ goto return_0x20
+	if op == SYMBOL_QUESTION goto return_0x30
+	if op == SYMBOL_OR_OR goto return_0x40
+	if op == SYMBOL_AND_AND goto return_0x50
+	if op == SYMBOL_OR goto return_0x60
+	if op == SYMBOL_XOR goto return_0x70
+	if op == SYMBOL_AND goto return_0x80
+	if op == SYMBOL_EQ_EQ goto return_0x90
+	if op == SYMBOL_NOT_EQ goto return_0x90
+	if op == SYMBOL_LT goto return_0xa0
+	if op == SYMBOL_GT goto return_0xa0
+	if op == SYMBOL_LT_EQ goto return_0xa0
+	if op == SYMBOL_GT_EQ goto return_0xa0
+	if op == SYMBOL_LSHIFT goto return_0xb0
+	if op == SYMBOL_RSHIFT goto return_0xb0
+	if op == SYMBOL_PLUS goto return_0xc0
+	if op == SYMBOL_MINUS goto return_0xc0
+	if op == SYMBOL_TIMES goto return_0xd0
+	if op == SYMBOL_DIV goto return_0xd0
+	if op == SYMBOL_PERCENT goto return_0xd0
+	if op == SYMBOL_ARROW goto return_0xf0
+	if op == SYMBOL_DOT goto return_0xf0
+	if op == SYMBOL_LPAREN goto return_0xf0 ; function call
+	if op == SYMBOL_LSQUARE goto return_0xf0 ; subscript
+	if op == SYMBOL_PLUS_PLUS goto return_0xf0
+	if op == SYMBOL_MINUS_MINUS goto return_0xf0
+	
+	return 0xffff
+	
+	:operator_precedence_unary
+	if op == SYMBOL_PLUS_PLUS goto return_0xe0
+	if op == SYMBOL_MINUS_MINUS goto return_0xe0
+	if op == SYMBOL_AND goto return_0xe0
+	if op == SYMBOL_TIMES goto return_0xe0
+	if op == SYMBOL_PLUS goto return_0xe0
+	if op == SYMBOL_MINUS goto return_0xe0
+	if op == SYMBOL_TILDE goto return_0xe0
+	if op == SYMBOL_NOT goto return_0xe0
+	
+	return 0xffff
+	
+; is this operator right-associative? most C operators are left associative,
+; but += / -= / etc. are not
+function operator_right_associative
+	argument op
+	if op < SYMBOL_EQ goto return_0
+	if op > SYMBOL_OR_EQ goto return_0
+	goto return_1
+
 function int_suffix_to_type
 	argument suffix
 	if suffix == NUMBER_SUFFIX_L goto return_type_long
