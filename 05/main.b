@@ -41,6 +41,18 @@ function compile_error
 	fputc(2, 10)
 	exit(1)
 
+function token_error
+	argument token
+	argument message
+	local p
+	local file
+	local line
+	p = token + 2
+	file = *2p
+	p += 2
+	line = *4p
+	compile_error(file, line, message)
+
 ; accepts EITHER file index OR pointer to filename
 function compile_warning
 	argument file
@@ -71,10 +83,15 @@ function compile_warning
 ;          10^i = significand * 2^exponent
 global powers_of_10
 
+global types
+global types_end
+
 #include util.b
 #include constants.b
 #include preprocess.b
 #include tokenize.b
+#include parse.b
+
 
 function main
 	argument argv2
@@ -86,7 +103,9 @@ function main
 	local pptokens
 	local processed_pptokens
 	local tokens
-	
+	local ast
+	local p
+	local i
 	fill_in_powers_of_10()
 	
 	dat_banned_objmacros = 255
@@ -97,6 +116,23 @@ function main
 	object_macros = malloc(4000000)
 	function_macros = malloc(4000000)
 	
+	types = malloc(16000000)
+	i = 0
+	p = types
+	:fill_initial_types_loop
+		*1p = i
+		p += 1
+		i += 1
+		if i <= 16 goto fill_initial_types_loop
+	p = types + TYPE_POINTER_TO_CHAR
+	*1p = TYPE_POINTER
+	p += 1
+	*1p = TYPE_CHAR
+	
+	
+	types_end = p
+	 
+	
 	input_filename = .str_default_input_filename
 	output_filename = .str_default_output_filename
 	if argc == 1 goto have_filenames
@@ -104,6 +140,9 @@ function main
 	input_filename = argv1
 	output_filename = argv2
 	:have_filenames
+	output_fd = open_w(output_filename)
+	rodata_end_offset = RODATA_OFFSET
+	
 	pptokens = split_into_preprocessing_tokens(input_filename)
 	;print_pptokens(pptokens)
 	;print_separator()
@@ -116,13 +155,16 @@ function main
 	;print_object_macros()
 	;print_function_macros()
 	
-	output_fd = open_w(output_filename)
-	rodata_end_offset = RODATA_OFFSET
-	
 	tokens = malloc(16000000)
-	tokenize(pptokens, tokens)
+	p = tokenize(pptokens, tokens, input_filename, 1)
 	print_tokens(tokens)
 	; NOTE: do NOT free pptokens as identifiers still reference them.
+	
+	ast = malloc(56000000)
+	p -= 16
+	parse_expression(tokens, p, ast)
+	print_expression(ast)
+	putc(10)
 	
 	exit(0)
 

@@ -77,6 +77,7 @@
 #define TOKEN_CONSTANT_INT 3
 #define TOKEN_CONSTANT_CHAR 4
 #define TOKEN_STRING_LITERAL 5
+#define TOKEN_EOF 6
 
 ; these are stored in the "info" field of the token
 #define NUMBER_NO_SUFFIX 0
@@ -117,6 +118,104 @@
 #define KEYWORD_IF 50
 #define KEYWORD_STATIC 51
 #define KEYWORD_WHILE 52
+
+; the format of expression headers is:
+;    uchar kind  (one of the constants below)
+;    uchar info
+;    ushort (padding)
+;    uint type (0 if expression hasn't been typed yet)
+; immediately following the header in memory are the arguments of the expression
+;    - for constant ints, the 64-bit integral value
+;    - for constant floats, the 64-bit double value (even if expression has type float)
+;    - for string literals, a 64-bit pointer to the string (for the executable, not for the compiler)
+;    - for unary operators, the operand
+;    - for binary operators, the first operand followed by the second
+;        - for the operators . and ->, the first operand is an expression and the second is just a pointer to the name of the member
+;    - for the ternary operator ? :, the first followed by the second followed by the third
+;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
+; Note that file/line number are not stored in expressions.
+#define EXPRESSION_IDENTIFIER 200
+#define EXPRESSION_CONSTANT_INT 201
+#define EXPRESSION_CONSTANT_FLOAT 202
+#define EXPRESSION_STRING_LITERAL 203
+#define EXPRESSION_SUBSCRIPT 204
+#define EXPRESSION_CALL 205
+#define EXPRESSION_DOT 206
+#define EXPRESSION_ARROW 207
+#define EXPRESSION_POST_INCREMENT 208
+#define EXPRESSION_POST_DECREMENT 209
+#define EXPRESSION_PRE_INCREMENT 210
+#define EXPRESSION_PRE_DECREMENT 211
+#define EXPRESSION_ADDRESS_OF 212
+#define EXPRESSION_DEREFERENCE 213
+; this matters for promotion. if x is a char, sizeof(+x) should be sizeof(int)
+#define EXPRESSION_UNARY_PLUS 214
+#define EXPRESSION_UNARY_MINUS 215
+#define EXPRESSION_BITWISE_NOT 216
+#define EXPRESSION_NOT 217
+#define EXPRESSION_SIZEOF 218
+#define EXPRESSION_CAST 219
+#define EXPRESSION_MUL 220
+#define EXPRESSION_DIV 221
+#define EXPRESSION_REMAINDER 222
+#define EXPRESSION_ADD 223
+#define EXPRESSION_SUB 224
+#define EXPRESSION_LSHIFT 225
+#define EXPRESSION_RSHIFT 226
+#define EXPRESSION_LT 227
+#define EXPRESSION_GT 228
+#define EXPRESSION_LEQ 229
+#define EXPRESSION_GEQ 230
+#define EXPRESSION_EQ 231
+#define EXPRESSION_NEQ 232
+#define EXPRESSION_BITWISE_AND 233
+#define EXPRESSION_BITWISE_XOR 234
+#define EXPRESSION_BITWISE_OR 235
+#define EXPRESSION_AND 236
+#define EXPRESSION_OR 237
+; e.g. x == 5 ? 6 : 7
+#define EXPRESSION_CONDITIONAL 238
+#define EXPRESSION_ASSIGN 239
+#define EXPRESSION_ASSIGN_ADD 240
+#define EXPRESSION_ASSIGN_SUB 241
+#define EXPRESSION_ASSIGN_MUL 242
+#define EXPRESSION_ASSIGN_DIV 243
+#define EXPRESSION_ASSIGN_REMAINDER 244
+#define EXPRESSION_ASSIGN_LSHIFT 245
+#define EXPRESSION_ASSIGN_RSHIFT 246
+#define EXPRESSION_ASSIGN_AND 247
+#define EXPRESSION_ASSIGN_XOR 248
+#define EXPRESSION_ASSIGN_OR 249
+#define EXPRESSION_COMMA 250
+
+; TYPES: A type is a 4-byte index into the global array `types`. Byte 0 in `types`
+; is reserved, and bytes 1-16 contain the values 1-16. Thus TYPE_INT, etc.
+; can be used as types directly.
+; The format of each type is as follows:
+;  char, unsigned char, etc.: TYPE_CHAR, TYPE_UNSIGNED_CHAR, etc. as a single byte
+;  pointer to type t: TYPE_PTR t
+;  array of n t's: TYPE_ARRAY {n as 8 bytes} t
+;  struct/union: TYPE_STRUCT/TYPE_UNION {0 for incomplete types/4-byte pointer to struct/union}
+; NOTE: we just treat function pointers as pointers to the function return type.
+#define TYPE_VOID 1
+#define TYPE_CHAR 3
+#define TYPE_UNSIGNED_CHAR 4
+#define TYPE_SHORT 5
+#define TYPE_UNSIGNED_SHORT 6
+#define TYPE_INT 7
+#define TYPE_UNSIGNED_INT 8
+#define TYPE_LONG 9
+#define TYPE_UNSIGNED_LONG 10
+#define TYPE_FLOAT 11
+; note that long double is treated the same as double.
+#define TYPE_DOUBLE 12
+#define TYPE_POINTER 13
+#define TYPE_STRUCT 14
+#define TYPE_UNION 15
+#define TYPE_ARRAY 16
+
+; types willl be initialized (in main) so that this refers to the type char*
+#define TYPE_POINTER_TO_CHAR 20
 
 :keyword_table
 	byte SYMBOL_SEMICOLON
@@ -537,4 +636,43 @@
 	byte 0
 :str___STDC__
 	string __STDC__
+	byte 0
+:str_void
+	string void
+	byte 0
+:str_char
+	string char
+	byte 0
+:str_unsigned_char
+	string unsigned char
+	byte 0
+:str_short
+	string short
+	byte 0
+:str_unsigned_short
+	string unsigned short
+	byte 0
+:str_int
+	string int
+	byte 0
+:str_unsigned_int
+	string unsigned int
+	byte 0
+:str_long
+	string long
+	byte 0
+:str_unsigned_long
+	string unsigned long
+	byte 0
+:str_float
+	string float
+	byte 0
+:str_double
+	string double
+	byte 0
+:str_struct
+	string struct
+	byte 0
+:str_union
+	string union
 	byte 0

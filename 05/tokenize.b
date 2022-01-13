@@ -108,10 +108,16 @@ global rodata_end_offset
 ;    uint line
 ;    ulong data
 ; This corresponds to translation phases 5-6 and the first half of 7
-; IMPORTANT: this function uses pointers to pptokens, so they should NOT be freed!
+; IMPORTANT: this function uses pointers to pptokens, so it should NOT be freed!
+; Returns a pointer to the end of tokens.
 function tokenize
 	argument pptokens
 	argument out
+	; you might think we wouldn't need these arguments because the pptokens array starts with
+	; a line directive. but we also use this function to tokenize the expression of a #if,
+	; where that isn't the case.
+	argument initial_filename
+	argument initial_line_number
 	local in
 	local file
 	local line_number
@@ -128,6 +134,11 @@ function tokenize
 	local fraction
 	local lower
 	local upper
+	
+	file_add(initial_filename)
+	file = file_get_index(initial_filename)
+	line_number = initial_line_number
+	
 	
 	in = pptokens
 	:tokenize_loop
@@ -301,10 +312,10 @@ function tokenize
 			:float_have_significand_and_exponent
 			if significand == 0 goto float_zero
 			normalize_float(&significand, &exponent)
-			putn(significand)
-			putc(32)
-			putn_signed(exponent)
-			putc(10)
+			; putn(significand)
+			; putc(32)
+			; putn_signed(exponent)
+			; putc(10)
 			; make number round to the nearest representable float roughly (this is what gcc does)
 			; this fails for 5e-100 probably because of imprecision, but mostly works
 			significand += 15
@@ -357,8 +368,15 @@ function tokenize
 				data = 0x7ff0000000000000 ; double infinity
 				goto float_have_data
 	:tokenize_loop_end
+	; EOF token
+	*1out = TOKEN_EOF
+	out += 2
+	*2out = file
+	out += 2
+	*4out = line_number
+	out += 12
 	
-	return 0
+	return out
 	:f_suffix_on_integer
 		compile_error(file, line_number, .str_f_suffix_on_integer)
 	:str_f_suffix_on_integer
@@ -581,6 +599,7 @@ function print_tokens
 		if *1p == TOKEN_CONSTANT_FLOAT goto print_token_float
 		if *1p == TOKEN_STRING_LITERAL goto print_token_string_literal
 		if *1p == TOKEN_IDENTIFIER goto print_token_identifier
+		if *1p == TOKEN_EOF goto print_token_eof
 		fputs(2, .str_print_bad_token)
 		exit(1)
 		:print_token_keyword
@@ -603,9 +622,13 @@ function print_tokens
 		:print_token_float
 			p += 8
 			puts(.str_constant_float)
-			putx(*8p)
+			putx64(*8p)
 			p += 8
+			putc(32)
 			goto print_tokens_loop
+		:print_token_eof
+			puts(.str_eof)
+			goto print_token_data
 		:print_token_info
 		p += 1
 		putc('~)
@@ -642,4 +665,7 @@ function print_tokens
 	:str_print_bad_token
 		string Unrecognized token type in print_tokens. Aborting.
 		byte 10
+		byte 0
+	:str_eof
+		string EOF
 		byte 0

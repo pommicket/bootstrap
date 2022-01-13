@@ -44,6 +44,14 @@ function left_shift
 	:left_shift_negative
 	n = 0 - n
 	return x > n
+
+function max_signed
+	argument a
+	argument b
+	if a > b goto maxs_return_a
+	return b
+	:maxs_return_a
+	return a
 	
 function file_error
 	argument name
@@ -327,26 +335,45 @@ function fputn_signed
 		fputn(fd, n)
 		return
 		
-function fputx
+:hex_digits
+	string 0123456789abcdef
+
+function fputx64
 	argument fd
 	argument n
 	local m
 	local x
 	m = 60
-	:fputx_loop
+	:fputx64_loop
 		x = n > m
 		x &= 0xf
 		x += .hex_digits
 		fputc(fd, *1x)
 		m -= 4
-		if m >= 0 goto fputx_loop
+		if m >= 0 goto fputx64_loop
 	return
-:hex_digits
-	string 0123456789abcdef
-
-function putx
+function putx64
 	argument n
-	fputx(1, n)
+	fputx64(1, n)
+	return
+	
+function fputx32
+	argument fd
+	argument n
+	local m
+	local x
+	m = 28
+	:fputx32_loop
+		x = n > m
+		x &= 0xf
+		x += .hex_digits
+		fputc(fd, *1x)
+		m -= 4
+		if m >= 0 goto fputx32_loop
+	return
+function putx32
+	argument n
+	fputx32(1, n)
 	return
 
 function putn
