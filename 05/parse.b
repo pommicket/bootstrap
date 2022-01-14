@@ -1,3 +1,4 @@
+; @TODO: fix 5 * *x being interpreted as (5*) * x
 function parse_expression
 	argument tokens
 	argument tokens_end
@@ -84,10 +85,12 @@ function parse_expression
 	:expr_find_operator_loop_end
 	
 	if best == 0 goto unrecognized_expression
+	
+	c = *1best
+	
 	if best == tokens goto parse_expr_unary
 	
 	; it's a binary expression.
-	c = *1best
 	if c == SYMBOL_PLUS_PLUS goto parse_postincrement
 	if c == SYMBOL_MINUS_MINUS goto parse_postdecrement
 	if c == SYMBOL_QUESTION goto parse_conditional
@@ -104,7 +107,11 @@ function parse_expression
 	
 	:parse_expr_unary
 		if c == KEYWORD_SIZEOF goto parse_expr_sizeof
-		byte 0xcc ; @TODO
+		*1out = unary_op_to_expression_type(c)
+		out += 8
+		p = tokens + 16
+		out = parse_expression(p, tokens_end, out)
+		return out
 	
 	:parse_expr_sizeof
 		byte 0xcc ; @TODO
@@ -292,7 +299,37 @@ function operator_precedence
 	if op == SYMBOL_NOT goto return_0xe0
 	
 	return 0xffff
-	
+
+function unary_op_to_expression_type
+	argument op
+	if op == SYMBOL_PLUS_PLUS goto return_EXPRESSION_PRE_INCREMENT
+	if op == SYMBOL_MINUS_MINUS goto return_EXPRESSION_PRE_DECREMENT
+	if op == SYMBOL_AND goto return_EXPRESSION_ADDRESS_OF
+	if op == SYMBOL_TIMES goto return_EXPRESSION_DEREFERENCE
+	if op == SYMBOL_PLUS goto return_EXPRESSION_UNARY_PLUS
+	if op == SYMBOL_MINUS goto return_EXPRESSION_UNARY_MINUS
+	if op == SYMBOL_TILDE goto return_EXPRESSION_BITWISE_NOT
+	if op == SYMBOL_NOT goto return_EXPRESSION_LOGICAL_NOT
+	return 0
+
+:return_EXPRESSION_PRE_INCREMENT
+	return EXPRESSION_PRE_INCREMENT
+:return_EXPRESSION_PRE_DECREMENT
+	return EXPRESSION_PRE_INCREMENT
+:return_EXPRESSION_ADDRESS_OF
+	return EXPRESSION_ADDRESS_OF
+:return_EXPRESSION_DEREFERENCE
+	return EXPRESSION_DEREFERENCE
+:return_EXPRESSION_UNARY_PLUS
+	return EXPRESSION_UNARY_PLUS
+:return_EXPRESSION_UNARY_MINUS
+	return EXPRESSION_UNARY_MINUS
+:return_EXPRESSION_BITWISE_NOT
+	return EXPRESSION_BITWISE_NOT
+:return_EXPRESSION_LOGICAL_NOT
+	return EXPRESSION_LOGICAL_NOT
+
+
 ; is this operator right-associative? most C operators are left associative,
 ; but += / -= / etc. are not
 function operator_right_associative
@@ -440,6 +477,15 @@ function print_expression
 	if c == EXPRESSION_POST_DECREMENT goto print_post_decrement
 	if c == EXPRESSION_DOT goto print_expr_dot
 	if c == EXPRESSION_ARROW goto print_expr_arrow
+	if c == EXPRESSION_PRE_INCREMENT goto print_pre_increment
+	if c == EXPRESSION_PRE_DECREMENT goto print_pre_decrement
+	if c == EXPRESSION_ADDRESS_OF goto print_address_of
+	if c == EXPRESSION_DEREFERENCE goto print_dereference
+	if c == EXPRESSION_UNARY_PLUS goto print_unary_plus
+	if c == EXPRESSION_UNARY_MINUS goto print_unary_minus
+	if c == EXPRESSION_BITWISE_NOT goto print_bitwise_not
+	if c == EXPRESSION_LOGICAL_NOT goto print_logical_not
+
 	b = binop_expression_type_to_symbol(c)
 	if b != 0 goto print_expr_binop
 	
@@ -513,7 +559,65 @@ function print_expression
 		putc('-)
 		putc(41)
 		return expression
-		
+	:print_pre_increment
+		putc(40)
+		putc('+)
+		putc('+)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_pre_decrement
+		putc(40)
+		putc('-)
+		putc('-)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_address_of
+		putc(40)
+		putc('&)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_dereference
+		putc(40)
+		putc('*)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_unary_plus
+		putc(40)
+		putc('+)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_unary_minus
+		putc(40)
+		putc('-)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_bitwise_not
+		putc(40)
+		putc('~)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_logical_not
+		putc(40)
+		putc('!)
+		expression += 8
+		expression = print_expression(expression)
+		putc(41)
+		return expression
+
 ; NOTE: to make things easier, the format which this outputs isn't the same as C's, specifically we have
 ;    *int for pointer to int and [5]int for array of 5 ints
 function print_type
