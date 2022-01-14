@@ -167,7 +167,7 @@ function main
 	
 	tokens = malloc(16000000)
 	p = tokenize(pptokens, tokens, input_filename, 1)
-	print_tokens(tokens)
+	print_tokens(tokens, p)
 	; NOTE: do NOT free pptokens as identifiers still reference them.
 	
 	ast = malloc(56000000)

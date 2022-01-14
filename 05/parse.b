@@ -16,6 +16,8 @@ function parse_expression
 	local value
 	:parse_expression_top
 	
+	;print_tokens(tokens, tokens_end)
+	
 	type = out + 4
 	
 	if tokens == tokens_end goto empty_expression
@@ -64,7 +66,7 @@ function parse_expression
 		if p >= tokens_end goto expr_find_operator_loop_end
 		c = *1p
 		p += 16
-		if depth > 0 goto expr_find_operator_loop
+		if depth > 0 goto expr_findop_not_new_best
 		if depth < 0 goto expr_too_many_closing_brackets
 		n = p - 16
 		a = operator_precedence(n, b)
@@ -74,7 +76,6 @@ function parse_expression
 		; new best!
 		best = p - 16
 		best_precedence = a
-		goto expr_find_operator_loop
 		:expr_findop_not_new_best
 		if c == SYMBOL_LPAREN goto expr_findop_incdepth
 		if c == SYMBOL_RPAREN goto expr_findop_decdepth
@@ -117,6 +118,12 @@ function parse_expression
 	if c == SYMBOL_LSHIFT goto type_binary_left_promote
 	if c == SYMBOL_RSHIFT goto type_binary_left_promote
 	if c == SYMBOL_LSQUARE goto type_subscript
+	if c == SYMBOL_EQ_EQ goto type_binary_comparison
+	if c == SYMBOL_NOT_EQ goto type_binary_comparison
+	if c == SYMBOL_LT_EQ goto type_binary_comparison
+	if c == SYMBOL_GT_EQ goto type_binary_comparison
+	if c == SYMBOL_LT goto type_binary_comparison
+	if c == SYMBOL_GT goto type_binary_comparison
 	if c < SYMBOL_EQ goto type_binary_usual
 	if c > SYMBOL_OR_EQ goto type_binary_usual
 	goto type_binary_left
@@ -138,6 +145,9 @@ function parse_expression
 			byte 0
 	:type_binary_usual
 		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		return out
+	:type_binary_comparison
+		*4type = TYPE_INT
 		return out
 	:type_binary_left
 		*4type = *4a
@@ -355,7 +365,8 @@ function expr_binary_type_usual_conversions
 
 function type_promotion
 	argument type
-	if type < TYPE_INT goto return_type_int
+	type = types + type
+	if *1type < TYPE_INT goto return_type_int
 	return type
 
 ; return precedence of given operator token, or 0xffff if not an operator

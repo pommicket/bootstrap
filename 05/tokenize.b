@@ -588,10 +588,12 @@ function read_number_suffix
 	
 function print_tokens
 	argument tokens
+	argument tokens_end
 	local p
 	local s
 	p = tokens
 	:print_tokens_loop
+		if p ]= tokens_end goto print_tokens_loop_end
 		if *1p == 0 goto print_tokens_loop_end
 		if *1p > 20 goto print_token_keyword 
 		if *1p == TOKEN_CONSTANT_INT goto print_token_int
