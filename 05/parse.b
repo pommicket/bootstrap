@@ -53,7 +53,10 @@ function parse_expression
 	p = tokens
 	best = 0
 	best_precedence = 1000
+	goto expr_find_operator_loop_first
 	:expr_find_operator_loop
+		b = 0
+		:expr_find_operator_loop_first
 		if p >= tokens_end goto expr_find_operator_loop_end
 		c = *1p
 		p += 16
@@ -66,7 +69,7 @@ function parse_expression
 		a = operator_precedence(c, b)
 		n = a
 		n -= operator_right_associative(c) ; ensure that the leftmost += / -= / etc. is processed first
-		if n >= best_precedence goto expr_find_operator_loop
+		if n > best_precedence goto expr_find_operator_loop
 		; new best!
 		best = p - 16
 		best_precedence = a
@@ -90,9 +93,9 @@ function parse_expression
 	if c == SYMBOL_QUESTION goto parse_conditional
 	*1out = binop_symbol_to_expression_type(c)
 	out += 8
-	out = parse_expression(tokens, best, out) ; first operand
 	if c == SYMBOL_DOT goto parse_expr_member
 	if c == SYMBOL_ARROW goto parse_expr_member
+	out = parse_expression(tokens, best, out) ; first operand
 	p = best + 16
 	out = parse_expression(p, tokens_end, out) ; second operand
 	return out
@@ -107,15 +110,34 @@ function parse_expression
 		byte 0xcc ; @TODO
 	
 	:parse_expr_member ; -> or .
-		byte 0xcc ; @TODO
+		p = best + 16
+		if *1p != TOKEN_IDENTIFIER goto bad_expression
+		p += 8
+		*8out = *8p ; copy identifier name
+		p += 8
+		if p != tokens_end goto bad_expression ; e.g. foo->bar hello
+		out += 8
+		out = parse_expression(tokens, best, out)
+		return out
+		
 	
 	:parse_conditional
 		byte 0xcc ; @TODO
 	
 	:parse_postincrement
-		byte 0xcc ; @TODO
+		*1out = EXPRESSION_POST_INCREMENT
+		out += 8
+		p = tokens_end - 16
+		if *1p != SYMBOL_PLUS_PLUS goto bad_expression ; e.g. a ++ b
+		out = parse_expression(tokens, p, out)
+		return out
 	:parse_postdecrement
-		byte 0xcc ; @TODO
+		*1out = EXPRESSION_POST_DECREMENT
+		out += 8
+		p = tokens_end - 16
+		if *1p != SYMBOL_MINUS_MINUS goto bad_expression ; e.g. a -- b
+		out = parse_expression(tokens, p, out)
+		return out
 	
 	:single_token_expression
 		in = tokens
@@ -124,7 +146,7 @@ function parse_expression
 		if c == TOKEN_CONSTANT_CHAR goto expression_integer ; character constants are basically the same as integer constants
 		if c == TOKEN_CONSTANT_FLOAT goto expression_float
 		if c == TOKEN_STRING_LITERAL goto expression_string_literal
-		byte 0xcc
+		goto unrecognized_expression
 	
 	:expression_integer
 		*1out = EXPRESSION_CONSTANT_INT
@@ -182,6 +204,11 @@ function parse_expression
 		token_error(tokens, .str_empty_expression)
 	:str_empty_expression
 		string Empty expression.
+		byte 0
+	:bad_expression
+		token_error(tokens, .str_bad_expression)
+	:str_bad_expression
+		string Bad expression.
 		byte 0
 	:unrecognized_expression
 		token_error(tokens, .str_unrecognized_expression)
@@ -409,9 +436,21 @@ function print_expression
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto print_expr_float
 	if c == EXPRESSION_STRING_LITERAL goto print_expr_str
+	if c == EXPRESSION_POST_INCREMENT goto print_post_increment
+	if c == EXPRESSION_POST_DECREMENT goto print_post_decrement
+	if c == EXPRESSION_DOT goto print_expr_dot
+	if c == EXPRESSION_ARROW goto print_expr_arrow
 	b = binop_expression_type_to_symbol(c)
 	if b != 0 goto print_expr_binop
-	byte 0xcc
+	
+	puts(.str_print_bad_expr)
+	exit(1)
+	
+	:str_print_bad_expr
+		string Bad expression passed to print_expression.
+		byte 10
+		byte 0
+	
 	:print_expr_int
 		expression += 8
 		putn(*8expression)
@@ -438,7 +477,42 @@ function print_expression
 		expression = print_expression(expression) ; 2nd operand
 		putc(41)
 		return expression
-	
+	:print_expr_dot
+		putc(40)
+		expression += 8
+		p = *8expression
+		expression += 8
+		expression = print_expression(expression)
+		putc('.)
+		puts(p)
+		putc(41)
+		return expression
+	:print_expr_arrow
+		putc(40)
+		expression += 8
+		p = *8expression
+		expression += 8
+		expression = print_expression(expression)
+		puts(.str_arrow)
+		puts(p)
+		putc(41)
+		return expression
+	:print_post_increment
+		putc(40)
+		expression += 8
+		expression = print_expression(expression)
+		putc('+)
+		putc('+)
+		putc(41)
+		return expression
+	:print_post_decrement
+		putc(40)
+		expression += 8
+		expression = print_expression(expression)
+		putc('-)
+		putc('-)
+		putc(41)
+		return expression
 		
 ; NOTE: to make things easier, the format which this outputs isn't the same as C's, specifically we have
 ;    *int for pointer to int and [5]int for array of 5 ints

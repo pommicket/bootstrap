@@ -133,7 +133,7 @@
 ;    - for string literals, a 64-bit pointer to the string (for the executable, not for the compiler)
 ;    - for unary operators, the operand
 ;    - for binary operators, the first operand followed by the second
-;        - for the operators . and ->, the first operand is an expression and the second is just a pointer to the name of the member
+;        - for the operators . and ->, the first argument is a 64-bit pointer to the name of the member and the second is the left hand side of the . / -> 
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
 ; Note that file/line number are not stored in expressions.
