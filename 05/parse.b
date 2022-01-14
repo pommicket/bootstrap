@@ -67,7 +67,8 @@ function parse_expression
 		if c == SYMBOL_RSQUARE goto expr_findop_decdepth
 		if depth > 0 goto expr_find_operator_loop
 		if depth < 0 goto expr_too_many_closing_brackets
-		a = operator_precedence(c, b)
+		n = p - 16
+		a = operator_precedence(n, b)
 		n = a
 		n -= operator_right_associative(c) ; ensure that the leftmost += / -= / etc. is processed first
 		if n > best_precedence goto expr_find_operator_loop
@@ -240,11 +241,23 @@ function parse_expression
 :return_type_double
 	return TYPE_DOUBLE
 
-; return precedence of given operator, or 0xffff if not an operator
+; return precedence of given operator token, or 0xffff if not an operator
 function operator_precedence
-	argument op
-	argument is_unary_prefix
-	if is_unary_prefix != 0 goto operator_precedence_unary
+	argument token
+	argument is_first
+	local op
+	
+	if is_first != 0 goto operator_precedence_unary
+	
+	; if an operator is preceded by another, it must be a unary operator, e.g.
+	;   in 5 + *x, * is a unary operator
+	op = token - 16
+	op = *1op
+	op = is_operator(op)
+	if op != 0 goto operator_precedence_unary
+	
+	op = *1token
+	
 	
 	; see "C OPERATOR PRECEDENCE" in constants.b
 	if op == SYMBOL_COMMA goto return_0x10
@@ -288,6 +301,8 @@ function operator_precedence
 	return 0xffff
 	
 	:operator_precedence_unary
+	op = *1token
+	
 	if op == KEYWORD_SIZEOF goto return_0xe0
 	if op == SYMBOL_PLUS_PLUS goto return_0xe0
 	if op == SYMBOL_MINUS_MINUS goto return_0xe0
@@ -420,6 +435,15 @@ function binop_symbol_to_expression_type
 	:binop_symbol_to_expression_type_found
 		p += 1
 		return *1p
+
+function is_operator
+	argument symbol
+	local b
+	b = binop_symbol_to_expression_type(symbol)
+	if b != 0 goto return_1
+	b = unary_op_to_expression_type(symbol)
+	if b != 0 goto return_1
+	goto return_0
 
 function binop_expression_type_to_symbol
 	argument exprtype
