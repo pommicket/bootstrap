@@ -90,12 +90,12 @@ function parse_expression
 	if c == SYMBOL_QUESTION goto parse_conditional
 	*1out = binop_symbol_to_expression_type(c)
 	out += 8
-	parse_expression(tokens, best, out) ; first operand
+	out = parse_expression(tokens, best, out) ; first operand
 	if c == SYMBOL_DOT goto parse_expr_member
 	if c == SYMBOL_ARROW goto parse_expr_member
 	p = best + 16
-	parse_expression(p, tokens_end, out) ; second operand
-	
+	out = parse_expression(p, tokens_end, out) ; second operand
+	return out
 	;@TODO: casts
 	
 	
@@ -392,17 +392,18 @@ function int_value_to_type
 	if value [ 0x8000000000000000 goto return_type_long
 	goto return_type_unsigned_long
 
-function print_p_expression
-	argument p_expression
+; returns pointer to end of expression
+function print_expression
+	argument expression
 	local c
 	local b
 	local p
-	local expression
-	expression = *8p_expression
 	p = expression + 4
+	if *4p == 0 goto print_expr_skip_type
 	putc(40)
 	print_type(*4p)
 	putc(41)
+	:print_expr_skip_type
 	c = *1expression
 	
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
@@ -415,34 +416,29 @@ function print_p_expression
 		expression += 8
 		putn(*8expression)
 		expression += 8
-		goto print_p_expression_ret
+		return expression
 	:print_expr_float
 		expression += 8
 		putx64(*8expression)
 		expression += 8
-		goto print_p_expression_ret
+		return expression
 	:print_expr_str
 		expression += 8
 		putc('0)
 		putc('x)
 		putx32(*8expression)
 		expression += 8
-		goto print_p_expression_ret
+		return expression
 	:print_expr_binop
+		putc(40)
 		expression += 8
-		print_p_expression(&expression) ; 1st operand
+		expression = print_expression(expression) ; 1st operand
 		b = get_keyword_str(b)
 		puts(b)
-		print_expression(expression) ; 2nd operand
-		goto print_p_expression_ret
-	:print_p_expression_ret
-	*8p_expression = expression
-	return
+		expression = print_expression(expression) ; 2nd operand
+		putc(41)
+		return expression
 	
-function print_expression
-	argument expression
-	print_p_expression(&expression)
-	return
 		
 ; NOTE: to make things easier, the format which this outputs isn't the same as C's, specifically we have
 ;    *int for pointer to int and [5]int for array of 5 ints
