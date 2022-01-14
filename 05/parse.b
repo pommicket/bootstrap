@@ -118,15 +118,46 @@ function parse_expression
 	if c == SYMBOL_LSHIFT goto type_binary_left_promote
 	if c == SYMBOL_RSHIFT goto type_binary_left_promote
 	if c == SYMBOL_LSQUARE goto type_subscript
-	if c == SYMBOL_EQ_EQ goto type_binary_comparison
-	if c == SYMBOL_NOT_EQ goto type_binary_comparison
-	if c == SYMBOL_LT_EQ goto type_binary_comparison
-	if c == SYMBOL_GT_EQ goto type_binary_comparison
-	if c == SYMBOL_LT goto type_binary_comparison
-	if c == SYMBOL_GT goto type_binary_comparison
-	if c < SYMBOL_EQ goto type_binary_usual
-	if c > SYMBOL_OR_EQ goto type_binary_usual
-	goto type_binary_left
+	if c == SYMBOL_EQ_EQ goto type_binary_int
+	if c == SYMBOL_NOT_EQ goto type_binary_int
+	if c == SYMBOL_LT_EQ goto type_binary_int
+	if c == SYMBOL_GT_EQ goto type_binary_int
+	if c == SYMBOL_LT goto type_binary_int
+	if c == SYMBOL_GT goto type_binary_int
+	if c == SYMBOL_COMMA goto type_binary_right
+	if c == SYMBOL_EQ goto type_binary_left
+	if c == SYMBOL_PLUS_EQ goto type_binary_left
+	if c == SYMBOL_MINUS_EQ goto type_binary_left
+	if c == SYMBOL_TIMES_EQ goto type_binary_left
+	if c == SYMBOL_DIV_EQ goto type_binary_left
+	if c == SYMBOL_PERCENT_EQ goto type_binary_left
+	if c == SYMBOL_AND_EQ goto type_binary_left_int
+	if c == SYMBOL_XOR_EQ goto type_binary_left_int
+	if c == SYMBOL_OR_EQ goto type_binary_left_int
+	if c == SYMBOL_LSHIFT_EQ goto type_binary_left_int
+	if c == SYMBOL_RSHIFT_EQ goto type_binary_left_int
+	if c == SYMBOL_OR_OR goto type_binary_int
+	if c == SYMBOL_AND_AND goto type_binary_int
+	if c == SYMBOL_AND goto type_binary_usual_int
+	if c == SYMBOL_XOR goto type_binary_usual_int
+	if c == SYMBOL_OR goto type_binary_usual_int
+	if c == SYMBOL_PLUS goto type_plus
+	if c == SYMBOL_MINUS goto type_minus
+	if c == SYMBOL_TIMES goto type_binary_usual
+	if c == SYMBOL_DIV goto type_binary_usual
+	if c == SYMBOL_PERCENT goto type_binary_usual_int
+	
+	fputs(2, .str_binop_this_shouldnt_happen)
+	exit(1)
+	:str_binop_this_shouldnt_happen
+		string Bad binop symbol (this shouldn't happen).
+		byte 10
+		byte 0	
+	
+	:type_plus
+		byte 0xcc ; @TODO
+	:type_minus
+		byte 0xcc ; @TODO
 	:type_subscript
 		p = types + *4a
 		if *1p == TYPE_POINTER goto type_subscript_pointer
@@ -146,17 +177,29 @@ function parse_expression
 	:type_binary_usual
 		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
 		return out
-	:type_binary_comparison
+	:type_binary_usual_int
+		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		p = types + *4type
+		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
+		return out
+	:type_binary_int
 		*4type = TYPE_INT
 		return out
+	:type_binary_left_int
+		p = types + *4a
+		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
+		goto type_binary_left
 	:type_binary_left
 		*4type = *4a
+		return out
+	:type_binary_right
+		*4type = *4b
 		return out
 	:type_binary_left_promote
 		*4type = type_promotion(*4a)
 		return out
-	
-	return out
+	:expr_binary_bad_types
+		bad_types_to_operator(tokens, *4a, *4b)
 	;@TODO: casts
 	
 	
@@ -300,6 +343,7 @@ function parse_expression
 :return_type_double
 	return TYPE_DOUBLE
 
+; the "usual conversions" for binary operators, as the C standard calls it
 function expr_binary_type_usual_conversions
 	argument token ; for errors
 	argument type1
@@ -310,17 +354,12 @@ function expr_binary_type_usual_conversions
 	
 	if type1 == 0 goto return_0
 	if type2 == 0 goto return_0
-	; @TODO: pointer types
+	
 	ptype1 = types + type1
 	ptype2 = types + type2
 	
-	type1 = *1ptype1
-	type2 = *1ptype2
-	if type1 == TYPE_POINTER goto type1_pointer
-	if type2 == TYPE_POINTER goto type2_pointer
-	
-	if type1 > TYPE_DOUBLE goto bad_types_to_operator
-	if type2 > TYPE_DOUBLE goto bad_types_to_operator
+	if type1 > TYPE_DOUBLE goto usual_bad_types_to_operator
+	if type2 > TYPE_DOUBLE goto usual_bad_types_to_operator
 	
 	; "if either operand has type double, the other operand is converted to double"
 	if type1 == TYPE_DOUBLE goto return_type_double
@@ -340,26 +379,27 @@ function expr_binary_type_usual_conversions
 	; "Otherwise, both operands have type int."
 	goto return_type_int
 	
-	:type1_pointer
-		if type2 == TYPE_POINTER goto return_type_long ; this must be a pointer difference
-		return ptype1 - types ; e.g. p_int + 5
-	:type2_pointer
-		return ptype2 - types ; e.g. 5 + p_int
-	
-	:bad_types_to_operator
-		fprint_token_location(2, token)
-		fputs(2, .str_bad_types_to_operator)
-		print_type(type1)
-		fputs(2, .str_space_and_space)
-		print_type(type2)
-		putc(10)
-		exit(1)
-	:str_bad_types_to_operator
-		string : Bad types to operator:
-		byte 32
-		byte 0
 	:str_space_and_space
 		string  and
+		byte 32
+		byte 0
+	:usual_bad_types_to_operator
+		bad_types_to_operator(token, type1, type2)
+
+function bad_types_to_operator
+	argument token
+	argument type1
+	argument type2
+	
+	fprint_token_location(2, token)
+	fputs(2, .str_bad_types_to_operator)
+	print_type(type1)
+	fputs(2, .str_space_and_space)
+	print_type(type2)
+	putc(10)
+	exit(1)
+	:str_bad_types_to_operator
+		string : Bad types to operator:
 		byte 32
 		byte 0
 
