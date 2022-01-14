@@ -79,9 +79,43 @@ function parse_expression
 			depth -= 1
 			goto expr_find_operator_loop
 	:expr_find_operator_loop_end
-	putn(*1best)
-	goto unrecognized_expression
 	
+	if best == 0 goto unrecognized_expression
+	if best == tokens goto parse_expr_unary
+	
+	; it's a binary expression.
+	c = *1best
+	if c == SYMBOL_PLUS_PLUS goto parse_postincrement
+	if c == SYMBOL_MINUS_MINUS goto parse_postdecrement
+	if c == SYMBOL_QUESTION goto parse_conditional
+	*1out = binop_symbol_to_expression_type(c)
+	out += 8
+	parse_expression(tokens, best, out) ; first operand
+	if c == SYMBOL_DOT goto parse_expr_member
+	if c == SYMBOL_ARROW goto parse_expr_member
+	p = best + 16
+	parse_expression(p, tokens_end, out) ; second operand
+	
+	;@TODO: casts
+	
+	
+	:parse_expr_unary
+		if c == KEYWORD_SIZEOF goto parse_expr_sizeof
+		byte 0xcc ; @TODO
+	
+	:parse_expr_sizeof
+		byte 0xcc ; @TODO
+	
+	:parse_expr_member ; -> or .
+		byte 0xcc ; @TODO
+	
+	:parse_conditional
+		byte 0xcc ; @TODO
+	
+	:parse_postincrement
+		byte 0xcc ; @TODO
+	:parse_postdecrement
+		byte 0xcc ; @TODO
 	
 	:single_token_expression
 		in = tokens
@@ -220,6 +254,7 @@ function operator_precedence
 	return 0xffff
 	
 	:operator_precedence_unary
+	if op == KEYWORD_SIZEOF goto return_0xe0
 	if op == SYMBOL_PLUS_PLUS goto return_0xe0
 	if op == SYMBOL_MINUS_MINUS goto return_0xe0
 	if op == SYMBOL_AND goto return_0xe0
@@ -238,6 +273,105 @@ function operator_right_associative
 	if op < SYMBOL_EQ goto return_0
 	if op > SYMBOL_OR_EQ goto return_0
 	goto return_1
+
+:binop_table
+	byte SYMBOL_COMMA
+	byte EXPRESSION_COMMA
+	byte SYMBOL_EQ
+	byte EXPRESSION_ASSIGN
+	byte SYMBOL_PLUS_EQ
+	byte EXPRESSION_ASSIGN_ADD
+	byte SYMBOL_MINUS_EQ
+	byte EXPRESSION_ASSIGN_SUB
+	byte SYMBOL_TIMES_EQ
+	byte EXPRESSION_ASSIGN_MUL
+	byte SYMBOL_DIV_EQ
+	byte EXPRESSION_ASSIGN_DIV
+	byte SYMBOL_PERCENT_EQ
+	byte EXPRESSION_ASSIGN_REMAINDER
+	byte SYMBOL_LSHIFT_EQ
+	byte EXPRESSION_ASSIGN_LSHIFT
+	byte SYMBOL_RSHIFT_EQ
+	byte EXPRESSION_ASSIGN_RSHIFT
+	byte SYMBOL_AND_EQ
+	byte EXPRESSION_ASSIGN_AND
+	byte SYMBOL_OR_EQ
+	byte EXPRESSION_ASSIGN_OR
+	byte SYMBOL_XOR_EQ
+	byte EXPRESSION_ASSIGN_XOR
+	byte SYMBOL_OR_OR
+	byte EXPRESSION_LOGICAL_OR
+	byte SYMBOL_AND_AND
+	byte EXPRESSION_LOGICAL_AND
+	byte SYMBOL_OR
+	byte EXPRESSION_BITWISE_OR
+	byte SYMBOL_XOR
+	byte EXPRESSION_BITWISE_XOR
+	byte SYMBOL_AND
+	byte EXPRESSION_BITWISE_AND
+	byte SYMBOL_EQ_EQ
+	byte EXPRESSION_EQ
+	byte SYMBOL_NOT_EQ
+	byte EXPRESSION_NEQ
+	byte SYMBOL_LT
+	byte EXPRESSION_LT
+	byte SYMBOL_GT
+	byte EXPRESSION_GT
+	byte SYMBOL_LT_EQ
+	byte EXPRESSION_LEQ
+	byte SYMBOL_GT_EQ
+	byte EXPRESSION_GEQ
+	byte SYMBOL_LSHIFT
+	byte EXPRESSION_LSHIFT
+	byte SYMBOL_RSHIFT
+	byte EXPRESSION_RSHIFT
+	byte SYMBOL_PLUS
+	byte EXPRESSION_ADD
+	byte SYMBOL_MINUS
+	byte EXPRESSION_SUB
+	byte SYMBOL_TIMES
+	byte EXPRESSION_MUL
+	byte SYMBOL_DIV
+	byte EXPRESSION_DIV
+	byte SYMBOL_PERCENT
+	byte EXPRESSION_REMAINDER
+	byte SYMBOL_ARROW
+	byte EXPRESSION_ARROW
+	byte SYMBOL_DOT
+	byte EXPRESSION_DOT
+	byte SYMBOL_LSQUARE
+	byte EXPRESSION_SUBSCRIPT
+	byte 0
+	byte 0
+
+function binop_symbol_to_expression_type
+	argument op
+	local p
+	p = .binop_table
+	:binop_symbol_to_expression_type_loop
+		if *1p == op goto binop_symbol_to_expression_type_found
+		p += 2
+		if *1p != 0 goto binop_symbol_to_expression_type_loop
+	return 0
+	:binop_symbol_to_expression_type_found
+		p += 1
+		return *1p
+
+function binop_expression_type_to_symbol
+	argument exprtype
+	local p
+	p = .binop_table
+	:binop_expr2symb_type_loop
+		p += 1
+		if *1p == exprtype goto binop_expr2symb_type_found
+		p += 1
+		if *1p != 0 goto binop_expr2symb_type_loop
+	return 0
+	:binop_expr2symb_type_found
+		p -= 1
+		return *1p
+
+
 
 function int_suffix_to_type
 	argument suffix
@@ -258,10 +392,13 @@ function int_value_to_type
 	if value [ 0x8000000000000000 goto return_type_long
 	goto return_type_unsigned_long
 
-function print_expression
-	argument expression
+function print_p_expression
+	argument p_expression
 	local c
+	local b
 	local p
+	local expression
+	expression = *8p_expression
 	p = expression + 4
 	putc(40)
 	print_type(*4p)
@@ -271,22 +408,42 @@ function print_expression
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto print_expr_float
 	if c == EXPRESSION_STRING_LITERAL goto print_expr_str
+	b = binop_expression_type_to_symbol(c)
+	if b != 0 goto print_expr_binop
 	byte 0xcc
 	:print_expr_int
 		expression += 8
 		putn(*8expression)
-		return
+		expression += 8
+		goto print_p_expression_ret
 	:print_expr_float
 		expression += 8
 		putx64(*8expression)
-		return
+		expression += 8
+		goto print_p_expression_ret
 	:print_expr_str
 		expression += 8
 		putc('0)
 		putc('x)
 		putx32(*8expression)
-		return
-
+		expression += 8
+		goto print_p_expression_ret
+	:print_expr_binop
+		expression += 8
+		print_p_expression(&expression) ; 1st operand
+		b = get_keyword_str(b)
+		puts(b)
+		print_expression(expression) ; 2nd operand
+		goto print_p_expression_ret
+	:print_p_expression_ret
+	*8p_expression = expression
+	return
+	
+function print_expression
+	argument expression
+	print_p_expression(&expression)
+	return
+		
 ; NOTE: to make things easier, the format which this outputs isn't the same as C's, specifically we have
 ;    *int for pointer to int and [5]int for array of 5 ints
 function print_type

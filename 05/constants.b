@@ -21,7 +21,7 @@
 ;   c + -
 ;   d * / %
 ;   e8 cast
-;   e unary prefixes ++ -- & * + - ~ !
+;   e sizeof, unary prefixes ++ -- & * + - ~ !
 ;   f . -> () [] postfix ++ --
 ;   highest
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)
@@ -174,8 +174,8 @@
 #define EXPRESSION_BITWISE_AND 233
 #define EXPRESSION_BITWISE_XOR 234
 #define EXPRESSION_BITWISE_OR 235
-#define EXPRESSION_AND 236
-#define EXPRESSION_OR 237
+#define EXPRESSION_LOGICAL_AND 236
+#define EXPRESSION_LOGICAL_OR 237
 ; e.g. x == 5 ? 6 : 7
 #define EXPRESSION_CONDITIONAL 238
 #define EXPRESSION_ASSIGN 239
