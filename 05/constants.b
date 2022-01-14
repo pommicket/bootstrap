@@ -27,7 +27,7 @@
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)
 
 #define SYMBOL_COMMA 200
-; NOTE: operator_right_associative requires SYMBOL_EQ to be the first assignment operator
+; NOTE: operator_right_associative and others require SYMBOL_EQ to be the first assignment operator
 #define SYMBOL_EQ 201
 #define SYMBOL_PLUS_EQ 202
 #define SYMBOL_MINUS_EQ 203
@@ -39,7 +39,7 @@
 #define SYMBOL_AND_EQ 209
 #define SYMBOL_XOR_EQ 210
 #define SYMBOL_OR_EQ 211
-; NOTE: operator_right_associative requires SYMBOL_OR_EQ to be the last assignment operator
+; NOTE: operator_right_associative and others require SYMBOL_OR_EQ to be the last assignment operator
 #define SYMBOL_QUESTION 212
 #define SYMBOL_OR_OR 213
 #define SYMBOL_AND_AND 214

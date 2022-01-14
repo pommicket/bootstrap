@@ -17,6 +17,16 @@ global function_macros_size
 global object_macros
 global function_macros
 
+function fprint_token_location
+	argument fd
+	argument token
+	token += 2
+	fprint_filename(fd, *2token)
+	token += 2
+	fputc(fd, ':)
+	fputn(fd, *4token)
+	return
+
 ; accepts EITHER file index OR pointer to filename
 function fprint_filename
 	argument fd

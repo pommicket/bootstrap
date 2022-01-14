@@ -9,11 +9,14 @@ function parse_expression
 	local c
 	local p
 	local n
+	local type
 	local best
 	local best_precedence
 	local depth
 	local value
 	:parse_expression_top
+	
+	type = out + 4
 	
 	if tokens == tokens_end goto empty_expression
 	p = tokens + 16
@@ -61,20 +64,22 @@ function parse_expression
 		if p >= tokens_end goto expr_find_operator_loop_end
 		c = *1p
 		p += 16
-		if c == SYMBOL_LPAREN goto expr_findop_incdepth
-		if c == SYMBOL_RPAREN goto expr_findop_decdepth
-		if c == SYMBOL_LSQUARE goto expr_findop_incdepth
-		if c == SYMBOL_RSQUARE goto expr_findop_decdepth
 		if depth > 0 goto expr_find_operator_loop
 		if depth < 0 goto expr_too_many_closing_brackets
 		n = p - 16
 		a = operator_precedence(n, b)
 		n = a
 		n -= operator_right_associative(c) ; ensure that the leftmost += / -= / etc. is processed first
-		if n > best_precedence goto expr_find_operator_loop
+		if n > best_precedence goto expr_findop_not_new_best
 		; new best!
 		best = p - 16
 		best_precedence = a
+		goto expr_find_operator_loop
+		:expr_findop_not_new_best
+		if c == SYMBOL_LPAREN goto expr_findop_incdepth
+		if c == SYMBOL_RPAREN goto expr_findop_decdepth
+		if c == SYMBOL_LSQUARE goto expr_findop_incdepth
+		if c == SYMBOL_RSQUARE goto expr_findop_decdepth
 		goto expr_find_operator_loop
 		
 		:expr_findop_incdepth
@@ -99,9 +104,48 @@ function parse_expression
 	out += 8
 	if c == SYMBOL_DOT goto parse_expr_member
 	if c == SYMBOL_ARROW goto parse_expr_member
+	a = out + 4 ; type of first operand
 	out = parse_expression(tokens, best, out) ; first operand
 	p = best + 16
+	b = out + 4 ; type of second operand
+	if c != SYMBOL_LSQUARE goto binary_not_subscript
+	tokens_end -= 16
+	if *1tokens_end != SYMBOL_RSQUARE goto unrecognized_expression
+	:binary_not_subscript
 	out = parse_expression(p, tokens_end, out) ; second operand
+	
+	if c == SYMBOL_LSHIFT goto type_binary_left_promote
+	if c == SYMBOL_RSHIFT goto type_binary_left_promote
+	if c == SYMBOL_LSQUARE goto type_subscript
+	if c < SYMBOL_EQ goto type_binary_usual
+	if c > SYMBOL_OR_EQ goto type_binary_usual
+	goto type_binary_left
+	:type_subscript
+		p = types + *4a
+		if *1p == TYPE_POINTER goto type_subscript_pointer
+		if *1p == TYPE_ARRAY goto type_subscript_array
+		goto subscript_bad_type
+		:type_subscript_pointer
+			*4type = *4a + 1
+			return out
+		:type_subscript_array
+			*4type = *4a + 9
+			return out
+		:subscript_bad_type
+			token_error(tokens, .str_subscript_bad_type)
+		:str_subscript_bad_type
+			string Subscript of non-pointer type.
+			byte 0
+	:type_binary_usual
+		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		return out
+	:type_binary_left
+		*4type = *4a
+		return out
+	:type_binary_left_promote
+		*4type = type_promotion(*4a)
+		return out
+	
 	return out
 	;@TODO: casts
 	
@@ -134,17 +178,22 @@ function parse_expression
 	
 	:parse_postincrement
 		*1out = EXPRESSION_POST_INCREMENT
-		out += 8
 		p = tokens_end - 16
 		if *1p != SYMBOL_PLUS_PLUS goto bad_expression ; e.g. a ++ b
+		out += 8
+		a = out + 4 ; type of operand 
 		out = parse_expression(tokens, p, out)
+		*4type = *4a ; this expression's type is the operand's type (yes even for types smaller than int)
 		return out
+		
 	:parse_postdecrement
 		*1out = EXPRESSION_POST_DECREMENT
-		out += 8
 		p = tokens_end - 16
 		if *1p != SYMBOL_MINUS_MINUS goto bad_expression ; e.g. a -- b
+		out += 8
+		a = out + 4 ; type of operand 
 		out = parse_expression(tokens, p, out)
+		*4type = *4a ; type of this = type of operand
 		return out
 	
 	:single_token_expression
@@ -240,6 +289,74 @@ function parse_expression
 	return TYPE_FLOAT
 :return_type_double
 	return TYPE_DOUBLE
+
+function expr_binary_type_usual_conversions
+	argument token ; for errors
+	argument type1
+	argument type2
+	
+	local ptype1
+	local ptype2
+	
+	if type1 == 0 goto return_0
+	if type2 == 0 goto return_0
+	; @TODO: pointer types
+	ptype1 = types + type1
+	ptype2 = types + type2
+	
+	type1 = *1ptype1
+	type2 = *1ptype2
+	if type1 == TYPE_POINTER goto type1_pointer
+	if type2 == TYPE_POINTER goto type2_pointer
+	
+	if type1 > TYPE_DOUBLE goto bad_types_to_operator
+	if type2 > TYPE_DOUBLE goto bad_types_to_operator
+	
+	; "if either operand has type double, the other operand is converted to double"
+	if type1 == TYPE_DOUBLE goto return_type_double
+	if type2 == TYPE_DOUBLE goto return_type_double
+	; "if either operand has type float, the other operand is converted to float"
+	if type1 == TYPE_FLOAT goto return_type_float
+	if type2 == TYPE_FLOAT goto return_type_float
+	; "If either operand has type unsigned long int, the other operand is converted to unsigned long int"
+	if type1 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
+	if type2 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
+	; "if either operand has type long int, the other operand is converted to long int"
+	if type1 == TYPE_LONG goto return_type_long
+	if type2 == TYPE_LONG goto return_type_long
+	; "if either operand has type unsigned int, the other operand is converted to unsigned int."
+	if type1 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
+	if type2 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
+	; "Otherwise, both operands have type int."
+	goto return_type_int
+	
+	:type1_pointer
+		if type2 == TYPE_POINTER goto return_type_long ; this must be a pointer difference
+		return ptype1 - types ; e.g. p_int + 5
+	:type2_pointer
+		return ptype2 - types ; e.g. 5 + p_int
+	
+	:bad_types_to_operator
+		fprint_token_location(2, token)
+		fputs(2, .str_bad_types_to_operator)
+		print_type(type1)
+		fputs(2, .str_space_and_space)
+		print_type(type2)
+		putc(10)
+		exit(1)
+	:str_bad_types_to_operator
+		string : Bad types to operator:
+		byte 32
+		byte 0
+	:str_space_and_space
+		string  and
+		byte 32
+		byte 0
+
+function type_promotion
+	argument type
+	if type < TYPE_INT goto return_type_int
+	return type
 
 ; return precedence of given operator token, or 0xffff if not an operator
 function operator_precedence
