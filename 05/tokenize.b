@@ -339,6 +339,7 @@ function tokenize
 			out += 1
 			; suffix
 			*1out = read_number_suffix(file, line_number, &in)
+			pptoken_skip(&in)
 			out += 1
 			goto token_output
 			:float_exponent

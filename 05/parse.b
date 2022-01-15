@@ -1,4 +1,7 @@
-; @TODO: fix 5 * *x being interpreted as (5*) * x
+function type_create_pointer
+	argument type
+	byte 0xcc ; @TODO
+	
 function parse_expression
 	argument tokens
 	argument tokens_end
@@ -14,6 +17,7 @@ function parse_expression
 	local best_precedence
 	local depth
 	local value
+	local first_token
 	:parse_expression_top
 	
 	;print_tokens(tokens, tokens_end)
@@ -55,23 +59,30 @@ function parse_expression
 	
 	; look for the operator with the lowest precedence not in brackets
 	depth = 0 ; paren/square bracket depth
-	b = 1 ; first token? -- i.e. is this operator unary
+	first_token = 1
 	p = tokens
 	best = 0
 	best_precedence = 1000
 	goto expr_find_operator_loop_first
 	:expr_find_operator_loop
-		b = 0
+		first_token = 0
 		:expr_find_operator_loop_first
 		if p >= tokens_end goto expr_find_operator_loop_end
+		n = p
 		c = *1p
 		p += 16
 		if depth > 0 goto expr_findop_not_new_best
 		if depth < 0 goto expr_too_many_closing_brackets
-		n = p - 16
-		a = operator_precedence(n, b)
+		a = operator_precedence(n, first_token)
 		n = a
-		n -= operator_right_associative(c) ; ensure that the leftmost += / -= / etc. is processed first
+		if a == 0xe0 goto select_leftmost ; ensure that the leftmost unary operator is processed first
+		b = operator_right_associative(c)
+		if b != 0 goto select_leftmost ; ensure that the leftmost += / -= / etc. is processed first
+		goto select_rightmost
+		:select_leftmost
+		n += 1
+		; fallthrough
+		:select_rightmost
 		if n > best_precedence goto expr_findop_not_new_best
 		; new best!
 		best = p - 16
@@ -91,7 +102,10 @@ function parse_expression
 			goto expr_find_operator_loop
 	:expr_find_operator_loop_end
 	
+	
 	if best == 0 goto unrecognized_expression
+	
+	n = best - tokens
 	
 	c = *1best
 	
@@ -102,50 +116,52 @@ function parse_expression
 	if c == SYMBOL_MINUS_MINUS goto parse_postdecrement
 	if c == SYMBOL_QUESTION goto parse_conditional
 	*1out = binop_symbol_to_expression_type(c)
+	c = *1out
 	out += 8
-	if c == SYMBOL_DOT goto parse_expr_member
-	if c == SYMBOL_ARROW goto parse_expr_member
+	if c == EXPRESSION_DOT goto parse_expr_member
+	if c == EXPRESSION_ARROW goto parse_expr_member
 	a = out + 4 ; type of first operand
 	out = parse_expression(tokens, best, out) ; first operand
 	p = best + 16
 	b = out + 4 ; type of second operand
-	if c != SYMBOL_LSQUARE goto binary_not_subscript
+	if c != EXPRESSION_SUBSCRIPT goto binary_not_subscript
 	tokens_end -= 16
 	if *1tokens_end != SYMBOL_RSQUARE goto unrecognized_expression
 	:binary_not_subscript
+	
 	out = parse_expression(p, tokens_end, out) ; second operand
 	
-	if c == SYMBOL_LSHIFT goto type_binary_left_promote
-	if c == SYMBOL_RSHIFT goto type_binary_left_promote
-	if c == SYMBOL_LSQUARE goto type_subscript
-	if c == SYMBOL_EQ_EQ goto type_binary_int
-	if c == SYMBOL_NOT_EQ goto type_binary_int
-	if c == SYMBOL_LT_EQ goto type_binary_int
-	if c == SYMBOL_GT_EQ goto type_binary_int
-	if c == SYMBOL_LT goto type_binary_int
-	if c == SYMBOL_GT goto type_binary_int
-	if c == SYMBOL_COMMA goto type_binary_right
-	if c == SYMBOL_EQ goto type_binary_left
-	if c == SYMBOL_PLUS_EQ goto type_binary_left
-	if c == SYMBOL_MINUS_EQ goto type_binary_left
-	if c == SYMBOL_TIMES_EQ goto type_binary_left
-	if c == SYMBOL_DIV_EQ goto type_binary_left
-	if c == SYMBOL_PERCENT_EQ goto type_binary_left
-	if c == SYMBOL_AND_EQ goto type_binary_left_int
-	if c == SYMBOL_XOR_EQ goto type_binary_left_int
-	if c == SYMBOL_OR_EQ goto type_binary_left_int
-	if c == SYMBOL_LSHIFT_EQ goto type_binary_left_int
-	if c == SYMBOL_RSHIFT_EQ goto type_binary_left_int
-	if c == SYMBOL_OR_OR goto type_binary_int
-	if c == SYMBOL_AND_AND goto type_binary_int
-	if c == SYMBOL_AND goto type_binary_usual_int
-	if c == SYMBOL_XOR goto type_binary_usual_int
-	if c == SYMBOL_OR goto type_binary_usual_int
-	if c == SYMBOL_PLUS goto type_plus
-	if c == SYMBOL_MINUS goto type_minus
-	if c == SYMBOL_TIMES goto type_binary_usual
-	if c == SYMBOL_DIV goto type_binary_usual
-	if c == SYMBOL_PERCENT goto type_binary_usual_int
+	if c == EXPRESSION_LSHIFT goto type_shift
+	if c == EXPRESSION_RSHIFT goto type_shift
+	if c == EXPRESSION_SUBSCRIPT goto type_subscript
+	if c == EXPRESSION_EQ goto type_int
+	if c == EXPRESSION_NEQ goto type_int
+	if c == EXPRESSION_LEQ goto type_int
+	if c == EXPRESSION_GEQ goto type_int
+	if c == EXPRESSION_LT goto type_int
+	if c == EXPRESSION_GT goto type_int
+	if c == EXPRESSION_COMMA goto type_binary_right
+	if c == EXPRESSION_EQ goto type_binary_left
+	if c == EXPRESSION_ASSIGN_ADD goto type_binary_left
+	if c == EXPRESSION_ASSIGN_SUB goto type_binary_left
+	if c == EXPRESSION_ASSIGN_MUL goto type_binary_left
+	if c == EXPRESSION_ASSIGN_DIV goto type_binary_left
+	if c == EXPRESSION_ASSIGN_REMAINDER goto type_binary_left
+	if c == EXPRESSION_ASSIGN_AND goto type_binary_left_integer
+	if c == EXPRESSION_ASSIGN_XOR goto type_binary_left_integer
+	if c == EXPRESSION_ASSIGN_OR goto type_binary_left_integer
+	if c == EXPRESSION_ASSIGN_LSHIFT goto type_binary_left_integer
+	if c == EXPRESSION_ASSIGN_RSHIFT goto type_binary_left_integer
+	if c == EXPRESSION_LOGICAL_OR goto type_int
+	if c == EXPRESSION_LOGICAL_AND goto type_int
+	if c == EXPRESSION_BITWISE_AND goto type_binary_usual_integer
+	if c == EXPRESSION_BITWISE_XOR goto type_binary_usual_integer
+	if c == EXPRESSION_BITWISE_OR goto type_binary_usual_integer
+	if c == EXPRESSION_ADD goto type_plus
+	if c == EXPRESSION_SUB goto type_minus
+	if c == EXPRESSION_MUL goto type_binary_usual
+	if c == EXPRESSION_DIV goto type_binary_usual
+	if c == EXPRESSION_REMAINDER goto type_binary_usual_integer
 	
 	fputs(2, .str_binop_this_shouldnt_happen)
 	exit(1)
@@ -155,9 +171,19 @@ function parse_expression
 		byte 0	
 	
 	:type_plus
-		byte 0xcc ; @TODO
+		p = types + *4a
+		if *1p == TYPE_POINTER goto type_binary_left ; pointer plus integer
+		p = types + *4b
+		if *1p == TYPE_POINTER goto type_binary_right ; integer plus pointer
+		goto type_binary_usual
 	:type_minus
-		byte 0xcc ; @TODO
+		p = types + *4a
+		if *1p == TYPE_POINTER goto type_minus_left_ptr
+		goto type_binary_usual
+		:type_minus_left_ptr
+		p = types + *4b
+		if *1p == TYPE_POINTER goto type_long ; pointer difference
+		goto type_binary_left ; pointer minus integer
 	:type_subscript
 		p = types + *4a
 		if *1p == TYPE_POINTER goto type_subscript_pointer
@@ -174,19 +200,20 @@ function parse_expression
 		:str_subscript_bad_type
 			string Subscript of non-pointer type.
 			byte 0
+	; apply the "usual conversions"
 	:type_binary_usual
 		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
 		return out
-	:type_binary_usual_int
+	; like type_binary_usual, but the operands must be integers
+	:type_binary_usual_integer
 		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
 		p = types + *4type
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
 		return out
-	:type_binary_int
-		*4type = TYPE_INT
-		return out
-	:type_binary_left_int
+	:type_binary_left_integer
 		p = types + *4a
+		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
+		p = types + *4b
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
 		goto type_binary_left
 	:type_binary_left
@@ -195,8 +222,19 @@ function parse_expression
 	:type_binary_right
 		*4type = *4b
 		return out
-	:type_binary_left_promote
+	:type_shift
+		p = types + *4a
+		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
+		p = types + *4b
+		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
 		*4type = type_promotion(*4a)
+		return out
+	; the type here is just int
+	:type_int
+		*4type = TYPE_INT
+		return out
+	:type_long
+		*4type = TYPE_LONG
 		return out
 	:expr_binary_bad_types
 		bad_types_to_operator(tokens, *4a, *4b)
@@ -206,10 +244,53 @@ function parse_expression
 	:parse_expr_unary
 		if c == KEYWORD_SIZEOF goto parse_expr_sizeof
 		*1out = unary_op_to_expression_type(c)
+		c = *1out
 		out += 8
+		a = out + 4 ; type of operand
 		p = tokens + 16
 		out = parse_expression(p, tokens_end, out)
+		p = types + *4a
+		if c == EXPRESSION_BITWISE_NOT goto unary_type_integral
+		if c == EXPRESSION_UNARY_PLUS goto unary_type_promote
+		if c == EXPRESSION_UNARY_MINUS goto unary_type_promote
+		if c == EXPRESSION_LOGICAL_NOT goto unary_type_logical_not
+		if c == EXPRESSION_ADDRESS_OF goto unary_address_of
+		if c == EXPRESSION_DEREFERENCE goto unary_dereference
+		fputs(2, .str_unop_this_shouldnt_happen)
+		exit(1)
+		:str_unop_this_shouldnt_happen
+			string Bad unary symbol (this shouldn't happen).
+			byte 10
+			byte 0
+	:unary_address_of
+		*4type = type_create_pointer(*4a)
 		return out
+	:unary_dereference
+		if *1p != TYPE_POINTER goto unary_bad_type
+		*4type = *4a + 1
+		return out
+	:unary_type_logical_not
+		if *1p > TYPE_POINTER goto unary_bad_type
+		*4type = TYPE_INT
+		return out
+	:unary_type_integral
+		if *1p >= TYPE_FLOAT goto unary_bad_type
+		goto unary_type_promote
+	:unary_type_promote
+		if *1p > TYPE_DOUBLE goto unary_bad_type
+		*4type = type_promotion(*4a)
+		return out
+	
+	:unary_bad_type
+		fprint_token_location(1, tokens)
+		puts(.str_unary_bad_type)
+		print_type(*4a)
+		putc(10)
+		exit(1)
+	:str_unary_bad_type
+		string : Bad type for unary operator:
+		byte 32
+		byte 0
 	
 	:parse_expr_sizeof
 		byte 0xcc ; @TODO
@@ -223,6 +304,7 @@ function parse_expression
 		if p != tokens_end goto bad_expression ; e.g. foo->bar hello
 		out += 8
 		out = parse_expression(tokens, best, out)
+		; @TODO: typing
 		return out
 		
 	
@@ -351,6 +433,8 @@ function expr_binary_type_usual_conversions
 	
 	local ptype1
 	local ptype2
+	local kind1
+	local kind2
 	
 	if type1 == 0 goto return_0
 	if type2 == 0 goto return_0
@@ -358,24 +442,27 @@ function expr_binary_type_usual_conversions
 	ptype1 = types + type1
 	ptype2 = types + type2
 	
-	if type1 > TYPE_DOUBLE goto usual_bad_types_to_operator
-	if type2 > TYPE_DOUBLE goto usual_bad_types_to_operator
+	kind1 = *1ptype1
+	kind2 = *1ptype2
+	
+	if kind1 > TYPE_DOUBLE goto usual_bad_types_to_operator
+	if kind2 > TYPE_DOUBLE goto usual_bad_types_to_operator
 	
 	; "if either operand has type double, the other operand is converted to double"
-	if type1 == TYPE_DOUBLE goto return_type_double
-	if type2 == TYPE_DOUBLE goto return_type_double
+	if kind1 == TYPE_DOUBLE goto return_type_double
+	if kind2 == TYPE_DOUBLE goto return_type_double
 	; "if either operand has type float, the other operand is converted to float"
-	if type1 == TYPE_FLOAT goto return_type_float
-	if type2 == TYPE_FLOAT goto return_type_float
+	if kind1 == TYPE_FLOAT goto return_type_float
+	if kind2 == TYPE_FLOAT goto return_type_float
 	; "If either operand has type unsigned long int, the other operand is converted to unsigned long int"
-	if type1 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
-	if type2 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
+	if kind1 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
+	if kind2 == TYPE_UNSIGNED_LONG goto return_type_unsigned_long
 	; "if either operand has type long int, the other operand is converted to long int"
-	if type1 == TYPE_LONG goto return_type_long
-	if type2 == TYPE_LONG goto return_type_long
+	if kind1 == TYPE_LONG goto return_type_long
+	if kind2 == TYPE_LONG goto return_type_long
 	; "if either operand has type unsigned int, the other operand is converted to unsigned int."
-	if type1 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
-	if type2 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
+	if kind1 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
+	if kind2 == TYPE_UNSIGNED_INT goto return_type_unsigned_int
 	; "Otherwise, both operands have type int."
 	goto return_type_int
 	
@@ -391,10 +478,10 @@ function bad_types_to_operator
 	argument type1
 	argument type2
 	
-	fprint_token_location(2, token)
-	fputs(2, .str_bad_types_to_operator)
+	fprint_token_location(1, token)
+	puts(.str_bad_types_to_operator)
 	print_type(type1)
-	fputs(2, .str_space_and_space)
+	puts(.str_space_and_space)
 	print_type(type2)
 	putc(10)
 	exit(1)
@@ -405,8 +492,9 @@ function bad_types_to_operator
 
 function type_promotion
 	argument type
-	type = types + type
-	if *1type < TYPE_INT goto return_type_int
+	local p
+	p = types + type
+	if *1p < TYPE_INT goto return_type_int
 	return type
 
 ; return precedence of given operator token, or 0xffff if not an operator
