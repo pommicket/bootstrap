@@ -1,6 +1,52 @@
+; how many bytes does it take to encode this type?
+function type_length
+	argument type
+	local p
+	local n
+	p = types + type
+	if *1p <= TYPE_DOUBLE goto return_1
+	if *1p != TYPE_POINTER goto type_length_not_pointer
+		type += 1
+		n = type_length(type)
+		return n + 1
+	:type_length_not_pointer
+	if *1p != TYPE_ARRAY goto type_length_not_array
+		type += 9
+		n = type_length(type)
+		return n + 9
+	:type_length_not_array
+	if *1p == TYPE_STRUCT goto return_5
+	if *1p == TYPE_UNION goto return_5
+	fputs(2, .str_type_length_bad_type)
+	exit(1)
+	:str_type_length_bad_type
+		string Bad type passed to type_length. This shouldn't happen.
+		byte 10
+		byte 0
+	
+
+; returns length of type	
+function type_copy
+	argument dest
+	argument src
+	local n
+	n = type_length(src)
+	dest += types
+	src += types
+	memcpy(dest, src, n)
+	return n
+
 function type_create_pointer
 	argument type
-	byte 0xcc ; @TODO
+	local id
+	local p
+	id = types_bytes_used
+	p = types + id
+	*1p = TYPE_POINTER
+	types_bytes_used += 1
+	p = id + 1
+	types_bytes_used += type_copy(p, type)
+	return id
 	
 function parse_expression
 	argument tokens

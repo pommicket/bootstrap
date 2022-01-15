@@ -94,7 +94,7 @@ function compile_warning
 global powers_of_10
 
 global types
-global types_end
+global types_bytes_used
 
 #include util.b
 #include constants.b
@@ -138,9 +138,9 @@ function main
 	*1p = TYPE_POINTER
 	p += 1
 	*1p = TYPE_CHAR
+	p += 1
 	
-	
-	types_end = p
+	types_bytes_used = p - types
 	 
 	
 	input_filename = .str_default_input_filename

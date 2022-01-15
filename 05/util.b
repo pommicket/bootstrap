@@ -572,6 +572,22 @@ function leftmost_1bit
 	return 0
 :return_1
 	return 1
+:return_2
+	return 2
+:return_3
+	return 3
+:return_4
+	return 4
+:return_5
+	return 5
+:return_6
+	return 6
+:return_7
+	return 7
+:return_8
+	return 8
+:return_9
+	return 9
 :return_minus1
 	return -1
 :return_0x10
