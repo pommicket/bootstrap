@@ -1,3 +1,37 @@
+function parse_tokens
+	argument tokens
+	local token
+	local ident
+	local type
+	
+	token = tokens
+	:parse_tokens_loop
+		if *1token == TOKEN_EOF goto parse_tokens_eof
+		if *1token == KEYWORD_TYPEDEF goto parse_typedef
+		
+		byte 0xcc ; not implemented
+		
+		:parse_typedef
+			token += 16
+			parse_type_and_ident(&token, &ident, &type)
+			puts(ident)
+			putc(10)
+			print_type(type)
+			putc(10)
+			exit(0)
+	:parse_tokens_eof
+	return
+
+; parse things like  `int x` or `int f(void, int, char *)`
+; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
+; and *p_typeid to the type ID
+function parse_type_and_ident
+	argument p_token
+	argument p_ident
+	argument p_typeid
+	local token
+	byte 0xcc ; aah
+		
 ; how many bytes does it take to encode this type?
 function type_length
 	argument type

@@ -95,13 +95,15 @@ global powers_of_10
 
 global types
 global types_bytes_used
+; ident list of type IDs
+global typedefs
 
 #include util.b
+#include idents.b
 #include constants.b
 #include preprocess.b
 #include tokenize.b
 #include parse.b
-
 
 function main
 	argument argv2
@@ -117,6 +119,8 @@ function main
 	local p
 	local i
 	fill_in_powers_of_10()
+	
+	typedefs = ident_list_create(100000)
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -170,11 +174,7 @@ function main
 	print_tokens(tokens, p)
 	; NOTE: do NOT free pptokens as identifiers still reference them.
 	
-	ast = malloc(56000000)
-	p -= 16
-	parse_expression(tokens, p, ast)
-	print_expression(ast)
-	putc(10)
+	parse_tokens(tokens)
 	
 	exit(0)
 
