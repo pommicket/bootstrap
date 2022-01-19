@@ -22,16 +22,185 @@ function parse_tokens
 	:parse_tokens_eof
 	return
 
+; *p_token should be pointing to a {, this will advance it to point to the matching }
+function token_skip_to_matching_rbrace
+	argument p_token
+	local token
+	local depth
+	token = *8p_token
+	depth = 0
+	:skip_rbrace_loop
+		if *1token == SYMBOL_LBRACE goto skip_rbrace_incdepth
+		if *1token == SYMBOL_RBRACE goto skip_rbrace_decdepth
+		if *1token == TOKEN_EOF goto skip_rbrace_eof
+		:skip_rbrace_next
+		token += 16
+		goto skip_rbrace_loop
+		:skip_rbrace_incdepth
+			depth += 1
+			goto skip_rbrace_next
+		:skip_rbrace_decdepth
+			depth -= 1
+			if depth == 0 goto skip_rbrace_ret
+			goto skip_rbrace_next
+	:skip_rbrace_ret
+	*8p_token = token
+	return
+	
+	:skip_rbrace_eof
+		token_error(*8p_token, .str_skip_rbrace_eof)
+	:str_skip_rbrace_eof
+		string Unmatched {
+		byte 0
+
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
 ; and *p_typeid to the type ID
 function parse_type_and_ident
+	; split types into prefix (P) and suffix (S)
+	;     struct Thing (*things[5])(void);
+	;     PPPPPPPPPPPPPPP      SSSSSSSSSS
+	; Here, we call `struct Thing` the "base type".
+	
 	argument p_token
 	argument p_ident
 	argument p_typeid
 	local token
-	byte 0xcc ; aah
+	local c
+	local base_type_end
+	local depth
+	local prefix
+	local prefix_end
+	local suffix
+	local suffix_end
+	
+	token = *8p_token
+	prefix = token
+	
+	c = *1token
+	if c == KEYWORD_STRUCT goto skip_struct_union_enum
+	if c == KEYWORD_UNION goto skip_struct_union_enum
+	if c == KEYWORD_ENUM goto skip_struct_union_enum
+	; skip the "base type"
+	token += 16 ; importantly, this skips the typedef'd name if there is one (e.g. typedef int Foo; Foo x;)
+	:skip_base_type_loop
+		c = *1token
+		if c == KEYWORD_UNSIGNED goto skip_base_type_loop_cont ;e.g. int unsigned x;
+		if c == KEYWORD_CHAR goto skip_base_type_loop_cont ;e.g. unsigned char x;
+		if c == KEYWORD_SHORT goto skip_base_type_loop_cont ;e.g. unsigned short x;
+		if c == KEYWORD_INT goto skip_base_type_loop_cont ;e.g. unsigned int x;
+		if c == KEYWORD_LONG goto skip_base_type_loop_cont ;e.g. unsigned long x;
+		if c == KEYWORD_DOUBLE goto skip_base_type_loop_cont ;e.g. long double x;
+		goto find_prefix_end
+		:skip_base_type_loop_cont
+			token += 16
+			goto skip_base_type_loop
+	
+	:find_prefix_end
+	; find end of prefix
+	base_type_end = token
+	
+	:find_prefix_end_loop
+		c = *1token
+		if c == TOKEN_IDENTIFIER goto found_prefix_end
+		if c == KEYWORD_UNSIGNED goto prefix_end_cont
+		if c == KEYWORD_CHAR goto prefix_end_cont
+		if c == KEYWORD_SHORT goto prefix_end_cont
+		if c == KEYWORD_INT goto prefix_end_cont
+		if c == KEYWORD_LONG goto prefix_end_cont
+		if c == KEYWORD_FLOAT goto prefix_end_cont
+		if c == KEYWORD_DOUBLE goto prefix_end_cont
+		if c == SYMBOL_LPAREN goto prefix_end_cont
+		if c == SYMBOL_TIMES goto prefix_end_cont
+		if c == SYMBOL_LSQUARE goto found_prefix_end
+		if c == SYMBOL_RPAREN goto found_prefix_end
+		goto found_prefix_end
 		
+		:prefix_end_cont
+			token += 16
+			goto find_prefix_end_loop
+	:found_prefix_end
+	prefix_end = token
+	
+	if *1token != TOKEN_IDENTIFIER goto parse_type_no_ident
+	token += 8
+	*8p_ident = *8token
+	token += 8
+	:parse_type_no_ident
+	
+	
+	suffix = token
+	
+	; find end of suffix
+	token = base_type_end ; start back here so we can keep track of bracket depth
+	depth = 0 ; parenthesis/square bracket depth
+	:suffix_end_loop
+		c = *1token
+		if c == TOKEN_IDENTIFIER goto suffix_end_cont
+		if c == SYMBOL_LSQUARE goto suffix_end_incdepth
+		if c == SYMBOL_RSQUARE goto suffix_end_decdepth
+		if c == SYMBOL_LPAREN goto suffix_end_incdepth
+		if c == SYMBOL_RPAREN goto suffix_end_decdepth
+		if c == SYMBOL_TIMES goto suffix_end_cont
+		if depth == 0 goto suffix_end_found
+		if c == TOKEN_EOF goto bad_type
+		goto suffix_end_cont
+		
+		:suffix_end_incdepth
+			depth += 1
+			goto suffix_end_cont
+		:suffix_end_decdepth
+			depth -= 1
+			putn(depth)
+			putc(10)
+			if depth < 0 goto suffix_end_found
+			goto suffix_end_cont
+		:suffix_end_cont
+			token += 16
+			goto suffix_end_loop
+	:suffix_end_found
+	
+	suffix_end = token
+	
+	putc('B)
+	putc('a)
+	putc('s)
+	putc(':)
+	putc(32)
+	print_tokens(*8p_token, base_type_end)
+	putc('P)
+	putc('r)
+	putc('e)
+	putc(':)
+	putc(32)
+	print_tokens(prefix, prefix_end)
+	putc('S)
+	putc('u)
+	putc('f)
+	putc(':)
+	putc(32)
+	print_tokens(suffix, suffix_end)
+	
+	byte 0xcc
+	
+	:skip_struct_union_enum
+		token += 16
+		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
+			token += 16 ; struct *blah*
+		:skip_sue_no_name
+		if *1token != SYMBOL_LBRACE goto find_prefix_end ; e.g. struct Something x[5];
+		; okay we have something like
+		;   struct {
+		;       int x, y;
+		;   } test;
+		token_skip_to_matching_rbrace(&token)
+		token += 16
+		goto find_prefix_end
+	:bad_type
+		token_error(*8p_token, .str_bad_type)
+	:str_bad_type
+		string Bad type.
+		byte 0
 ; how many bytes does it take to encode this type?
 function type_length
 	argument type
