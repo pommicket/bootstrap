@@ -199,7 +199,7 @@
 ;  pointer to type t: TYPE_PTR t
 ;  array of n t's: TYPE_ARRAY {n as 8 bytes} t
 ;  struct/union: TYPE_STRUCT/TYPE_UNION {0 for incomplete types/4-byte pointer to struct/union}
-; NOTE: we just treat function pointers as pointers to the function return type.
+;  function: TYPE_FUNCTION {arg1 type} {arg2 type} ... {argn type} 0 {return type}
 #define TYPE_VOID 1
 #define TYPE_CHAR 3
 #define TYPE_UNSIGNED_CHAR 4
@@ -216,6 +216,7 @@
 #define TYPE_STRUCT 14
 #define TYPE_UNION 15
 #define TYPE_ARRAY 16
+#define TYPE_FUNCTION 17
 
 ; types willl be initialized (in main) so that this refers to the type char*
 #define TYPE_POINTER_TO_CHAR 20

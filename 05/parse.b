@@ -13,7 +13,7 @@ function parse_tokens
 		
 		:parse_typedef
 			token += 16
-			parse_type_and_ident(&token, &ident, &type)
+			type = parse_type_and_ident(&token, &ident)
 			puts(ident)
 			putc(10)
 			print_type(type)
@@ -55,7 +55,7 @@ function token_skip_to_matching_rbrace
 
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
-; and *p_typeid to the type ID
+; and returns type ID
 function parse_type_and_ident
 	; split types into prefix (P) and suffix (S)
 	;     struct Thing (*things[5])(void);
@@ -64,15 +64,17 @@ function parse_type_and_ident
 	
 	argument p_token
 	argument p_ident
-	argument p_typeid
+	local typeid
 	local token
 	local c
+	local p
 	local base_type_end
 	local depth
 	local prefix
 	local prefix_end
 	local suffix
 	local suffix_end
+	local out
 	
 	token = *8p_token
 	prefix = token
@@ -151,8 +153,6 @@ function parse_type_and_ident
 			goto suffix_end_cont
 		:suffix_end_decdepth
 			depth -= 1
-			putn(depth)
-			putc(10)
 			if depth < 0 goto suffix_end_found
 			goto suffix_end_cont
 		:suffix_end_cont
@@ -162,26 +162,176 @@ function parse_type_and_ident
 	
 	suffix_end = token
 	
-	putc('B)
-	putc('a)
-	putc('s)
-	putc(':)
-	putc(32)
-	print_tokens(*8p_token, base_type_end)
-	putc('P)
-	putc('r)
-	putc('e)
-	putc(':)
-	putc(32)
-	print_tokens(prefix, prefix_end)
-	putc('S)
-	putc('u)
-	putc('f)
-	putc(':)
-	putc(32)
-	print_tokens(suffix, suffix_end)
+#define TYPEDEBUG ;
+	TYPEDEBUG putc('B)
+	TYPEDEBUG putc('a)
+	TYPEDEBUG putc('s)
+	TYPEDEBUG putc(':)
+	TYPEDEBUG putc(32)
+	TYPEDEBUG print_tokens(*8p_token, base_type_end)
+	TYPEDEBUG putc('P)
+	TYPEDEBUG putc('r)
+	TYPEDEBUG putc('e)
+	TYPEDEBUG putc(':)
+	TYPEDEBUG putc(32)
+	TYPEDEBUG print_tokens(prefix, prefix_end)
+	TYPEDEBUG putc('S)
+	TYPEDEBUG putc('u)
+	TYPEDEBUG putc('f)
+	TYPEDEBUG putc(':)
+	TYPEDEBUG putc(32)
+	TYPEDEBUG print_tokens(suffix, suffix_end)
+		
+	typeid = types_bytes_used
+	out = types + typeid
 	
-	byte 0xcc
+	; main loop for parsing types
+	:parse_type_loop
+		p = prefix_end - 16
+		if *1suffix == SYMBOL_LSQUARE goto parse_array_type
+		if *1suffix == SYMBOL_LPAREN goto parse_function_type
+		if *1p == SYMBOL_TIMES goto parse_pointer_type
+		if suffix == suffix_end goto parse_base_type
+		if *1suffix == SYMBOL_RPAREN goto parse_type_remove_parentheses
+		
+		
+		:parse_pointer_type
+			byte 0xcc ; @TODO
+		:parse_array_type
+			byte 0xcc ; @TODO
+		:parse_function_type
+			byte 0xcc ; @TODO
+		:parse_type_remove_parentheses
+			byte 0xcc ; @TODO
+	:parse_base_type
+	if *1prefix == TOKEN_IDENTIFIER goto base_type_typedef
+	if *1prefix == KEYWORD_STRUCT goto base_type_struct
+	if *1prefix == KEYWORD_UNION goto base_type_union
+	if *1prefix == KEYWORD_ENUM goto base_type_enum
+	if *1prefix == KEYWORD_FLOAT goto base_type_float
+	if *1prefix == KEYWORD_VOID goto base_type_void
+	
+	; "normal" type like int, unsigned char, etc.
+	local flags
+	; annoyingly, all of these are equivalent to `unsigned long`:
+	;    unsigned long int
+	;    long unsigned int
+	;    int long unsigned
+	;    etc.
+	; so we represent these as  PARSETYPE_FLAG_UNSIGNED|PARSETYPE_FLAG_LONG|PARSETYPE_FLAG_INT.
+#define PARSETYPE_FLAG_UNSIGNED 1
+#define PARSETYPE_FLAG_CHAR 2
+#define PARSETYPE_FLAG_SHORT 4
+#define PARSETYPE_FLAG_INT 8
+#define PARSETYPE_FLAG_LONG 16
+#define PARSETYPE_FLAG_DOUBLE 32
+	flags = 0
+	p = prefix
+	:base_type_normal_loop
+		c = *1p
+		p += 16
+		; yes, this allows for `int int x;` but whatever
+		if c == KEYWORD_CHAR goto base_type_flag_char
+		if c == KEYWORD_SHORT goto base_type_flag_short
+		if c == KEYWORD_INT goto base_type_flag_int
+		if c == KEYWORD_LONG goto base_type_flag_long
+		if c == KEYWORD_UNSIGNED goto base_type_flag_unsigned
+		if c == KEYWORD_DOUBLE goto base_type_flag_double
+		goto base_type_normal_loop_end
+		:base_type_flag_char
+			flags |= PARSETYPE_FLAG_CHAR
+			goto base_type_normal_loop
+		:base_type_flag_short
+			flags |= PARSETYPE_FLAG_SHORT
+			goto base_type_normal_loop
+		:base_type_flag_int
+			flags |= PARSETYPE_FLAG_INT
+			goto base_type_normal_loop
+		:base_type_flag_long
+			flags |= PARSETYPE_FLAG_LONG
+			goto base_type_normal_loop
+		:base_type_flag_unsigned
+			flags |= PARSETYPE_FLAG_UNSIGNED
+			goto base_type_normal_loop
+		:base_type_flag_double
+			flags |= PARSETYPE_FLAG_DOUBLE
+			goto base_type_normal_loop
+	:base_type_normal_loop_end
+	if flags == 8 goto base_type_int ; `int`
+	if flags == 1 goto base_type_uint ; `unsigned`
+	if flags == 9 goto base_type_uint ; `unsigned int` etc.
+	if flags == 2 goto base_type_char ; `char`
+	if flags == 3 goto base_type_uchar ; `unsigned char` etc.
+	if flags == 4 goto base_type_short ; `short`
+	if flags == 12 goto base_type_short `short int` etc.
+	if flags == 5 goto base_type_ushort ; `unsigned short` etc.
+	if flags == 13 goto base_type_ushort ; `unsigned short int` etc. 
+	if flags == 16 goto base_type_long ; `long`
+	if flags == 24 goto base_type_long ; `long int` etc.
+	if flags == 17 goto base_type_ulong ; `unsigned long` etc.
+	if flags == 25 goto base_type_ulong ; `unsigned long int` etc.
+	if flags == 32 goto base_type_double ; `double`
+	if flags == 48 goto base_type_double ; `long double` (we use the same type for double and long double)
+	
+	:base_type_char
+		*1out = TYPE_CHAR
+		out += 1
+		goto base_type_done
+	:base_type_uchar
+		*1out = TYPE_UNSIGNED_CHAR
+		out += 1
+		goto base_type_done
+	:base_type_short
+		*1out = TYPE_SHORT
+		out += 1
+		goto base_type_done
+	:base_type_ushort
+		*1out = TYPE_UNSIGNED_SHORT
+		out += 1
+		goto base_type_done
+	:base_type_int
+		*1out = TYPE_INT
+		out += 1
+		goto base_type_done
+	:base_type_uint
+		*1out = TYPE_UNSIGNED_INT
+		out += 1
+		goto base_type_done
+	:base_type_long
+		*1out = TYPE_LONG
+		out += 1
+		goto base_type_done
+	:base_type_ulong
+		*1out = TYPE_UNSIGNED_LONG
+		out += 1
+		goto base_type_done
+	:base_type_double
+		*1out = TYPE_DOUBLE
+		out += 1
+		goto base_type_done
+	
+	:base_type_done
+	types_bytes_used = out - types
+	return typeid
+	:base_type_struct
+		byte 0xcc ; @TODO
+	:base_type_union
+		byte 0xcc ; @TODO
+	:base_type_enum
+		byte 0xcc ; @TODO
+	:base_type_float
+		*1out = TYPE_FLOAT
+		out += 1
+		goto base_type_done
+	:base_type_void
+		*1out = TYPE_VOID
+		out += 1
+		goto base_type_done	
+	:base_type_typedef
+		p = prefix + 8
+		c = ident_list_lookup(typedefs, *8p)
+		out += type_copy(out, c)
+		goto base_type_done
 	
 	:skip_struct_union_enum
 		token += 16
@@ -201,6 +351,7 @@ function parse_type_and_ident
 	:str_bad_type
 		string Bad type.
 		byte 0
+
 ; how many bytes does it take to encode this type?
 function type_length
 	argument type
@@ -220,6 +371,20 @@ function type_length
 	:type_length_not_array
 	if *1p == TYPE_STRUCT goto return_5
 	if *1p == TYPE_UNION goto return_5
+	if *1p == TYPE_FUNCTION goto type_length_not_function
+		local start
+		start = type
+		type += 1
+		:type_length_function_loop
+			p = types + type
+			if *1p == 0 goto type_length_function_loop_end
+			type += type_length(type)
+		:type_length_function_loop_end
+		type += 1
+		; return type
+		type += type_length(type)
+		return type - start
+	:type_length_not_function
 	fputs(2, .str_type_length_bad_type)
 	exit(1)
 	:str_type_length_bad_type
@@ -1170,6 +1335,7 @@ function print_type
 	if c == TYPE_ARRAY goto print_type_array
 	if c == TYPE_STRUCT goto print_type_struct
 	if c == TYPE_UNION goto print_type_union
+	if c == TYPE_FUNCTION goto print_type_function
 	fputs(2, .str_bad_print_type)
 	exit(1)
 	:str_bad_print_type
@@ -1213,3 +1379,20 @@ function print_type
 		return puts(.str_struct)
 	:print_type_union
 		return puts(.str_union)
+	:print_type_function
+		type += 1
+		putc(40)
+		:print_type_function_loop
+			c = types + type
+			if *1c == 0 goto print_type_function_loop_end
+			print_type(type)
+			putc(44)
+		:print_type_function_loop_end
+		type += 1 ; 0 terminator
+		putc(41)
+		putc(32)
+		putc('-)
+		putc('>)
+		putc(32)
+		print_type(type)
+		return
