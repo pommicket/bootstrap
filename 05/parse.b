@@ -13,7 +13,7 @@ function parse_tokens
 		
 		:parse_typedef
 			token += 16
-			type = parse_type_and_ident(&token, &ident)
+			type = parse_type(&token, &ident)
 			puts(ident)
 			putc(10)
 			print_type(type)
@@ -55,8 +55,22 @@ function token_skip_to_matching_rbrace
 
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
-; and returns type ID
-function parse_type_and_ident
+; returns type ID
+function parse_type
+	argument p_token
+	argument p_ident
+	local type
+	local p
+	local n
+	type = types_bytes_used
+	p = types + type
+	n = parse_type_to(p_token, p_ident, p)
+	types_bytes_used = n - types
+	return type
+	
+; like parse_type, but outputs to out.
+; returns new position of out, after type gets put there
+function parse_type_to
 	; split types into prefix (P) and suffix (S)
 	;     struct Thing (*things[5])(void);
 	;     PPPPPPPPPPPPPPP      SSSSSSSSSS
@@ -64,20 +78,21 @@ function parse_type_and_ident
 	
 	argument p_token
 	argument p_ident
-	local typeid
+	argument out ; pointer to type
 	local token
 	local c
 	local p
+	local n
 	local base_type_end
 	local depth
 	local prefix
 	local prefix_end
 	local suffix
 	local suffix_end
-	local out
 	
 	token = *8p_token
 	prefix = token
+	*8p_ident = 0
 	
 	c = *1token
 	if c == KEYWORD_STRUCT goto skip_struct_union_enum
@@ -181,9 +196,6 @@ function parse_type_and_ident
 	TYPEDEBUG putc(':)
 	TYPEDEBUG putc(32)
 	TYPEDEBUG print_tokens(suffix, suffix_end)
-		
-	typeid = types_bytes_used
-	out = types + typeid
 	
 	; main loop for parsing types
 	:parse_type_loop
@@ -196,13 +208,35 @@ function parse_type_and_ident
 		
 		
 		:parse_pointer_type
-			byte 0xcc ; @TODO
+			*1out = TYPE_POINTER
+			out += 1
+			prefix_end = p
+			goto parse_type_loop
 		:parse_array_type
 			byte 0xcc ; @TODO
 		:parse_function_type
-			byte 0xcc ; @TODO
+			p = suffix + 16
+			local RRR
+			RRR = out
+			*1out = TYPE_FUNCTION
+			out += 1
+			:function_type_loop
+				if *1p == SYMBOL_RPAREN goto function_type_loop_end ; only needed for 1st iteration
+				out = parse_type_to(&p, &c, out)
+				if *1p == SYMBOL_RPAREN goto function_type_loop_end
+				if *1p != SYMBOL_COMMA goto bad_type
+				p += 16
+				goto function_type_loop
+			:function_type_loop_end
+			*1out = 0
+			out += 1
+			suffix = p + 16
+			goto parse_type_loop
 		:parse_type_remove_parentheses
-			byte 0xcc ; @TODO
+			if *1p != SYMBOL_LPAREN goto bad_type
+			prefix_end = p
+			suffix += 16
+			goto parse_type_loop
 	:parse_base_type
 	if *1prefix == TOKEN_IDENTIFIER goto base_type_typedef
 	if *1prefix == KEYWORD_STRUCT goto base_type_struct
@@ -311,8 +345,8 @@ function parse_type_and_ident
 		goto base_type_done
 	
 	:base_type_done
-	types_bytes_used = out - types
-	return typeid
+	*8p_token = suffix_end
+	return out
 	:base_type_struct
 		byte 0xcc ; @TODO
 	:base_type_union
@@ -330,7 +364,8 @@ function parse_type_and_ident
 	:base_type_typedef
 		p = prefix + 8
 		c = ident_list_lookup(typedefs, *8p)
-		out += type_copy(out, c)
+		n = type_length(c)
+		out = memcpy(out, c, n)
 		goto base_type_done
 	
 	:skip_struct_union_enum
@@ -371,7 +406,7 @@ function type_length
 	:type_length_not_array
 	if *1p == TYPE_STRUCT goto return_5
 	if *1p == TYPE_UNION goto return_5
-	if *1p == TYPE_FUNCTION goto type_length_not_function
+	if *1p != TYPE_FUNCTION goto type_length_not_function
 		local start
 		start = type
 		type += 1
@@ -379,9 +414,9 @@ function type_length
 			p = types + type
 			if *1p == 0 goto type_length_function_loop_end
 			type += type_length(type)
+			goto type_length_function_loop
 		:type_length_function_loop_end
 		type += 1
-		; return type
 		type += type_length(type)
 		return type - start
 	:type_length_not_function
@@ -394,7 +429,7 @@ function type_length
 	
 
 ; returns length of type	
-function type_copy
+function type_copy_ids
 	argument dest
 	argument src
 	local n
@@ -413,7 +448,7 @@ function type_create_pointer
 	*1p = TYPE_POINTER
 	types_bytes_used += 1
 	p = id + 1
-	types_bytes_used += type_copy(p, type)
+	types_bytes_used += type_copy_ids(p, type)
 	return id
 	
 function parse_expression
@@ -1382,11 +1417,14 @@ function print_type
 	:print_type_function
 		type += 1
 		putc(40)
+		putc(40)
 		:print_type_function_loop
 			c = types + type
 			if *1c == 0 goto print_type_function_loop_end
 			print_type(type)
 			putc(44)
+			type += type_length(type)
+			goto print_type_function_loop
 		:print_type_function_loop_end
 		type += 1 ; 0 terminator
 		putc(41)
@@ -1395,4 +1433,5 @@ function print_type
 		putc('>)
 		putc(32)
 		print_type(type)
+		putc(41)
 		return
