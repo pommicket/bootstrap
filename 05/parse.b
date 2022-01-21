@@ -22,6 +22,7 @@ function parse_tokens
 	:parse_tokens_eof
 	return
 
+
 ; *p_token should be pointing to a {, this will advance it to point to the matching }
 function token_skip_to_matching_rbrace
 	argument p_token
@@ -52,6 +53,38 @@ function token_skip_to_matching_rbrace
 	:str_skip_rbrace_eof
 		string Unmatched {
 		byte 0
+
+; *p_token should be pointing to a [, this will advance it to point to the matching ]
+function token_skip_to_matching_rsquare
+	argument p_token
+	local token
+	local depth
+	token = *8p_token
+	depth = 0
+	:skip_square_loop
+		if *1token == SYMBOL_LSQUARE goto skip_square_incdepth
+		if *1token == SYMBOL_RSQUARE goto skip_square_decdepth
+		if *1token == TOKEN_EOF goto skip_square_eof
+		:skip_square_next
+		token += 16
+		goto skip_square_loop
+		:skip_square_incdepth
+			depth += 1
+			goto skip_square_next
+		:skip_square_decdepth
+			depth -= 1
+			if depth == 0 goto skip_square_ret
+			goto skip_square_next
+	:skip_square_ret
+	*8p_token = token
+	return
+	
+	:skip_square_eof
+		token_error(*8p_token, .str_skip_square_eof)
+	:str_skip_square_eof
+		string Unmatched [
+		byte 0
+
 
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
@@ -213,7 +246,26 @@ function parse_type_to
 			prefix_end = p
 			goto parse_type_loop
 		:parse_array_type
-			byte 0xcc ; @TODO
+			local expr
+			expr = malloc(4000)
+			*1out = TYPE_ARRAY
+			out += 1
+			p = suffix
+			token_skip_to_matching_rsquare(&p)
+			suffix += 16 ; skip [
+			parse_expression(suffix, p, expr)
+			evaluate_constant_expression(expr, &n)
+			if n < 0 goto bad_array_size
+			*8out = n
+			out += 8
+			free(expr)
+			suffix = p + 16
+			goto parse_type_loop
+			:bad_array_size
+				token_error(*8p_token, .str_bad_array_size)
+			:str_bad_array_size
+				string Very large or negative array size.
+				byte 0 
 		:parse_function_type
 			p = suffix + 16
 			local RRR
@@ -705,6 +757,8 @@ function parse_expression
 		if c == EXPRESSION_LOGICAL_NOT goto unary_type_logical_not
 		if c == EXPRESSION_ADDRESS_OF goto unary_address_of
 		if c == EXPRESSION_DEREFERENCE goto unary_dereference
+		if c == EXPRESSION_PRE_INCREMENT goto unary_type_arithmetic_nopromote
+		if c == EXPRESSION_PRE_DECREMENT goto unary_type_arithmetic_nopromote
 		fputs(2, .str_unop_this_shouldnt_happen)
 		exit(1)
 		:str_unop_this_shouldnt_happen
@@ -729,7 +783,10 @@ function parse_expression
 		if *1p > TYPE_DOUBLE goto unary_bad_type
 		*4type = type_promotion(*4a)
 		return out
-	
+	:unary_type_arithmetic_nopromote
+		if *1p > TYPE_DOUBLE goto unary_bad_type
+		*4type = *4a
+		return out
 	:unary_bad_type
 		fprint_token_location(1, tokens)
 		puts(.str_unary_bad_type)
@@ -873,6 +930,46 @@ function parse_expression
 	return TYPE_FLOAT
 :return_type_double
 	return TYPE_DOUBLE
+
+; evaluate an expression which can be the size of an array, e.g.
+;    enum { A, B, C };
+;    int x[A * sizeof(float) + 3 << 5];
+; @NONSTANDARD: doesn't handle floats, but really why would you use floats in an array size
+;                 e.g.   SomeType x[(int)3.3];
+; this is also used for #if evaluation
+; NOTE: this returns the end of the expression, not the value (which is stored in *8p_value)
+function evaluate_constant_expression
+	argument expr
+	argument p_value
+	
+	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
+	if *1expr == EXPRESSION_CONSTANT_INT goto eval_constant_int
+	if *1expr == EXPRESSION_UNARY_PLUS goto eval_unary_plus
+	if *1expr == EXPRESSION_UNARY_MINUS goto eval_unary_minus
+	byte 0xcc
+
+	:eval_constant_identifier
+		; @TODO: enum values
+		fputs(2, .str_constant_identifier)
+		exit(1)
+		:str_constant_identifier
+			string Constant identifiers not handled (see @TODO).
+			byte 10
+			byte 0
+	:eval_constant_int
+		expr += 8
+		*8p_value = *8expr
+		expr += 8
+		return expr
+	:eval_unary_plus
+		expr += 8
+		expr = evaluate_constant_expression(expr, p_value)
+		return expr
+	:eval_unary_minus
+		expr += 8
+		expr = evaluate_constant_expression(expr, p_value)
+		*8p_value = 0 - *8p_value
+		return expr
 
 ; the "usual conversions" for binary operators, as the C standard calls it
 function expr_binary_type_usual_conversions
@@ -1406,7 +1503,8 @@ function print_type
 	:print_type_array
 		putc('[)
 		type += 1
-		putn(*8type) ; UNALIGNED
+		c = types + type
+		putn(*8c) ; UNALIGNED
 		putc('])
 		type += 8
 		goto print_type_top

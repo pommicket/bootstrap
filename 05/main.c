@@ -3,4 +3,4 @@
 	long double d;
 } (*x)(void);
 */
-typedef long int unsigned (*Foo(int *,int,int,unsigned,void (*)(int)))(int x);
+typedef long int unsigned Foo[-18446744073709551610];
