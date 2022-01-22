@@ -941,12 +941,26 @@ function parse_expression
 function evaluate_constant_expression
 	argument expr
 	argument p_value
+	local a
+	local b
 	
-	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
 	if *1expr == EXPRESSION_CONSTANT_INT goto eval_constant_int
+	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
 	if *1expr == EXPRESSION_UNARY_PLUS goto eval_unary_plus
 	if *1expr == EXPRESSION_UNARY_MINUS goto eval_unary_minus
+	if *1expr == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
+	if *1expr == EXPRESSION_LOGICAL_NOT goto eval_logical_not
+	if *1expr == EXPRESSION_CAST goto eval_todo ; @TODO
+	if *1expr == EXPRESSION_LOGICAL_NOT goto eval_logical_not
+	if *1expr == EXPRESSION_MUL goto eval_mul
 	byte 0xcc
+	
+	:eval_todo
+		fputs(2, .str_eval_todo)
+		exit(1)
+	:str_eval_todo
+		string evaluate_constant_expression does not support this kind of expression yet (see @TODOs).
+		byte 0
 
 	:eval_constant_identifier
 		; @TODO: enum values
@@ -967,10 +981,30 @@ function evaluate_constant_expression
 		return expr
 	:eval_unary_minus
 		expr += 8
-		expr = evaluate_constant_expression(expr, p_value)
-		*8p_value = 0 - *8p_value
+		expr = evaluate_constant_expression(expr, &a)
+		*8p_value = 0 - a
 		return expr
-
+	:eval_bitwise_not
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		*8p_value = ~a
+		return expr
+	:eval_logical_not
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		if a == 0 goto eval_logical_not0
+		*8p_value = 0
+		return expr
+		:eval_logical_not0
+		*8p_value = 1
+		return expr
+	:eval_mul
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a * b
+		return expr
+		
 ; the "usual conversions" for binary operators, as the C standard calls it
 function expr_binary_type_usual_conversions
 	argument token ; for errors
