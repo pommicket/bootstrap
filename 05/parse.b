@@ -943,6 +943,7 @@ function evaluate_constant_expression
 	argument p_value
 	local a
 	local b
+	local p
 	
 	if *1expr == EXPRESSION_CONSTANT_INT goto eval_constant_int
 	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
@@ -951,8 +952,11 @@ function evaluate_constant_expression
 	if *1expr == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
 	if *1expr == EXPRESSION_LOGICAL_NOT goto eval_logical_not
 	if *1expr == EXPRESSION_CAST goto eval_todo ; @TODO
-	if *1expr == EXPRESSION_LOGICAL_NOT goto eval_logical_not
+	if *1expr == EXPRESSION_ADD goto eval_add
+	if *1expr == EXPRESSION_SUB goto eval_sub
 	if *1expr == EXPRESSION_MUL goto eval_mul
+	if *1expr == EXPRESSION_DIV goto eval_div
+	if *1expr == EXPRESSION_REMAINDER goto eval_remainder
 	byte 0xcc
 	
 	:eval_todo
@@ -998,13 +1002,49 @@ function evaluate_constant_expression
 		:eval_logical_not0
 		*8p_value = 1
 		return expr
+	:eval_add
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a + b
+		return expr
+	:eval_sub
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a - b
+		return expr
 	:eval_mul
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
 		*8p_value = a * b
 		return expr
-		
+	:eval_div
+		p = expr + 4 ; pointer to type
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		if *1p == TYPE_UNSIGNED_LONG goto eval_div_unsigned
+			; division is signed or uses a small type, so we can use 64-bit signed division
+			*8p_value = a / b
+			return expr
+		:eval_div_unsigned
+			; must use unsigned division
+			divmod_unsigned(a, b, p_value, &a)
+			return expr
+	:eval_remainder
+		p = expr + 4 ; pointer to type
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		if *1p == TYPE_UNSIGNED_LONG goto eval_rem_unsigned
+			*8p_value = a % b
+			return expr
+		:eval_rem_unsigned
+			divmod_unsigned(a, b, &a, p_value)
+			return expr
+	
 ; the "usual conversions" for binary operators, as the C standard calls it
 function expr_binary_type_usual_conversions
 	argument token ; for errors

@@ -1005,7 +1005,7 @@ align
 	I=:line
 	call :set_rax_to_rvalue
 	call :set_rbx_to_rdi
-	call :emit_zero_rdx_idiv_rbx
+	call :emit_cqo_idiv_rbx
 	I=:line
 	call :set_lvalue_to_rax
 	!:read_line
@@ -1014,7 +1014,7 @@ align
 	I=:line
 	call :set_rax_to_rvalue
 	call :set_rbx_to_rdi
-	call :emit_zero_rdx_idiv_rbx
+	call :emit_cqo_idiv_rbx
 	call :set_rax_to_rdx
 	I=:line
 	call :set_lvalue_to_rax
@@ -1475,11 +1475,11 @@ align
 	
 :rvalue_div
 	call :set_rbx_to_rsi
-	!:emit_zero_rdx_idiv_rbx
+	!:emit_cqo_idiv_rbx
 
 :rvalue_rem
 	call :set_rbx_to_rsi
-	call :emit_zero_rdx_idiv_rbx
+	call :emit_cqo_idiv_rbx
 	call :set_rax_to_rdx
 	return
 
@@ -1745,16 +1745,6 @@ align
 	x31
 	xc0
 
-:zero_rdx
-	J=d4
-	I=:xor_edx_edx
-	D=d2
-	syscall x1
-	return
-:xor_edx_edx
-	x31
-	xd2
-
 :set_rbx_to_rax
 	J=d4
 	I=:mov_rbx_rax
@@ -2014,14 +2004,15 @@ align
 	xf7
 	xeb
 
-:emit_zero_rdx_idiv_rbx
-	call :zero_rdx
+:emit_cqo_idiv_rbx
 	J=d4
-	I=:idiv_rbx
-	D=d3
+	I=:cqo_idiv_rbx
+	D=d5
 	syscall x1
 	return
-:idiv_rbx
+:cqo_idiv_rbx
+	x48
+	x99
 	x48
 	xf7
 	xfb

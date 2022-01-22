@@ -137,6 +137,7 @@ In the table below, `IMM64` means a 64-bit *immediate* (a constant number).
 │ add rax, rbx         │ 48 01 d8          │ add rbx to rax                         │
 │ sub rax, rbx         │ 48 29 d8          │ subtract rbx from rax                  │
 │ imul rbx             │ 48 f7 eb          │ set rdx:rax to rax * rbx (signed)      │
+│ cqo                  │ 48 99             │ sign-extend rax to rdx:rax             |
 │ idiv rbx             │ 48 f7 fb          │ divide rdx:rax by rbx (signed); put    │
 │                      │                   │    quotient in rax, remainder in rbx   │
 │ mul rbx              │ 48 f7 e3          │ like imul, but unsigned                │

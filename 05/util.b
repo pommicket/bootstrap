@@ -25,6 +25,75 @@ function full_multiply_signed
 	*8p_upper = upper
 	return
 
+
+function divmod_unsigned
+	argument a
+	argument b
+	argument p_quotient
+	argument p_remainder
+	local q
+	local r
+	
+	; mov rax, [rbp-16]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; mov rbx, rax
+	byte 0x48
+	byte 0x89
+	byte 0xc3
+	
+	; mov rax, [rbp-8]
+	byte 0x48
+	byte 0x8b
+	byte 0x85
+	byte 0xf8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; xor edx, edx
+	byte 0x31
+	byte 0xd2
+	
+	; div rbx
+	byte 0x48
+	byte 0xf7
+	byte 0xf3
+	
+	; mov [rbp-40], rax
+	byte 0x48
+	byte 0x89
+	byte 0x85
+	byte 0xd8
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	; mov rax, rdx
+	byte 0x48
+	byte 0x89
+	byte 0xd0
+	
+	; mov [rbp-48], rax
+	byte 0x48
+	byte 0x89
+	byte 0x85
+	byte 0xd0
+	byte 0xff
+	byte 0xff
+	byte 0xff
+	
+	*8p_quotient = q
+	*8p_remainder = r
+	
+	return
+
 ; allows for negative shifts
 function right_shift
 	argument x
@@ -93,7 +162,8 @@ function free
 	syscall(11, psize, size)
 	return
 
-; returns a pointer to a null-terminated string containing the number given
+; returns a pointer to a null-terminated string containing the
+; (unsigned) number given
 function itos
 	global 32 itos_string
 	argument x
@@ -102,10 +172,9 @@ function itos
 	p = &itos_string
 	p += 30
 	:itos_loop
-		c = x % 10
+		divmod_unsigned(x, 10, &x, &c)
 		c += '0
 		*1p = c
-		x /= 10
 		if x == 0 goto itos_loop_end
 		p -= 1
 		goto itos_loop

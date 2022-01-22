@@ -126,7 +126,7 @@
 ;    uchar kind  (one of the constants below)
 ;    uchar info
 ;    ushort (padding)
-;    uint type (0 if expression hasn't been typed yet)
+;    uint type
 ; immediately following the header in memory are the arguments of the expression
 ;    - for constant ints, the 64-bit integral value
 ;    - for constant floats, the 64-bit double value (even if expression has type float)
