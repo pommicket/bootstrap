@@ -3,4 +3,5 @@
 	long double d;
 } (*x)(void);
 */
-typedef long int unsigned Foo[19 + (-3) % 187 - 28 + 5 * 6];
+typedef long int unsigned Foo[3 != 3];
+/* */

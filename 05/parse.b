@@ -944,6 +944,11 @@ function evaluate_constant_expression
 	local a
 	local b
 	local p
+	local mask
+	local type
+	
+	type = expr + 4
+	type = *4type
 	
 	if *1expr == EXPRESSION_CONSTANT_INT goto eval_constant_int
 	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
@@ -957,6 +962,14 @@ function evaluate_constant_expression
 	if *1expr == EXPRESSION_MUL goto eval_mul
 	if *1expr == EXPRESSION_DIV goto eval_div
 	if *1expr == EXPRESSION_REMAINDER goto eval_remainder
+	if *1expr == EXPRESSION_LSHIFT goto eval_lshift
+	if *1expr == EXPRESSION_RSHIFT goto eval_rshift
+	if *1expr == EXPRESSION_EQ goto eval_eq
+	if *1expr == EXPRESSION_NEQ goto eval_neq
+	if *1expr == EXPRESSION_LT goto eval_lt
+	if *1expr == EXPRESSION_GT goto eval_gt
+	if *1expr == EXPRESSION_LEQ goto eval_leq
+	if *1expr == EXPRESSION_GEQ goto eval_geq
 	byte 0xcc
 	
 	:eval_todo
@@ -987,12 +1000,12 @@ function evaluate_constant_expression
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		*8p_value = 0 - a
-		return expr
+		goto eval_fit_to_type
 	:eval_bitwise_not
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		*8p_value = ~a
-		return expr
+		goto eval_fit_to_type
 	:eval_logical_not
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
@@ -1007,44 +1020,190 @@ function evaluate_constant_expression
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
 		*8p_value = a + b
-		return expr
+		goto eval_fit_to_type
 	:eval_sub
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
 		*8p_value = a - b
-		return expr
+		goto eval_fit_to_type
 	:eval_mul
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
 		*8p_value = a * b
-		return expr
+		goto eval_fit_to_type
 	:eval_div
-		p = expr + 4 ; pointer to type
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
 		if *1p == TYPE_UNSIGNED_LONG goto eval_div_unsigned
 			; division is signed or uses a small type, so we can use 64-bit signed division
 			*8p_value = a / b
-			return expr
+			goto eval_fit_to_type
 		:eval_div_unsigned
 			; must use unsigned division
 			divmod_unsigned(a, b, p_value, &a)
-			return expr
+			goto eval_fit_to_type
 	:eval_remainder
-		p = expr + 4 ; pointer to type
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
 		expr = evaluate_constant_expression(expr, &b)
+		p = types + type
 		if *1p == TYPE_UNSIGNED_LONG goto eval_rem_unsigned
 			*8p_value = a % b
-			return expr
+			goto eval_fit_to_type
 		:eval_rem_unsigned
 			divmod_unsigned(a, b, &a, p_value)
-			return expr
+			goto eval_fit_to_type
+	:eval_lshift
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a < b
+		goto eval_fit_to_type
+	:eval_rshift
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		p = types + type
+		p = *1p
+		p &= 1 ; signed types are odd
+		if p == 1 goto eval_signed_rshift
+			*8p_value = a > b
+			goto eval_fit_to_type
+		:eval_signed_rshift
+			local v
+			mask = a > 63 ; sign bit
+			
+			; sign extension
+			mask <= b
+			mask -= 1
+			mask <= 64 - b
+			
+			v = a > b
+			v += mask
+			*8p_value = v
+			goto eval_fit_to_type
 	
+	; comparison masks:
+	;   1 = less than
+	;   2 = equal to
+	;   4 = greater than
+	; e.g. not-equal is 1|4 = 5 because not equal = less than or greater than
+	:eval_eq
+		mask = 2
+		goto eval_comparison
+	:eval_neq
+		mask = 5
+		goto eval_comparison
+	:eval_lt
+		mask = 1
+		goto eval_comparison
+	:eval_gt
+		mask = 4
+		goto eval_comparison
+	:eval_leq
+		mask = 3
+		goto eval_comparison
+	:eval_geq
+		mask = 6
+		goto eval_comparison
+	:eval_comparison
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		
+		p = types + type
+		p = *1p
+		p &= 1
+		
+		if a == b goto eval_comparison_eq
+		
+		; for checking < and >, we care about whether a and b are signed
+		if p == 1 goto eval_signed_comparison
+			if a ] b goto eval_comparison_gt
+			goto eval_comparison_lt
+		:eval_signed_comparison
+			if a > b goto eval_comparison_gt
+			goto eval_comparison_lt
+		
+		:eval_comparison_eq
+			; a == b
+			mask &= 2
+			goto eval_comparison_done
+		:eval_comparison_lt
+			; a < b
+			mask &= 1
+			goto eval_comparison_done
+		:eval_comparison_gt
+			; a > b
+			mask &= 4
+			goto eval_comparison_done
+		:eval_comparison_done
+			if mask != 0 goto eval_comparison1
+				*8p_value = 0
+				return expr
+			:eval_comparison1
+				*8p_value = 1
+				return expr
+		
+	:eval_fit_to_type
+	*8p_value = fit_to_type(*8p_value, type)
+	return expr
+
+; value is the output of some arithmetic expression; correct it to be within the range of type.
+function fit_to_type
+	argument value
+	argument type
+	local c
+	local s
+	c = types + type
+	c = *1c
+	if c == TYPE_CHAR goto fit_to_type_char
+	if c == TYPE_UNSIGNED_CHAR goto fit_to_type_uchar
+	if c == TYPE_SHORT goto fit_to_type_short
+	if c == TYPE_UNSIGNED_SHORT goto fit_to_type_ushort
+	if c == TYPE_INT goto fit_to_type_int
+	if c == TYPE_UNSIGNED_INT goto fit_to_type_uint
+	if c == TYPE_LONG goto fit_to_type_long
+	if c == TYPE_UNSIGNED_LONG goto fit_to_type_ulong
+	fputs(2, .str_bad_fit_to_type)
+	exit(1)
+	:str_bad_fit_to_type
+		string Bad type passed to fit_to_type.
+		byte 10
+		byte 0
+	; yes, signed integer overflow is undefined behavior and
+	; casting to a signed integer is implementation-defined;
+	;   i'm going to play it safe and implement it properly
+	:fit_to_type_char
+		value &= 0xff
+		s = value > 7 ; sign bit
+		value += s * 0xffffffffffffff00 ; sign-extend
+		return value
+	:fit_to_type_uchar
+		value &= 0xff
+		return value
+	:fit_to_type_short
+		value &= 0xffff
+		s = value > 15 ; sign bit
+		value += s * 0xffffffffffff0000 ; sign-extend
+		return value
+	:fit_to_type_ushort
+		value &= 0xffff
+		return value
+	:fit_to_type_int
+		value &= 0xffffffff
+		s = value > 31 ; sign bit
+		value += s * 0xffffffff00000000 ; sign-extend
+		return value
+	:fit_to_type_uint
+		value &= 0xffffffff
+		return value
+	:fit_to_type_long
+	:fit_to_type_ulong
+		return value
 ; the "usual conversions" for binary operators, as the C standard calls it
 function expr_binary_type_usual_conversions
 	argument token ; for errors
