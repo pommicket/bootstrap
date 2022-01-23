@@ -943,6 +943,7 @@ function evaluate_constant_expression
 	argument p_value
 	local a
 	local b
+	local c
 	local p
 	local mask
 	local type
@@ -950,26 +951,35 @@ function evaluate_constant_expression
 	type = expr + 4
 	type = *4type
 	
-	if *1expr == EXPRESSION_CONSTANT_INT goto eval_constant_int
-	if *1expr == EXPRESSION_IDENTIFIER goto eval_constant_identifier
-	if *1expr == EXPRESSION_UNARY_PLUS goto eval_unary_plus
-	if *1expr == EXPRESSION_UNARY_MINUS goto eval_unary_minus
-	if *1expr == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
-	if *1expr == EXPRESSION_LOGICAL_NOT goto eval_logical_not
-	if *1expr == EXPRESSION_CAST goto eval_todo ; @TODO
-	if *1expr == EXPRESSION_ADD goto eval_add
-	if *1expr == EXPRESSION_SUB goto eval_sub
-	if *1expr == EXPRESSION_MUL goto eval_mul
-	if *1expr == EXPRESSION_DIV goto eval_div
-	if *1expr == EXPRESSION_REMAINDER goto eval_remainder
-	if *1expr == EXPRESSION_LSHIFT goto eval_lshift
-	if *1expr == EXPRESSION_RSHIFT goto eval_rshift
-	if *1expr == EXPRESSION_EQ goto eval_eq
-	if *1expr == EXPRESSION_NEQ goto eval_neq
-	if *1expr == EXPRESSION_LT goto eval_lt
-	if *1expr == EXPRESSION_GT goto eval_gt
-	if *1expr == EXPRESSION_LEQ goto eval_leq
-	if *1expr == EXPRESSION_GEQ goto eval_geq
+	c = *1expr
+	
+	if c == EXPRESSION_CONSTANT_INT goto eval_constant_int
+	if c == EXPRESSION_IDENTIFIER goto eval_constant_identifier
+	if c == EXPRESSION_UNARY_PLUS goto eval_unary_plus
+	if c == EXPRESSION_UNARY_MINUS goto eval_unary_minus
+	if c == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
+	if c == EXPRESSION_LOGICAL_NOT goto eval_logical_not
+	if c == EXPRESSION_CAST goto eval_todo ; @TODO
+	if c == EXPRESSION_ADD goto eval_add
+	if c == EXPRESSION_SUB goto eval_sub
+	if c == EXPRESSION_MUL goto eval_mul
+	if c == EXPRESSION_DIV goto eval_div
+	if c == EXPRESSION_REMAINDER goto eval_remainder
+	if c == EXPRESSION_LSHIFT goto eval_lshift
+	if c == EXPRESSION_RSHIFT goto eval_rshift
+	if c == EXPRESSION_EQ goto eval_eq
+	if c == EXPRESSION_NEQ goto eval_neq
+	if c == EXPRESSION_LT goto eval_lt
+	if c == EXPRESSION_GT goto eval_gt
+	if c == EXPRESSION_LEQ goto eval_leq
+	if c == EXPRESSION_GEQ goto eval_geq
+	if c == EXPRESSION_BITWISE_AND goto eval_bitwise_and
+	if c == EXPRESSION_BITWISE_OR goto eval_bitwise_or
+	if c == EXPRESSION_BITWISE_XOR goto eval_bitwise_xor
+	if c == EXPRESSION_LOGICAL_AND goto eval_logical_and
+	if c == EXPRESSION_LOGICAL_OR goto eval_logical_or
+	if c == EXPRESSION_CONDITIONAL goto eval_todo ; @TODO
+	
 	byte 0xcc
 	
 	:eval_todo
@@ -1009,12 +1019,8 @@ function evaluate_constant_expression
 	:eval_logical_not
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
-		if a == 0 goto eval_logical_not0
-		*8p_value = 0
-		return expr
-		:eval_logical_not0
-		*8p_value = 1
-		return expr
+		if a == 0 goto eval_value_1
+		goto eval_value_0
 	:eval_add
 		expr += 8
 		expr = evaluate_constant_expression(expr, &a)
@@ -1141,16 +1147,52 @@ function evaluate_constant_expression
 			mask &= 4
 			goto eval_comparison_done
 		:eval_comparison_done
-			if mask != 0 goto eval_comparison1
-				*8p_value = 0
-				return expr
-			:eval_comparison1
-				*8p_value = 1
-				return expr
+			if mask != 0 goto eval_value_1
+			goto eval_value_0
+	:eval_bitwise_and
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a & b
+		goto eval_fit_to_type
+	:eval_bitwise_or
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a | b
+		goto eval_fit_to_type
+	:eval_bitwise_xor
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		*8p_value = a ^ b
+		goto eval_fit_to_type
+	:eval_logical_and
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		if a == 0 goto eval_value_0
+		expr = evaluate_constant_expression(expr, &b)
+		if b == 0 goto eval_value_0
+		goto eval_value_1
+	:eval_logical_or
+		expr += 8
+		expr = evaluate_constant_expression(expr, &a)
+		if a != 0 goto eval_value_1
+		expr = evaluate_constant_expression(expr, &b)
+		if b != 0 goto eval_value_1
+		goto eval_value_0
+		
 		
 	:eval_fit_to_type
 	*8p_value = fit_to_type(*8p_value, type)
 	return expr
+	:eval_value_0
+	*8p_value = 0
+	return expr
+	:eval_value_1
+	*8p_value = 1
+	return expr
+	
 
 ; value is the output of some arithmetic expression; correct it to be within the range of type.
 function fit_to_type

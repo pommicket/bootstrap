@@ -3,5 +3,5 @@
 	long double d;
 } (*x)(void);
 */
-typedef long int unsigned Foo[3 != 3];
+typedef long int unsigned Foo[5|0];
 /* */
