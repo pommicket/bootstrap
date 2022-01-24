@@ -132,6 +132,7 @@
 ;    - for constant floats, the 64-bit double value (even if expression has type float)
 ;    - for string literals, a 64-bit pointer to the string (for the executable, not for the compiler)
 ;    - for unary operators, the operand
+;    - for casts, the operand (type is given by type member)
 ;    - for binary operators, the first operand followed by the second
 ;        - for the operators . and ->, the first argument is a 64-bit pointer to the name of the member and the second is the left hand side of the . / -> 
 ;    - for the ternary operator ? :, the first followed by the second followed by the third

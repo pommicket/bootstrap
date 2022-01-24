@@ -711,6 +711,8 @@ function leftmost_1bit
 	return 0xd0
 :return_0xe0
 	return 0xe0
+:return_0xe8
+	return 0xe8
 :return_0xf0
 	return 0xf0
 

@@ -288,6 +288,15 @@ function parse_type_to
 			prefix_end = p
 			goto parse_type_loop
 		:parse_array_type
+			local prev_types
+			local prev_types_bytes_used
+			; little hack to avoid screwing up types like  double[sizeof(int)]
+			;  temporarily switch out types array to parse the cast's type
+			prev_types = types
+			prev_types_bytes_used = types_bytes_used
+			types = malloc(4000)
+			types_init(types, &types_bytes_used)
+			
 			local expr
 			expr = malloc(4000)
 			*1out = TYPE_ARRAY
@@ -296,11 +305,16 @@ function parse_type_to
 			token_skip_to_matching_rsquare(&p)
 			suffix += 16 ; skip [
 			parse_expression(suffix, p, expr)
-			evaluate_constant_expression(expr, &n)
+			print_expression(expr)
+			putc(10)
+			evaluate_constant_expression(*8p_token, expr, &n)
 			if n < 0 goto bad_array_size
 			*8out = n
 			out += 8
 			free(expr)
+			free(types)
+			types = prev_types
+			types_bytes_used = prev_types_bytes_used
 			suffix = p + 16
 			goto parse_type_loop
 			:bad_array_size
@@ -782,13 +796,13 @@ function parse_expression
 		return out
 	:expr_binary_bad_types
 		bad_types_to_operator(tokens, *4a, *4b)
-	;@TODO: casts
 	
 	
 	:parse_expr_unary
 		if c == KEYWORD_SIZEOF goto parse_sizeof
 		*1out = unary_op_to_expression_type(c)
 		c = *1out
+		if c == EXPRESSION_CAST goto parse_cast
 		out += 8
 		a = out + 4 ; type of operand
 		p = tokens + 16
@@ -808,6 +822,22 @@ function parse_expression
 			string Bad unary symbol (this shouldn't happen).
 			byte 10
 			byte 0
+	:parse_cast
+		p = best + 16
+		a = parse_type(&p, &c)
+		if c != 0 goto bad_cast ; e.g. (int x)5
+		if *1p != SYMBOL_RPAREN goto bad_cast ; e.g. (int ,)5
+		out += 4
+		*4out = a
+		out += 4
+		p += 16
+		out = parse_expression(p, tokens_end, out)
+		return out
+		:bad_cast
+			token_error(tokens, .str_bad_cast)
+		:str_bad_cast
+			string Bad cast.
+			byte 0		
 	:unary_address_of
 		*4type = type_create_pointer(*4a)
 		return out
@@ -842,14 +872,6 @@ function parse_expression
 		byte 0
 	
 	:parse_sizeof
-		; little hack to avoid screwing up types like  double[sizeof(int)]
-		;  temporarily switch out types array to parse the sizeof's type
-		local prev_types
-		local prev_types_bytes_used
-		prev_types = types
-		prev_types_bytes_used = types_bytes_used
-		types = malloc(4000)
-		types_init(types, &types_bytes_used)
 		*1out = EXPRESSION_CONSTANT_INT
 		out += 4
 		*1out = TYPE_UNSIGNED_LONG
@@ -874,9 +896,6 @@ function parse_expression
 			*8out = type_sizeof(*4p)
 			free(temp)
 		:parse_sizeof_finish
-		free(types)
-		types = prev_types
-		types_bytes_used = prev_types_bytes_used
 		out += 8
 		return out
 		
@@ -1094,8 +1113,10 @@ function type_sizeof
 ; @NONSTANDARD: doesn't handle floats, but really why would you use floats in an array size
 ;                 e.g.   SomeType x[(int)3.3];
 ; this is also used for #if evaluation
+; tokens is used for error messages (e.g. if this "constant" expression is *x or something)
 ; NOTE: this returns the end of the expression, not the value (which is stored in *8p_value)
 function evaluate_constant_expression
+	argument token
 	argument expr
 	argument p_value
 	local a
@@ -1116,7 +1137,7 @@ function evaluate_constant_expression
 	if c == EXPRESSION_UNARY_MINUS goto eval_unary_minus
 	if c == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto eval_logical_not
-	if c == EXPRESSION_CAST goto eval_todo ; @TODO
+	if c == EXPRESSION_CAST goto eval_cast
 	if c == EXPRESSION_ADD goto eval_add
 	if c == EXPRESSION_SUB goto eval_sub
 	if c == EXPRESSION_MUL goto eval_mul
@@ -1137,16 +1158,25 @@ function evaluate_constant_expression
 	if c == EXPRESSION_LOGICAL_OR goto eval_logical_or
 	if c == EXPRESSION_CONDITIONAL goto eval_conditional
 	
-	byte 0xcc
 	
-	:eval_todo
-		fputs(2, .str_eval_todo)
-		exit(1)
-	:str_eval_todo
-		string evaluate_constant_expression does not support this kind of expression yet (see @TODOs).
-		byte 10
+	token_error(token, .str_eval_bad_exprtype)
+	
+	:str_eval_bad_exprtype
+		string Can't evaluate constant expression.
 		byte 0
-
+	:eval_cast
+		p = types + type
+		if *1p == TYPE_VOID goto eval_cast_bad_type
+		if *1p > TYPE_UNSIGNED_LONG goto eval_cast_bad_type
+		expr += 8
+		; @NONSTANDARD: we don't support, for example,  int x[(int)(float)5];
+		expr = evaluate_constant_expression(token, expr, p_value)
+		goto eval_fit_to_type
+		:eval_cast_bad_type
+			token_error(token, .str_eval_cast_bad_type)
+		:str_eval_cast_bad_type
+			string Bad type for constant cast (note: floating-point casts are not supported even though they are standard).
+			byte 0
 	:eval_constant_identifier
 		; @TODO: enum values
 		fputs(2, .str_constant_identifier)
@@ -1162,45 +1192,45 @@ function evaluate_constant_expression
 		return expr
 	:eval_unary_plus
 		expr += 8
-		expr = evaluate_constant_expression(expr, p_value)
+		expr = evaluate_constant_expression(token, expr, p_value)
 		return expr
 	:eval_unary_minus
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(token, expr, &a)
 		*8p_value = 0 - a
 		goto eval_fit_to_type
 	:eval_bitwise_not
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(token, expr, &a)
 		*8p_value = ~a
 		goto eval_fit_to_type
 	:eval_logical_not
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(token, expr, &a)
 		if a == 0 goto eval_value_1
 		goto eval_value_0
 	:eval_add
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a + b
 		goto eval_fit_to_type
 	:eval_sub
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a - b
 		goto eval_fit_to_type
 	:eval_mul
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a * b
 		goto eval_fit_to_type
 	:eval_div
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		if *1p == TYPE_UNSIGNED_LONG goto eval_div_unsigned
 			; division is signed or uses a small type, so we can use 64-bit signed division
 			*8p_value = a / b
@@ -1211,8 +1241,8 @@ function evaluate_constant_expression
 			goto eval_fit_to_type
 	:eval_remainder
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		p = types + type
 		if *1p == TYPE_UNSIGNED_LONG goto eval_rem_unsigned
 			*8p_value = a % b
@@ -1222,14 +1252,14 @@ function evaluate_constant_expression
 			goto eval_fit_to_type
 	:eval_lshift
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a < b
 		goto eval_fit_to_type
 	:eval_rshift
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		p = types + type
 		p = *1p
 		p &= 1 ; signed types are odd
@@ -1275,8 +1305,8 @@ function evaluate_constant_expression
 		goto eval_comparison
 	:eval_comparison
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		
 		p = types + type
 		p = *1p
@@ -1309,41 +1339,41 @@ function evaluate_constant_expression
 			goto eval_value_0
 	:eval_bitwise_and
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a & b
 		goto eval_fit_to_type
 	:eval_bitwise_or
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a | b
 		goto eval_fit_to_type
 	:eval_bitwise_xor
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		*8p_value = a ^ b
 		goto eval_fit_to_type
 	:eval_logical_and
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(token, expr, &a)
 		if a == 0 goto eval_value_0
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &b)
 		if b == 0 goto eval_value_0
 		goto eval_value_1
 	:eval_logical_or
 		expr += 8
-		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(token, expr, &a)
 		if a != 0 goto eval_value_1
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &b)
 		if b != 0 goto eval_value_1
 		goto eval_value_0
 	:eval_conditional
 		expr += 8
-		expr = evaluate_constant_expression(expr, &mask)
-		expr = evaluate_constant_expression(expr, &a)
-		expr = evaluate_constant_expression(expr, &b)
+		expr = evaluate_constant_expression(token, expr, &mask)
+		expr = evaluate_constant_expression(token, expr, &a)
+		expr = evaluate_constant_expression(token, expr, &b)
 		if mask == 0 goto eval_conditional_b
 			*8p_value = a
 			goto eval_fit_to_type
@@ -1557,6 +1587,7 @@ function operator_precedence
 	if op == SYMBOL_MINUS goto return_0xe0
 	if op == SYMBOL_TILDE goto return_0xe0
 	if op == SYMBOL_NOT goto return_0xe0
+	if op == SYMBOL_LPAREN goto return_0xe8 ; casts
 	
 	return 0xffff
 
@@ -1570,6 +1601,7 @@ function unary_op_to_expression_type
 	if op == SYMBOL_MINUS goto return_EXPRESSION_UNARY_MINUS
 	if op == SYMBOL_TILDE goto return_EXPRESSION_BITWISE_NOT
 	if op == SYMBOL_NOT goto return_EXPRESSION_LOGICAL_NOT
+	if op == SYMBOL_LPAREN goto return_EXPRESSION_CAST
 	return 0
 
 :return_EXPRESSION_PRE_INCREMENT
@@ -1588,7 +1620,8 @@ function unary_op_to_expression_type
 	return EXPRESSION_BITWISE_NOT
 :return_EXPRESSION_LOGICAL_NOT
 	return EXPRESSION_LOGICAL_NOT
-
+:return_EXPRESSION_CAST
+	return EXPRESSION_CAST
 
 ; is this operator right-associative? most C operators are left associative,
 ; but += / -= / etc. are not
@@ -1755,6 +1788,7 @@ function print_expression
 	if c == EXPRESSION_UNARY_MINUS goto print_unary_minus
 	if c == EXPRESSION_BITWISE_NOT goto print_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto print_logical_not
+	if c == EXPRESSION_CAST goto print_cast
 
 	b = binop_expression_type_to_symbol(c)
 	if b != 0 goto print_expr_binop
@@ -1766,7 +1800,11 @@ function print_expression
 		string Bad expression passed to print_expression.
 		byte 10
 		byte 0
-	
+	:print_cast
+		; we've already printed the type
+		expression += 8
+		expression = print_expression(expression)
+		return expression
 	:print_expr_int
 		expression += 8
 		putn(*8expression)
