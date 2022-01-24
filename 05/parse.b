@@ -1,3 +1,29 @@
+; is this token the start of a type?
+function token_is_type
+	argument token
+	local c
+	c = *1token
+	if c == TOKEN_IDENTIFIER goto token_is_ident_type
+	if c == KEYWORD_UNSIGNED goto return_1
+	if c == KEYWORD_CHAR goto return_1
+	if c == KEYWORD_SHORT goto return_1
+	if c == KEYWORD_INT goto return_1
+	if c == KEYWORD_LONG goto return_1
+	if c == KEYWORD_FLOAT goto return_1
+	if c == KEYWORD_DOUBLE goto return_1
+	if c == KEYWORD_VOID goto return_1
+	if c == KEYWORD_STRUCT goto return_1
+	if c == KEYWORD_UNION goto return_1
+	if c == KEYWORD_ENUM goto return_1
+	goto return_0
+	:token_is_ident_type
+		token += 8
+		c = *8token
+		local b
+		b = ident_list_lookup(typedefs, c)
+		if b != 0 goto return_1
+		goto return_0
+	
 function parse_tokens
 	argument tokens
 	local token
@@ -268,8 +294,6 @@ function parse_type_to
 				byte 0 
 		:parse_function_type
 			p = suffix + 16
-			local RRR
-			RRR = out
 			*1out = TYPE_FUNCTION
 			out += 1
 			:function_type_loop
@@ -743,7 +767,7 @@ function parse_expression
 	
 	
 	:parse_expr_unary
-		if c == KEYWORD_SIZEOF goto parse_expr_sizeof
+		if c == KEYWORD_SIZEOF goto parse_sizeof
 		*1out = unary_op_to_expression_type(c)
 		c = *1out
 		out += 8
@@ -798,9 +822,45 @@ function parse_expression
 		byte 32
 		byte 0
 	
-	:parse_expr_sizeof
-		byte 0xcc ; @TODO
-	
+	:parse_sizeof
+		; little hack to avoid screwing up types like  double[sizeof(int)]
+		;  temporarily switch out types array to parse the sizeof's type
+		local prev_types
+		local prev_types_bytes_used
+		prev_types = types
+		prev_types_bytes_used = types_bytes_used
+		types = malloc(4000)
+		types_init(types, &types_bytes_used)
+		*1out = EXPRESSION_CONSTANT_INT
+		out += 4
+		*1out = TYPE_UNSIGNED_LONG
+		out += 4
+		p = best + 16
+		if *1p != SYMBOL_LPAREN goto parse_sizeof_expr
+		p += 16
+		b = token_is_type(p)
+		if b == 0 goto parse_sizeof_expr
+			; it's a type, e.g. sizeof(int)
+			a = parse_type(&p, &c)
+			if c != 0 goto bad_expression ; e.g. sizeof(int x)
+			*8out = type_sizeof(a)
+			goto parse_sizeof_finish
+		:parse_sizeof_expr
+			; it's an expression, e.g. sizeof(x+3)
+			local temp
+			temp = malloc(4000)
+			p = best + 16
+			parse_expression(p, tokens_end, temp)
+			p = temp + 4
+			*8out = type_sizeof(*4p)
+			free(temp)
+		:parse_sizeof_finish
+		free(types)
+		types = prev_types
+		types_bytes_used = prev_types_bytes_used
+		out += 8
+		return out
+		
 	:parse_expr_member ; -> or .
 		p = best + 16
 		if *1p != TOKEN_IDENTIFIER goto bad_expression
@@ -977,6 +1037,37 @@ function parse_expression
 	return TYPE_FLOAT
 :return_type_double
 	return TYPE_DOUBLE
+
+function type_sizeof
+	argument type
+	local p
+	local c
+	p = types + type
+	c = *1p
+	if c == TYPE_CHAR goto return_1
+	if c == TYPE_UNSIGNED_CHAR goto return_1
+	if c == TYPE_SHORT goto return_2
+	if c == TYPE_UNSIGNED_SHORT goto return_2
+	if c == TYPE_INT goto return_4
+	if c == TYPE_UNSIGNED_INT goto return_4
+	if c == TYPE_LONG goto return_8
+	if c == TYPE_UNSIGNED_LONG goto return_8
+	if c == TYPE_FLOAT goto return_4
+	if c == TYPE_DOUBLE goto return_8
+	if c == TYPE_VOID goto return_1
+	if c == TYPE_POINTER goto return_8
+	if c == TYPE_FUNCTION goto return_8
+	if c == TYPE_ARRAY goto sizeof_array
+	byte 0xcc ;  @TODO
+	
+	:sizeof_array
+		local n
+		p += 1
+		n = *8p
+		p += 8
+		p -= types
+		c = type_sizeof(p)
+		return n * c
 
 ; evaluate an expression which can be the size of an array, e.g.
 ;    enum { A, B, C };

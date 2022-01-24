@@ -17,6 +17,48 @@ global function_macros_size
 global object_macros
 global function_macros
 
+; powers of 10, stored in the following format:
+;   ulong significand
+;   ulong exponent
+; where for i = -1023..1023, powers_of_10 + 16*i points to an entry where
+;          10^i = significand * 2^exponent
+global powers_of_10
+
+global types
+global types_bytes_used
+; ident list of type IDs
+global typedefs
+
+
+#include util.b
+#include idents.b
+#include constants.b
+#include preprocess.b
+#include tokenize.b
+#include parse.b
+
+function types_init
+	argument _types
+	argument ptypes_bytes_used
+	local i
+	local p
+	
+	i = 0
+	p = _types
+	:fill_initial_types_loop
+		*1p = i
+		p += 1
+		i += 1
+		if i <= 16 goto fill_initial_types_loop
+	p = _types + TYPE_POINTER_TO_CHAR
+	*1p = TYPE_POINTER
+	p += 1
+	*1p = TYPE_CHAR
+	p += 1
+	
+	*8ptypes_bytes_used = p - types
+	return 
+
 function fprint_token_location
 	argument fd
 	argument token
@@ -86,24 +128,6 @@ function compile_warning
 	byte 32
 	byte 0
 
-; powers of 10, stored in the following format:
-;   ulong significand
-;   ulong exponent
-; where for i = -1023..1023, powers_of_10 + 16*i points to an entry where
-;          10^i = significand * 2^exponent
-global powers_of_10
-
-global types
-global types_bytes_used
-; ident list of type IDs
-global typedefs
-
-#include util.b
-#include idents.b
-#include constants.b
-#include preprocess.b
-#include tokenize.b
-#include parse.b
 
 function main
 	argument argv2
@@ -131,21 +155,7 @@ function main
 	function_macros = malloc(4000000)
 	
 	types = malloc(16000000)
-	i = 0
-	p = types
-	:fill_initial_types_loop
-		*1p = i
-		p += 1
-		i += 1
-		if i <= 16 goto fill_initial_types_loop
-	p = types + TYPE_POINTER_TO_CHAR
-	*1p = TYPE_POINTER
-	p += 1
-	*1p = TYPE_CHAR
-	p += 1
-	
-	types_bytes_used = p - types
-	 
+	types_init(types, &types_bytes_used)
 	
 	input_filename = .str_default_input_filename
 	output_filename = .str_default_output_filename

@@ -843,6 +843,7 @@ function translation_phase_4
 		macro_replacement_to_terminator(filename, line_number, &in, &p, 10)
 		;@TODO: there's no point in doing this until we have parsing
 		;       we'll have to evaluate constant expressions anyways for array declarations
+		free(if_pptokens)
 		fputs(2, .str_if_not_implemented)
 		byte 0xcc
 		:str_if_not_implemented
