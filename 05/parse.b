@@ -815,8 +815,55 @@ function parse_expression
 		
 	
 	:parse_conditional
-		byte 0xcc ; @TODO
-	
+		depth = 0 ; bracket depth
+		n = 0 ; ? : depth
+		; find : associated with this ?
+		p = best + 16
+		:parse_conditional_loop
+			if p >= tokens_end goto bad_expression
+			if *1p == SYMBOL_QUESTION goto parse_cond_incn
+			if *1p == SYMBOL_COLON goto parse_cond_decn
+			if *1p == SYMBOL_LPAREN goto parse_cond_incdepth
+			if *1p == SYMBOL_RPAREN goto parse_cond_decdepth
+			if *1p == SYMBOL_LSQUARE goto parse_cond_incdepth
+			if *1p == SYMBOL_RSQUARE goto parse_cond_decdepth
+			:parse_cond_cont
+			p += 16
+			goto parse_conditional_loop
+			
+			:parse_cond_incdepth
+				depth += 1
+				goto parse_cond_cont
+			:parse_cond_decdepth
+				depth -= 1
+				goto parse_cond_cont
+			:parse_cond_incn
+				n += 1
+				goto parse_cond_cont
+			:parse_cond_decn
+				n -= 1
+				if n >= 0 goto parse_cond_cont
+				if depth > 0 goto parse_cond_cont
+		; okay, q now points to the :
+		*1out = EXPRESSION_CONDITIONAL
+		out += 8
+		out = parse_expression(tokens, best, out)
+		a = out + 4 ; type of left branch of conditional
+		best += 16
+		out = parse_expression(best, p, out)
+		b = out + 4 ; type of right branch of conditional
+		p += 16
+		out = parse_expression(p, tokens_end, out)
+		p = types + *4a
+		if *1p == TYPE_STRUCT goto parse_cond_ltype
+		if *1p == TYPE_VOID goto parse_cond_ltype
+		if *1p == TYPE_POINTER goto parse_cond_ltype ; @NONSTANDARD: we don't handle  sizeof *(0 ? (void*)0 : "hello")  correctly--it should be 1 (a standard-compliant implementation is annoyingly complicated)
+		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		return out
+		:parse_cond_ltype
+		; no conversions
+		*4type = *4a
+		return out
 	:parse_postincrement
 		*1out = EXPRESSION_POST_INCREMENT
 		p = tokens_end - 16
@@ -978,7 +1025,7 @@ function evaluate_constant_expression
 	if c == EXPRESSION_BITWISE_XOR goto eval_bitwise_xor
 	if c == EXPRESSION_LOGICAL_AND goto eval_logical_and
 	if c == EXPRESSION_LOGICAL_OR goto eval_logical_or
-	if c == EXPRESSION_CONDITIONAL goto eval_todo ; @TODO
+	if c == EXPRESSION_CONDITIONAL goto eval_conditional
 	
 	byte 0xcc
 	
@@ -987,6 +1034,7 @@ function evaluate_constant_expression
 		exit(1)
 	:str_eval_todo
 		string evaluate_constant_expression does not support this kind of expression yet (see @TODOs).
+		byte 10
 		byte 0
 
 	:eval_constant_identifier
@@ -1181,7 +1229,17 @@ function evaluate_constant_expression
 		expr = evaluate_constant_expression(expr, &b)
 		if b != 0 goto eval_value_1
 		goto eval_value_0
-		
+	:eval_conditional
+		expr += 8
+		expr = evaluate_constant_expression(expr, &mask)
+		expr = evaluate_constant_expression(expr, &a)
+		expr = evaluate_constant_expression(expr, &b)
+		if mask == 0 goto eval_conditional_b
+			*8p_value = a
+			goto eval_fit_to_type
+		:eval_conditional_b
+			*8p_value = b
+			goto eval_fit_to_type
 		
 	:eval_fit_to_type
 	*8p_value = fit_to_type(*8p_value, type)
@@ -1426,6 +1484,7 @@ function unary_op_to_expression_type
 ; but += / -= / etc. are not
 function operator_right_associative
 	argument op
+	if op == SYMBOL_QUESTION goto return_1
 	if op < SYMBOL_EQ goto return_0
 	if op > SYMBOL_OR_EQ goto return_0
 	goto return_1
