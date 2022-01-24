@@ -835,21 +835,42 @@ function translation_phase_4
 		goto process_pptoken
 	:pp_directive_if
 		local if_pptokens
+		local if_tokens
+		local if_expr
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
 		
-		if_pptokens = malloc(4000)
+		if_pptokens = malloc(8000)
+		if_tokens = if_pptokens + 2500
+		if_expr = if_tokens + 2500
+		
 		p = if_pptokens
 		macro_replacement_to_terminator(filename, line_number, &in, &p, 10)
-		;@TODO: there's no point in doing this until we have parsing
-		;       we'll have to evaluate constant expressions anyways for array declarations
+		tokenize(if_pptokens, if_tokens, filename, line_number)
+		; replace all identifiers with 0
+		p = if_tokens
+		:pp_if_idents0_loop
+			if *1p == TOKEN_EOF goto pp_if_idents0_done
+			if *1p == TOKEN_IDENTIFIER goto pp_if_replace_ident
+			p += 16
+			goto pp_if_idents0_loop
+			:pp_if_replace_ident
+				*1p = TOKEN_CONSTANT_INT
+				p += 8
+				*8p = 0
+				p += 8
+				goto pp_if_idents0_loop
+		:pp_if_idents0_done
+		parse_expression(if_tokens, p, if_expr)
+		evaluate_constant_expression(if_expr, &b)
+		if b == 0 goto pp_directive_if0
+			goto pp_if_done
+		:pp_directive_if0		
+			preprocessor_skip_if(filename, &line_number, &in, &out)
+			goto pp_if_done
+		:pp_if_done
 		free(if_pptokens)
-		fputs(2, .str_if_not_implemented)
-		byte 0xcc
-		:str_if_not_implemented
-			string #if not implemented.
-			byte 10
-			byte 0
+		goto process_pptoken
 	:unrecognized_directive
 		compile_error(filename, line_number, .str_unrecognized_directive)
 	:str_unrecognized_directive
