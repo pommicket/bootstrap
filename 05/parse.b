@@ -459,7 +459,8 @@ function parse_type_to
 		if c == 0 goto bad_type
 		n = type_length(c)
 		c += types
-		out = memcpy(out, c, n)
+		memcpy(out, c, n)
+		out += n
 		goto base_type_done
 	
 	:skip_struct_union_enum

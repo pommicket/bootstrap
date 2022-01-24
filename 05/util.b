@@ -280,7 +280,7 @@ function memccpy
 	memccpy_advance(&dest, &src, terminator)
 	return dest
 
-; just like C
+; like C, but returns 0
 function memcpy
 	argument dest
 	argument src
