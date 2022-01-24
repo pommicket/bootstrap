@@ -372,6 +372,13 @@ function puts
 	fputs(1, s)
 	return
 
+function putsln
+	argument s
+	fputs(1, s)
+	fputc(1, 10)
+	return
+
+
 function print_separator
 	fputs(1, .str_separator)
 	return
@@ -455,6 +462,18 @@ function putn_signed
 	fputn_signed(1, n)
 	return
 
+function putnln
+	argument n
+	fputn(1, n)
+	fputc(1, 10)
+	return
+
+function putnln_signed
+	argument n
+	fputn_signed(1, n)
+	fputc(1, 10)
+	return
+
 
 function fputc
 	argument fd
@@ -465,6 +484,11 @@ function fputc
 function putc
 	argument c
 	fputc(1, c)
+	return
+function putcln
+	argument c
+	fputc(1, c)
+	fputc(1, 10)
 	return
 
 ; returns 0 at end of file

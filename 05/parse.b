@@ -40,11 +40,27 @@ function parse_tokens
 		:parse_typedef
 			token += 16
 			type = parse_type(&token, &ident)
+			if ident == 0 goto typedef_no_ident
+			if *1token != SYMBOL_SEMICOLON goto typedef_no_semicolon
 			puts(ident)
-			putc(10)
+			putc(':)
+			putc(32)
 			print_type(type)
 			putc(10)
-			exit(0)
+			
+			ident_list_add(typedefs, ident, type)
+			token += 16 ; skip semicolon
+			goto parse_tokens_loop
+		:typedef_no_ident
+			token_error(tokens, .str_typedef_no_ident)
+		:str_typedef_no_ident
+			string No identifier in typedef declaration.
+			byte 0
+		:typedef_no_semicolon
+			token_error(tokens, .str_typedef_no_semicolon)
+		:str_typedef_no_semicolon
+			string typedef does not end with a semicolon.
+			byte 0
 	:parse_tokens_eof
 	return
 
@@ -237,24 +253,24 @@ function parse_type_to
 	suffix_end = token
 	
 #define TYPEDEBUG ;
-	TYPEDEBUG putc('B)
-	TYPEDEBUG putc('a)
-	TYPEDEBUG putc('s)
-	TYPEDEBUG putc(':)
-	TYPEDEBUG putc(32)
-	TYPEDEBUG print_tokens(*8p_token, base_type_end)
-	TYPEDEBUG putc('P)
-	TYPEDEBUG putc('r)
-	TYPEDEBUG putc('e)
-	TYPEDEBUG putc(':)
-	TYPEDEBUG putc(32)
-	TYPEDEBUG print_tokens(prefix, prefix_end)
-	TYPEDEBUG putc('S)
-	TYPEDEBUG putc('u)
-	TYPEDEBUG putc('f)
-	TYPEDEBUG putc(':)
-	TYPEDEBUG putc(32)
-	TYPEDEBUG print_tokens(suffix, suffix_end)
+	TYPEDEBUG	putc('B)
+	TYPEDEBUG	putc('a)
+	TYPEDEBUG	putc('s)
+	TYPEDEBUG	putc(':)
+	TYPEDEBUG	putc(32)
+	TYPEDEBUG	print_tokens(*8p_token, base_type_end)
+	TYPEDEBUG	putc('P)
+	TYPEDEBUG	putc('r)
+	TYPEDEBUG	putc('e)
+	TYPEDEBUG	putc(':)
+	TYPEDEBUG	putc(32)
+	TYPEDEBUG	print_tokens(prefix, prefix_end)
+	TYPEDEBUG	putc('S)
+	TYPEDEBUG	putc('u)
+	TYPEDEBUG	putc('f)
+	TYPEDEBUG	putc(':)
+	TYPEDEBUG	putc(32)
+	TYPEDEBUG	print_tokens(suffix, suffix_end)
 	
 	; main loop for parsing types
 	:parse_type_loop
@@ -264,7 +280,7 @@ function parse_type_to
 		if *1p == SYMBOL_TIMES goto parse_pointer_type
 		if suffix == suffix_end goto parse_base_type
 		if *1suffix == SYMBOL_RPAREN goto parse_type_remove_parentheses
-		
+		goto bad_type
 		
 		:parse_pointer_type
 			*1out = TYPE_POINTER
@@ -440,7 +456,9 @@ function parse_type_to
 	:base_type_typedef
 		p = prefix + 8
 		c = ident_list_lookup(typedefs, *8p)
+		if c == 0 goto bad_type
 		n = type_length(c)
+		c += types
 		out = memcpy(out, c, n)
 		goto base_type_done
 	
