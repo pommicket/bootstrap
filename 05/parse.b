@@ -455,9 +455,28 @@ function parse_type_to
 	*8p_token = suffix_end
 	return out
 	:base_type_struct
-		byte 0xcc ; @TODO
 	:base_type_union
-		byte 0xcc ; @TODO
+		p = prefix + 16
+		if *1p != TOKEN_IDENTIFIER goto base_type_struct_definition
+		p += 16
+		if *1p == SYMBOL_LBRACE goto base_type_struct_definition
+		p -= 8
+		c = ident_list_lookup(struct_names, *8p)
+		if c == 0 goto base_type_incomplete_struct
+			; e.g. struct Foo x;  where struct Foo has been defined
+			*1out = TYPE_STRUCT
+			out += 1
+			*8out = c
+			out += 8
+			goto base_type_done
+		:base_type_incomplete_struct
+			; e.g. struct Foo *x;  where struct Foo hasn't been defined
+			*1out = TYPE_VOID
+			out += 1
+			goto base_type_done
+		:base_type_struct_definition
+			if *1p != SYMBOL_LBRACE goto bad_type
+			byte 0xcc ; @TODO
 	:base_type_enum
 		local q
 		
@@ -600,7 +619,6 @@ function type_length
 		return n + 9
 	:type_length_not_array
 	if *1p == TYPE_STRUCT goto return_5
-	if *1p == TYPE_UNION goto return_5
 	if *1p != TYPE_FUNCTION goto type_length_not_function
 		local start
 		start = type
@@ -2056,7 +2074,6 @@ function print_type
 	if c == TYPE_POINTER goto print_type_pointer
 	if c == TYPE_ARRAY goto print_type_array
 	if c == TYPE_STRUCT goto print_type_struct
-	if c == TYPE_UNION goto print_type_union
 	if c == TYPE_FUNCTION goto print_type_function
 	fputs(2, .str_bad_print_type)
 	exit(1)
@@ -2100,8 +2117,6 @@ function print_type
 		goto print_type_top
 	:print_type_struct
 		return puts(.str_struct)
-	:print_type_union
-		return puts(.str_union)
 	:print_type_function
 		type += 1
 		putc(40)

@@ -199,7 +199,8 @@
 ;  char, unsigned char, etc.: TYPE_CHAR, TYPE_UNSIGNED_CHAR, etc. as a single byte
 ;  pointer to type t: TYPE_PTR t
 ;  array of n t's: TYPE_ARRAY {n as 8 bytes} t
-;  struct/union: TYPE_STRUCT/TYPE_UNION {0 for incomplete types/4-byte pointer to struct/union}
+;  struct/union: TYPE_STRUCT {8-byte pointer to struct/union data (see structures in main.b)}
+;     note: incomplete structs/unions are replaced with void.
 ;  function: TYPE_FUNCTION {arg1 type} {arg2 type} ... {argn type} 0 {return type}
 ; note that enum types are just treated as ints.
 #define TYPE_VOID 1
@@ -216,7 +217,6 @@
 #define TYPE_DOUBLE 12
 #define TYPE_POINTER 13
 #define TYPE_STRUCT 14
-#define TYPE_UNION 15
 #define TYPE_ARRAY 16
 #define TYPE_FUNCTION 17
 

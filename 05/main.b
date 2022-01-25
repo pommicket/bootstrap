@@ -30,6 +30,14 @@ global types_bytes_used
 global typedefs
 ; ident list of enum values
 global enumerators
+; struct/union names
+;  an ident list of pointers to struct data (see structures below)
+global struct_names
+; structs and unions
+; each struct/union is an ident list of 64-bit values, (type << 32) | offset
+; for unions, offset will always be 0.
+global structures
+global structures_bytes_used
 
 #include util.b
 #include idents.b
@@ -146,7 +154,8 @@ function main
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)
-	enumerators = ident_list_create(400000)
+	enumerators = ident_list_create(4000000)
+	struct_names = ident_list_create(4000000)
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -155,6 +164,7 @@ function main
 	*1file_list = 255
 	object_macros = malloc(4000000)
 	function_macros = malloc(4000000)
+	structures = malloc(40000000)
 	
 	types = malloc(16000000)
 	types_init(types, &types_bytes_used)
