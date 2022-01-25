@@ -12,7 +12,14 @@ function ident_list_add
 	argument ident
 	argument value
 	
-	list = memchr(list, 255)
+	; note: we can't just do list = memchr(list, 255) because values
+	; might have a 255 byte.
+	:ilist_add_go_to_end_loop
+		if *1list == 255 goto ilist_add_found_end
+		list = memchr(list, 0)
+		list += 9 ; skip null byte and value
+		goto ilist_add_go_to_end_loop
+	:ilist_add_found_end
 	list = strcpy(list, ident)
 	list += 1
 	*8list = value ; UNALIGNED
@@ -30,8 +37,9 @@ function ident_list_lookup
 		if *1list == 255 goto return_0
 		b = str_equals(list, ident)
 		list = memchr(list, 0)
-		list += 1
+		list += 9 ; skip null byte and value
 		if b == 0 goto ilist_lookup_loop
+	list -= 8 ; backtrack to value
 	return *8list ; UNALIGNED
 
 ; if identifier in list, sets *pvalue to its value (if pvalue is not null) and returns 1
@@ -45,9 +53,10 @@ function ident_list_lookup_check
 		if *1list == 255 goto return_0
 		b = str_equals(list, ident)
 		list = memchr(list, 0)
-		list += 1
+		list += 9 ; skip null byte and value
 		if b == 0 goto ilist_lookcheck_loop
 	if pvalue == 0 goto return_1
+	list -= 8 ; backtrack to value
 	*8pvalue = *8list
 	return 1
 	

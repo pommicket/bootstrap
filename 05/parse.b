@@ -489,7 +489,8 @@ function parse_type_to
 				p += 16
 				depth = 0 ; parenthesis depth
 				q = p
-				; find matching comma -- yes, a comma can appear in an enumerator expression, e.g.
+				; find matching comma/right brace 
+				;  -- yes, a comma can appear in an enumerator expression, e.g.
 				;     enum { X = sizeof(struct{int x, y;}) };
 				; or  enum { X = (enum {A,B})3 };
 				
@@ -1090,7 +1091,7 @@ function parse_expression
 			*4out = TYPE_INT
 			out += 4
 			*8out = n
-			out += 16
+			out += 8
 			return out
 		:not_enumerator
 			in -= 16
@@ -1914,7 +1915,7 @@ function print_expression
 		return expression
 	:print_expr_int
 		expression += 8
-		putn(*8expression)
+		putn_signed(*8expression)
 		expression += 8
 		return expression
 	:print_expr_float

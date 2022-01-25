@@ -8,6 +8,9 @@ typedef enum {
 	HELLO,
 	THERE,
 	TEST = 1-3,
-	EEE
+	EEE = TEST+4,
+	ASDFASDF,
+	FFF,
+	HELLO2
 } y;
-typedef int Bar[EEE];
+typedef int Bar[FFF];
