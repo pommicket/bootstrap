@@ -1,5 +1,4 @@
-; an "identifier list" is a list of identifiers and 64-bit values associated with them
-; the values should be non-zero because 0 is returned for undefined identifiers.
+; an "identifier list" is a list of identifiers and 64-bit values associated with them.
 
 function ident_list_create
 	argument nbytes
@@ -35,6 +34,23 @@ function ident_list_lookup
 		if b == 0 goto ilist_lookup_loop
 	return *8list ; UNALIGNED
 
+; if identifier in list, sets *pvalue to its value (if pvalue is not null) and returns 1
+; otherwise, returns 0
+function ident_list_lookup_check
+	argument list
+	argument ident
+	argument pvalue
+	local b
+	:ilist_lookcheck_loop
+		if *1list == 255 goto return_0
+		b = str_equals(list, ident)
+		list = memchr(list, 0)
+		list += 1
+		if b == 0 goto ilist_lookcheck_loop
+	if pvalue == 0 goto return_1
+	*8pvalue = *8list
+	return 1
+	
 function ident_list_print
 	argument list
 	:ilist_print_loop

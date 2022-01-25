@@ -28,7 +28,8 @@ global types
 global types_bytes_used
 ; ident list of type IDs
 global typedefs
-
+; ident list of enum values
+global enumerators
 
 #include util.b
 #include idents.b
@@ -145,6 +146,7 @@ function main
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)
+	enumerators = ident_list_create(400000)
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255

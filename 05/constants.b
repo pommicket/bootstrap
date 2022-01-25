@@ -201,6 +201,7 @@
 ;  array of n t's: TYPE_ARRAY {n as 8 bytes} t
 ;  struct/union: TYPE_STRUCT/TYPE_UNION {0 for incomplete types/4-byte pointer to struct/union}
 ;  function: TYPE_FUNCTION {arg1 type} {arg2 type} ... {argn type} 0 {return type}
+; note that enum types are just treated as ints.
 #define TYPE_VOID 1
 #define TYPE_CHAR 3
 #define TYPE_UNSIGNED_CHAR 4

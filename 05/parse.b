@@ -164,6 +164,7 @@ function parse_type_to
 	local prefix_end
 	local suffix
 	local suffix_end
+	local expr
 	
 	token = *8p_token
 	prefix = token
@@ -297,7 +298,7 @@ function parse_type_to
 			types = malloc(4000)
 			types_init(types, &types_bytes_used)
 			
-			local expr
+			
 			expr = malloc(4000)
 			*1out = TYPE_ARRAY
 			out += 1
@@ -305,8 +306,8 @@ function parse_type_to
 			token_skip_to_matching_rsquare(&p)
 			suffix += 16 ; skip [
 			parse_expression(suffix, p, expr)
-			print_expression(expr)
-			putc(10)
+			;print_expression(expr)
+			;putc(10)
 			evaluate_constant_expression(*8p_token, expr, &n)
 			if n < 0 goto bad_array_size
 			*8out = n
@@ -458,7 +459,91 @@ function parse_type_to
 	:base_type_union
 		byte 0xcc ; @TODO
 	:base_type_enum
-		byte 0xcc ; @TODO
+		local q
+		
+		*1out = TYPE_INT ; treat any enum as int
+		out += 1
+		types_bytes_used = out - types
+		
+		p = prefix + 16
+		if *1p == SYMBOL_LBRACE goto enum_definition
+		if *1p != TOKEN_IDENTIFIER goto bad_type ; e.g. enum int x;
+		p += 16
+		if *1p == SYMBOL_LBRACE goto enum_definition
+		goto base_type_done ; just using an enum type, not defining it.
+		:enum_definition
+		local name
+		local value
+		value = -1 ; consider initial previous value as -1, because -1 + 1 = 0
+		p += 16 ; skip opening {
+		:enum_defn_loop
+			if *1p == SYMBOL_RBRACE goto enum_defn_loop_end
+			if *1p != TOKEN_IDENTIFIER goto bad_enum_definition
+			p += 8
+			name = *8p
+			p += 8
+			if *1p == SYMBOL_COMMA goto enum_defn_no_equals
+			if *1p == SYMBOL_RBRACE goto enum_defn_no_equals
+			if *1p != SYMBOL_EQ goto bad_enum_definition ; e.g. enum { X ! };
+				; value provided, e.g. X = 5,
+				p += 16
+				depth = 0 ; parenthesis depth
+				q = p
+				; find matching comma -- yes, a comma can appear in an enumerator expression, e.g.
+				;     enum { X = sizeof(struct{int x, y;}) };
+				; or  enum { X = (enum {A,B})3 };
+				
+				; find associated comma or right-brace
+				:enum_comma_loop
+					if depth > 0 goto enum_comma_deep
+					if *1q == SYMBOL_COMMA goto enum_comma_loop_end
+					if *1q == SYMBOL_RBRACE goto enum_comma_loop_end
+					:enum_comma_deep
+					if *1q == TOKEN_EOF goto bad_type
+					c = *1q
+					q += 16
+					if c == SYMBOL_LPAREN goto enum_comma_incdepth
+					if c == SYMBOL_RPAREN goto enum_comma_decdepth
+					goto enum_comma_loop
+					:enum_comma_incdepth
+						depth += 1
+						goto enum_comma_loop
+					:enum_comma_decdepth
+						depth -= 1
+						goto enum_comma_loop
+				:enum_comma_loop_end
+				expr = malloc(4000)
+				parse_expression(p, q, expr)
+				evaluate_constant_expression(p, expr, &value)
+				free(expr)
+				if value < -0x80000000 goto bad_enumerator
+				if value > 0x7fffffff goto bad_enumerator
+				ident_list_add(enumerators, name, value)
+				p = q
+				if *1p == SYMBOL_RBRACE goto enum_defn_loop_end
+				p += 16 ; skip ,
+				goto enum_defn_loop
+				:bad_enumerator
+					token_error(p, .str_bad_enumerator)
+				:str_bad_enumerator
+					string Enumerators too large for int.
+					byte 0
+			:enum_defn_no_equals
+				; no value provided, e.g. X,
+				; the value of this enumerator is one more than the value of the last one
+				value += 1
+				ident_list_add(enumerators, name, value)
+				if *1p == SYMBOL_RBRACE goto enum_defn_loop_end
+				p += 16 ; skip ,
+				goto enum_defn_loop
+		:enum_defn_loop_end
+		out = types + types_bytes_used ; fix stuff in case there were any types in the enumerator expressions
+		goto base_type_done
+		:bad_enum_definition
+			token_error(*8p_token, .str_bad_enum_defn)
+		:str_bad_enum_defn
+			string Bad enum definition.
+			byte 0
 	:base_type_float
 		*1out = TYPE_FLOAT
 		out += 1
@@ -989,8 +1074,30 @@ function parse_expression
 		if c == TOKEN_CONSTANT_CHAR goto expression_integer ; character constants are basically the same as integer constants
 		if c == TOKEN_CONSTANT_FLOAT goto expression_float
 		if c == TOKEN_STRING_LITERAL goto expression_string_literal
+		if c == TOKEN_IDENTIFIER goto expression_identifier
 		goto unrecognized_expression
-	
+		
+	:expression_identifier
+		in += 8
+		a = *8in
+		in += 8
+		; check if it's an enumerator
+		c = ident_list_lookup_check(enumerators, a, &n)
+		if c == 0 goto not_enumerator
+			; it is an enumerator
+			*1out = EXPRESSION_CONSTANT_INT
+			out += 4
+			*4out = TYPE_INT
+			out += 4
+			*8out = n
+			out += 16
+			return out
+		:not_enumerator
+			in -= 16
+			token_error(in, .str_undeclared_variable)
+		:str_undeclared_variable
+			string Undeclared variable.
+			byte 0
 	:expression_integer
 		*1out = EXPRESSION_CONSTANT_INT
 		p = in + 8
@@ -1113,7 +1220,7 @@ function type_sizeof
 ; @NONSTANDARD: doesn't handle floats, but really why would you use floats in an array size
 ;                 e.g.   SomeType x[(int)3.3];
 ; this is also used for #if evaluation
-; tokens is used for error messages (e.g. if this "constant" expression is *x or something)
+; token is used for error messages (e.g. if this "constant" expression is *x or something)
 ; NOTE: this returns the end of the expression, not the value (which is stored in *8p_value)
 function evaluate_constant_expression
 	argument token
