@@ -127,10 +127,12 @@ function token_skip_to_matching_rsquare
 		string Unmatched [
 		byte 0
 
+; ident list of type IDs
+global parse_types_result
 
 ; parse things like  `int x` or `int f(void, int, char *)`
-; advances *p_token and sets *p_ident to a pointer to the identifier (or 0 if this is just a type)
-; returns type ID
+; advances *p_token
+; returns type ID, or 0, in which case you should look at parse_type_idents
 function parse_type
 	argument p_token
 	argument p_ident
@@ -146,9 +148,9 @@ function parse_type
 ; like parse_type, but outputs to out.
 ; returns new position of out, after type gets put there
 function parse_type_to
-	; split types into prefix (P) and suffix (S)
-	;     struct Thing (*things[5])(void);
-	;     PPPPPPPPPPPPPPP      SSSSSSSSSS
+	; split types into base (B), prefix (P) and suffix (S)
+	;     struct Thing (*things[5])(void), *something_else[3];
+	;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
 	; Here, we call `struct Thing` the "base type".
 	
 	argument p_token
@@ -164,7 +166,6 @@ function parse_type_to
 	local prefix_end
 	local suffix
 	local suffix_end
-	local expr
 	
 	token = *8p_token
 	prefix = token
@@ -236,7 +237,7 @@ function parse_type_to
 		if c == SYMBOL_RPAREN goto suffix_end_decdepth
 		if c == SYMBOL_TIMES goto suffix_end_cont
 		if depth == 0 goto suffix_end_found
-		if c == TOKEN_EOF goto bad_type
+		if c == TOKEN_EOF goto to_bad_type
 		goto suffix_end_cont
 		
 		:suffix_end_incdepth
@@ -273,6 +274,42 @@ function parse_type_to
 	TYPEDEBUG	putc(32)
 	TYPEDEBUG	print_tokens(suffix, suffix_end)
 	
+	out = parse_type_given_base_prefix_suffix(*8p_token, prefix, prefix_end, suffix, suffix_end, out)
+	*8p_token = suffix_end
+	return out
+	
+	:skip_struct_union_enum
+		token += 16
+		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
+			token += 16 ; struct *blah*
+		:skip_sue_no_name
+		if *1token != SYMBOL_LBRACE goto find_prefix_end ; e.g. struct Something x[5];
+		; okay we have something like
+		;   struct {
+		;       int x, y;
+		;   } test;
+		token_skip_to_matching_rbrace(&token)
+		token += 16
+		goto find_prefix_end
+	:to_bad_type
+		token_error(*8p_token, .str_bad_type)
+	:str_bad_type
+		string Bad type.
+		byte 0
+
+function parse_type_given_base_prefix_suffix
+	argument base_type
+	argument prefix
+	argument prefix_end
+	argument suffix
+	argument suffix_end
+	argument out
+	local p
+	local expr
+	local n
+	local c
+	local depth
+	
 	; main loop for parsing types
 	:parse_type_loop
 		p = prefix_end - 16
@@ -281,7 +318,7 @@ function parse_type_to
 		if *1p == SYMBOL_TIMES goto parse_pointer_type
 		if suffix == suffix_end goto parse_base_type
 		if *1suffix == SYMBOL_RPAREN goto parse_type_remove_parentheses
-		goto bad_type
+		goto bps_bad_type
 		
 		:parse_pointer_type
 			*1out = TYPE_POINTER
@@ -308,7 +345,7 @@ function parse_type_to
 			parse_expression(suffix, p, expr)
 			;print_expression(expr)
 			;putc(10)
-			evaluate_constant_expression(*8p_token, expr, &n)
+			evaluate_constant_expression(base_type, expr, &n)
 			if n < 0 goto bad_array_size
 			*8out = n
 			out += 8
@@ -319,7 +356,7 @@ function parse_type_to
 			suffix = p + 16
 			goto parse_type_loop
 			:bad_array_size
-				token_error(*8p_token, .str_bad_array_size)
+				token_error(base_type, .str_bad_array_size)
 			:str_bad_array_size
 				string Very large or negative array size.
 				byte 0 
@@ -331,7 +368,7 @@ function parse_type_to
 				if *1p == SYMBOL_RPAREN goto function_type_loop_end ; only needed for 1st iteration
 				out = parse_type_to(&p, &c, out)
 				if *1p == SYMBOL_RPAREN goto function_type_loop_end
-				if *1p != SYMBOL_COMMA goto bad_type
+				if *1p != SYMBOL_COMMA goto bps_bad_type
 				p += 16
 				goto function_type_loop
 			:function_type_loop_end
@@ -340,7 +377,7 @@ function parse_type_to
 			suffix = p + 16
 			goto parse_type_loop
 		:parse_type_remove_parentheses
-			if *1p != SYMBOL_LPAREN goto bad_type
+			if *1p != SYMBOL_LPAREN goto bps_bad_type
 			prefix_end = p
 			suffix += 16
 			goto parse_type_loop
@@ -452,7 +489,6 @@ function parse_type_to
 		goto base_type_done
 	
 	:base_type_done
-	*8p_token = suffix_end
 	return out
 	:base_type_struct
 	:base_type_union
@@ -475,7 +511,7 @@ function parse_type_to
 			out += 1
 			goto base_type_done
 		:base_type_struct_definition
-			if *1p != SYMBOL_LBRACE goto bad_type
+			if *1p != SYMBOL_LBRACE goto bps_bad_type
 			byte 0xcc ; @TODO
 	:base_type_enum
 		local q
@@ -486,7 +522,7 @@ function parse_type_to
 		
 		p = prefix + 16
 		if *1p == SYMBOL_LBRACE goto enum_definition
-		if *1p != TOKEN_IDENTIFIER goto bad_type ; e.g. enum int x;
+		if *1p != TOKEN_IDENTIFIER goto bps_bad_type ; e.g. enum int x;
 		p += 16
 		if *1p == SYMBOL_LBRACE goto enum_definition
 		goto base_type_done ; just using an enum type, not defining it.
@@ -519,7 +555,7 @@ function parse_type_to
 					if *1q == SYMBOL_COMMA goto enum_comma_loop_end
 					if *1q == SYMBOL_RBRACE goto enum_comma_loop_end
 					:enum_comma_deep
-					if *1q == TOKEN_EOF goto bad_type
+					if *1q == TOKEN_EOF goto bps_bad_type
 					c = *1q
 					q += 16
 					if c == SYMBOL_LPAREN goto enum_comma_incdepth
@@ -560,7 +596,7 @@ function parse_type_to
 		out = types + types_bytes_used ; fix stuff in case there were any types in the enumerator expressions
 		goto base_type_done
 		:bad_enum_definition
-			token_error(*8p_token, .str_bad_enum_defn)
+			token_error(base_type, .str_bad_enum_defn)
 		:str_bad_enum_defn
 			string Bad enum definition.
 			byte 0
@@ -575,32 +611,16 @@ function parse_type_to
 	:base_type_typedef
 		p = prefix + 8
 		c = ident_list_lookup(typedefs, *8p)
-		if c == 0 goto bad_type
+		if c == 0 goto bps_bad_type
 		n = type_length(c)
 		c += types
 		memcpy(out, c, n)
 		out += n
 		goto base_type_done
 	
-	:skip_struct_union_enum
-		token += 16
-		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
-			token += 16 ; struct *blah*
-		:skip_sue_no_name
-		if *1token != SYMBOL_LBRACE goto find_prefix_end ; e.g. struct Something x[5];
-		; okay we have something like
-		;   struct {
-		;       int x, y;
-		;   } test;
-		token_skip_to_matching_rbrace(&token)
-		token += 16
-		goto find_prefix_end
-	:bad_type
-		token_error(*8p_token, .str_bad_type)
-	:str_bad_type
-		string Bad type.
-		byte 0
-
+	:bps_bad_type
+		token_error(base_type, .str_bad_type)
+	
 ; how many bytes does it take to encode this type?
 function type_length
 	argument type
