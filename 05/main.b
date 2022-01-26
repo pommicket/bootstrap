@@ -38,8 +38,6 @@ global struct_names
 ; for unions, offset will always be 0.
 global structures
 global structures_bytes_used
-; ident list of type IDs
-global parse_type_result
 
 #include util.b
 #include idents.b

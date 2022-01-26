@@ -30,37 +30,62 @@ function parse_tokens
 	local ident
 	local type
 	local p
+	local base_type
+	local base_type_end
+	local prefix
+	local prefix_end
+	local suffix
+	local suffix_end
 	
 	token = tokens
 	:parse_tokens_loop
 		if *1token == TOKEN_EOF goto parse_tokens_eof
 		if *1token == KEYWORD_TYPEDEF goto parse_typedef
 		
-		byte 0xcc ; not implemented
-		
+		die(.str_parse_tokens_ni)
+		:str_parse_tokens_ni
+			string parse_tokens not implemented.
+			byte 0
 		:parse_typedef
-			token += 16
-			type = parse_type(&token)
-			if type != 0 goto typedef_no_ident
-			if *1token != SYMBOL_SEMICOLON goto typedef_no_semicolon
+			base_type = token + 16
+			base_type_end = type_get_base_end(base_type)
 			
-			p = parse_type_result
+			token = base_type_end
+			putc('*)
+			
 			:typedef_loop
-				if *1p == 255 goto typedef_loop_end
-				ident = p
-				p = memchr(p, 0)
-				p += 1
-				type = *8p
-				p += 8
-				puts(ident)
+				prefix = token
+				prefix_end = type_get_prefix_end(prefix)
+				if *1prefix_end != TOKEN_IDENTIFIER goto typedef_no_ident
+				ident = prefix_end + 8
+				ident = *8ident
+				suffix = prefix_end + 16
+				suffix_end = type_get_suffix_end(suffix)
+				
+				putc('B)
 				putc(':)
-				putc(32)
+				print_tokens(base_type, base_type_end)
+				putc('P)
+				putc(':)
+				print_tokens(prefix, prefix_end)
+				putc('S)
+				putc(':)
+				print_tokens(suffix, suffix_end)
+				
+				type = types_bytes_used
+				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+				parse_base_type(base_type)
+				
 				print_type(type)
 				putc(10)
+				
 				ident_list_add(typedefs, ident, type)
+				token = suffix_end
+				if *1token == SYMBOL_SEMICOLON goto typedef_loop_end
+				if *1token != SYMBOL_COMMA goto bad_typedef
+				token += 16 ; skip comma
 				goto typedef_loop
 			:typedef_loop_end
-			
 			token += 16 ; skip semicolon
 			goto parse_tokens_loop
 		:typedef_no_ident
@@ -68,10 +93,10 @@ function parse_tokens
 		:str_typedef_no_ident
 			string No identifier in typedef declaration.
 			byte 0
-		:typedef_no_semicolon
-			token_error(tokens, .str_typedef_no_semicolon)
-		:str_typedef_no_semicolon
-			string typedef does not end with a semicolon.
+		:bad_typedef
+			token_error(tokens, .str_bad_typedef)
+		:str_bad_typedef
+			string Bad typedef.
 			byte 0
 	:parse_tokens_eof
 	return
@@ -147,25 +172,12 @@ function parse_type
 	;     struct Thing (*things[5])(void), *something_else[3];
 	;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
 	; Here, we call `struct Thing` the "base type".
-	
-	argument p_token
-	local typeid
-	local token
+	byte 0xcc
+
+; return the end of the base for this type.
+function type_get_base_end
+	argument token
 	local c
-	local p
-	local n
-	local base_type_end
-	local depth
-	local prefix
-	local prefix_end
-	local suffix
-	local suffix_end
-	local ident
-	
-	token = *8p_token
-	prefix = token
-	ident_list_clear(parse_type_result)
-	
 	c = *1token
 	if c == KEYWORD_STRUCT goto skip_struct_union_enum
 	if c == KEYWORD_UNION goto skip_struct_union_enum
@@ -186,11 +198,30 @@ function parse_type
 			goto skip_base_type_loop
 	
 	:skip_base_type_loop_end
+	return token
 	
-	; find end of 1st prefix
-	base_type_end = token
-	
-	ident = 0
+	:skip_struct_union_enum
+		token += 16
+		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
+			token += 16 ; struct *blah*
+		:skip_sue_no_name
+		if *1token != SYMBOL_LBRACE goto skip_base_type_loop_end ; e.g. struct Something x[5];
+		; okay we have something like
+		;   struct {
+		;       int x, y;
+		;   } test;
+		token_skip_to_matching_rbrace(&token)
+		token += 16
+		goto skip_base_type_loop_end
+	:str_bad_type
+		string Bad type.
+		byte 0
+
+
+; return the end of this type prefix
+function type_get_prefix_end
+	argument token
+	local c
 	:find_prefix_end_loop
 		c = *1token
 		if c == TOKEN_IDENTIFIER goto found_prefix_end
@@ -211,19 +242,23 @@ function parse_type
 			token += 16
 			goto find_prefix_end_loop
 	:found_prefix_end
-	prefix_end = token
-	
-	if *1token != TOKEN_IDENTIFIER goto parse_type_no_ident
-	token += 8
-	ident = *8token
-	token += 8
-	:parse_type_no_ident
-	
-	
-	suffix = token
+	return token
+
+; return the end of this type suffix
+; NOTE: you must pass in the PREFIX.
+; (In general, we can't find the end of the suffix without knowing the prefix.)
+;    int (*x);
+;            ^ suffix ends here
+;    (int *)
+;          ^ suffix ends here
+function type_get_suffix_end
+	argument prefix
+	local depth
+	local token
+	local c
 	
 	; find end of suffix
-	token = base_type_end ; start back here so we can keep track of bracket depth
+	token = prefix
 	depth = 0 ; parenthesis/square bracket depth
 	:suffix_end_loop
 		c = *1token
@@ -234,7 +269,7 @@ function parse_type
 		if c == SYMBOL_RPAREN goto suffix_end_decdepth
 		if c == SYMBOL_TIMES goto suffix_end_cont
 		if depth == 0 goto suffix_end_found
-		if c == TOKEN_EOF goto pt_bad_type
+		if c == TOKEN_EOF goto type_get_suffix_bad_type
 		goto suffix_end_cont
 		
 		:suffix_end_incdepth
@@ -249,87 +284,45 @@ function parse_type
 			goto suffix_end_loop
 	:suffix_end_found
 	
-	suffix_end = token
-	
-#define TYPEDEBUG ;
-	TYPEDEBUG	putc('B)
-	TYPEDEBUG	putc('a)
-	TYPEDEBUG	putc('s)
-	TYPEDEBUG	putc(':)
-	TYPEDEBUG	putc(32)
-	TYPEDEBUG	print_tokens(*8p_token, base_type_end)
-	TYPEDEBUG	putc('P)
-	TYPEDEBUG	putc('r)
-	TYPEDEBUG	putc('e)
-	TYPEDEBUG	putc(':)
-	TYPEDEBUG	putc(32)
-	TYPEDEBUG	print_tokens(prefix, prefix_end)
-	TYPEDEBUG	putc('S)
-	TYPEDEBUG	putc('u)
-	TYPEDEBUG	putc('f)
-	TYPEDEBUG	putc(':)
-	TYPEDEBUG	putc(32)
-	TYPEDEBUG	print_tokens(suffix, suffix_end)
-	
-	typeid = types_bytes_used
-	p = types + typeid
-	p = parse_type_given_base_prefix_suffix(*8p_token, prefix, prefix_end, suffix, suffix_end, p)
-	if ident == 0 goto type_no_ident
-		ident_list_add(parse_type_result, typeid)
-		typeid = 0
-	:type_no_ident
-	*8p_token = suffix_end
-	types_bytes_used = p - types
-	return typeid
-	
-	:skip_struct_union_enum
-		token += 16
-		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
-			token += 16 ; struct *blah*
-		:skip_sue_no_name
-		if *1token != SYMBOL_LBRACE goto skip_base_type_loop_end ; e.g. struct Something x[5];
-		; okay we have something like
-		;   struct {
-		;       int x, y;
-		;   } test;
-		token_skip_to_matching_rbrace(&token)
-		token += 16
-		goto skip_base_type_loop_end
-	:pt_bad_type
-		token_error(*8p_token, .str_bad_type)
-	:str_bad_type
-		string Bad type.
-		byte 0
+	return token
+	:type_get_suffix_bad_type
+		token_error(prefix, .str_bad_type)
 
-function parse_type_given_base_prefix_suffix
-	argument base_type
+
+; writes to *(types + types_bytes_used), and updates types_bytes_used
+function parse_type_declarators
 	argument prefix
 	argument prefix_end
 	argument suffix
 	argument suffix_end
-	argument out
 	local p
 	local expr
 	local n
 	local c
 	local depth
+	local out
 	
 	; main loop for parsing types
-	:parse_type_loop
+	:type_declarators_loop
 		p = prefix_end - 16
 		if *1suffix == SYMBOL_LSQUARE goto parse_array_type
 		if *1suffix == SYMBOL_LPAREN goto parse_function_type
 		if *1p == SYMBOL_TIMES goto parse_pointer_type
-		if suffix == suffix_end goto parse_base_type
+		if suffix == suffix_end goto type_declarators_loop_end
 		if *1suffix == SYMBOL_RPAREN goto parse_type_remove_parentheses
-		goto bps_bad_type
+		goto parse_typedecls_bad_type
 		
 		:parse_pointer_type
+			out = types + types_bytes_used
 			*1out = TYPE_POINTER
-			out += 1
+			types_bytes_used += 1
 			prefix_end = p
-			goto parse_type_loop
+			goto type_declarators_loop
 		:parse_array_type
+			out = types + types_bytes_used
+			*1out = TYPE_ARRAY
+			types_bytes_used += 1
+			
 			local prev_types
 			local prev_types_bytes_used
 			; little hack to avoid screwing up types like  double[sizeof(int)]
@@ -339,74 +332,74 @@ function parse_type_given_base_prefix_suffix
 			types = malloc(4000)
 			types_init(types, &types_bytes_used)
 			
-			
 			expr = malloc(4000)
-			*1out = TYPE_ARRAY
-			out += 1
 			p = suffix
 			token_skip_to_matching_rsquare(&p)
 			suffix += 16 ; skip [
 			parse_expression(suffix, p, expr)
 			;print_expression(expr)
 			;putc(10)
-			evaluate_constant_expression(base_type, expr, &n)
+			evaluate_constant_expression(prefix, expr, &n)
 			if n < 0 goto bad_array_size
-			*8out = n
-			out += 8
 			free(expr)
 			free(types)
 			types = prev_types
 			types_bytes_used = prev_types_bytes_used
+			
+			out = types + types_bytes_used
+			*8out = n
+			types_bytes_used += 8
+			
 			suffix = p + 16
-			goto parse_type_loop
+			goto type_declarators_loop
 			:bad_array_size
-				token_error(base_type, .str_bad_array_size)
+				token_error(suffix, .str_bad_array_size)
 			:str_bad_array_size
 				string Very large or negative array size.
 				byte 0 
 		:parse_function_type
-			local prev_parse_type_result
-			prev_parse_type_result = parse_type_result
-			parse_type_result = ident_list_create(16000)
 			p = suffix + 16
+			out = types + types_bytes_used
 			*1out = TYPE_FUNCTION
-			out += 1
+			types_bytes_used += 1
 			:function_type_loop
-				if *1p == SYMBOL_RPAREN goto function_type_loop_end ; only needed for 1st iteration
-				n = parse_type(&p)
-				if n != 0 goto fparam_have_type
-				c = ident_list_len(parse_type_result)
-				if c != 1 goto bps_bad_type
-				n = ident_list_value_at_index(parse_type_result, 0)
-				:fparam_have_type
-				n += type_length(n)
-				out = types + n
-				if *1p == SYMBOL_RPAREN goto function_type_loop_end
-				if *1p != SYMBOL_COMMA goto bps_bad_type
-				p += 16
-				goto function_type_loop
-			:function_type_loop_end
+				byte 0xcc ; @TODO
+			out = types + types_bytes_used
 			*1out = 0
-			out += 1
+			types_bytes_used += 1
 			suffix = p + 16
-			ident_list_free(parse_type_result)
-			parse_type_result = prev_parse_type_result
-			goto parse_type_loop
+			goto type_declarators_loop
 		:parse_type_remove_parentheses
-			if *1p != SYMBOL_LPAREN goto bps_bad_type
+			if *1p != SYMBOL_LPAREN goto parse_typedecls_bad_type
 			prefix_end = p
 			suffix += 16
-			goto parse_type_loop
-	:parse_base_type
-	if *1prefix == TOKEN_IDENTIFIER goto base_type_typedef
-	if *1prefix == KEYWORD_STRUCT goto base_type_struct
-	if *1prefix == KEYWORD_UNION goto base_type_union
-	if *1prefix == KEYWORD_ENUM goto base_type_enum
-	if *1prefix == KEYWORD_FLOAT goto base_type_float
-	if *1prefix == KEYWORD_VOID goto base_type_void
+			goto type_declarators_loop
+	:type_declarators_loop_end
+	return 0
+	:parse_typedecls_bad_type
+		token_error(prefix, .str_bad_type)
+
+; writes to *(types + types_bytes_used), and updates types_bytes_used (no return value)
+function parse_base_type
+	argument base_type
+	local out
+	local flags
+	local p
+	local c
+	local depth
+	local expr
+	
+	out = types + types_bytes_used
+	
+	c = *1base_type
+	if c == TOKEN_IDENTIFIER goto base_type_typedef
+	if c == KEYWORD_STRUCT goto base_type_struct
+	if c == KEYWORD_UNION goto base_type_union
+	if c == KEYWORD_ENUM goto base_type_enum
+	if c == KEYWORD_FLOAT goto base_type_float
+	if c == KEYWORD_VOID goto base_type_void
 	
 	; "normal" type like int, unsigned char, etc.
-	local flags
 	; annoyingly, all of these are equivalent to `unsigned long`:
 	;    unsigned long int
 	;    long unsigned int
@@ -420,7 +413,7 @@ function parse_type_given_base_prefix_suffix
 #define PARSETYPE_FLAG_LONG 16
 #define PARSETYPE_FLAG_DOUBLE 32
 	flags = 0
-	p = prefix
+	p = base_type
 	:base_type_normal_loop
 		c = *1p
 		p += 16
@@ -467,6 +460,8 @@ function parse_type_given_base_prefix_suffix
 	if flags == 32 goto base_type_double ; `double`
 	if flags == 48 goto base_type_double ; `long double` (we use the same type for double and long double)
 	
+	goto bad_base_type
+	
 	:base_type_char
 		*1out = TYPE_CHAR
 		out += 1
@@ -505,10 +500,12 @@ function parse_type_given_base_prefix_suffix
 		goto base_type_done
 	
 	:base_type_done
-	return out
+	types_bytes_used = out - types
+	return 0
+	
 	:base_type_struct
 	:base_type_union
-		p = prefix + 16
+		p = base_type + 16
 		if *1p != TOKEN_IDENTIFIER goto base_type_struct_definition
 		p += 16
 		if *1p == SYMBOL_LBRACE goto base_type_struct_definition
@@ -527,7 +524,7 @@ function parse_type_given_base_prefix_suffix
 			out += 1
 			goto base_type_done
 		:base_type_struct_definition
-			if *1p != SYMBOL_LBRACE goto bps_bad_type
+			if *1p != SYMBOL_LBRACE goto bad_base_type
 			byte 0xcc ; @TODO
 	:base_type_enum
 		local q
@@ -536,9 +533,9 @@ function parse_type_given_base_prefix_suffix
 		out += 1
 		types_bytes_used = out - types
 		
-		p = prefix + 16
+		p = base_type + 16
 		if *1p == SYMBOL_LBRACE goto enum_definition
-		if *1p != TOKEN_IDENTIFIER goto bps_bad_type ; e.g. enum int x;
+		if *1p != TOKEN_IDENTIFIER goto bad_base_type ; e.g. enum int x;
 		p += 16
 		if *1p == SYMBOL_LBRACE goto enum_definition
 		goto base_type_done ; just using an enum type, not defining it.
@@ -571,7 +568,7 @@ function parse_type_given_base_prefix_suffix
 					if *1q == SYMBOL_COMMA goto enum_comma_loop_end
 					if *1q == SYMBOL_RBRACE goto enum_comma_loop_end
 					:enum_comma_deep
-					if *1q == TOKEN_EOF goto bps_bad_type
+					if *1q == TOKEN_EOF goto bad_base_type
 					c = *1q
 					q += 16
 					if c == SYMBOL_LPAREN goto enum_comma_incdepth
@@ -625,18 +622,22 @@ function parse_type_given_base_prefix_suffix
 		out += 1
 		goto base_type_done	
 	:base_type_typedef
-		p = prefix + 8
+		p = base_type + 8
 		c = ident_list_lookup(typedefs, *8p)
-		if c == 0 goto bps_bad_type
-		n = type_length(c)
+		if c == 0 goto bad_base_type
+		local len
+		len = type_length(c)
 		c += types
-		memcpy(out, c, n)
-		out += n
+		memcpy(out, c, len)
+		out += len
 		goto base_type_done
 	
-	:bps_bad_type
-		token_error(base_type, .str_bad_type)
-	
+	:bad_base_type
+		token_error(base_type, .str_bad_base_type)
+	:str_bad_base_type
+		string Bad base type.
+		byte 0
+
 ; how many bytes does it take to encode this type?
 function type_length
 	argument type
@@ -1258,7 +1259,11 @@ function type_sizeof
 	if c == TYPE_POINTER goto return_8
 	if c == TYPE_FUNCTION goto return_8
 	if c == TYPE_ARRAY goto sizeof_array
-	byte 0xcc ;  @TODO
+	fputs(2, .str_sizeof_ni) ;  @TODO
+	exit(1)
+	:str_sizeof_ni
+		string type_sizeof for this type not implemented.
+		byte 0
 	
 	:sizeof_array
 		local n

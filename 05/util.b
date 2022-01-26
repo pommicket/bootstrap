@@ -128,11 +128,16 @@ function file_error
 	fputs(2, name)
 	fputc(2, 10)
 	exit(1)
-	
+
 :str_file_error
 	string Error opening file:
 	byte 32
 	byte 0
+
+function die
+	argument message
+	fputs(2, message)
+	exit(1)
 
 function malloc
 	argument size
