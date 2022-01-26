@@ -51,7 +51,6 @@ function parse_tokens
 			base_type_end = type_get_base_end(base_type)
 			
 			token = base_type_end
-			putc('*)
 			
 			:typedef_loop
 				prefix = token
@@ -60,7 +59,7 @@ function parse_tokens
 				ident = prefix_end + 8
 				ident = *8ident
 				suffix = prefix_end + 16
-				suffix_end = type_get_suffix_end(suffix)
+				suffix_end = type_get_suffix_end(prefix)
 				
 				putc('B)
 				putc(':)
@@ -358,12 +357,33 @@ function parse_type_declarators
 				string Very large or negative array size.
 				byte 0 
 		:parse_function_type
+			local param_base_type
+			local param_prefix
+			local param_prefix_end
+			local param_suffix
+			local param_suffix_end
+			
 			p = suffix + 16
 			out = types + types_bytes_used
 			*1out = TYPE_FUNCTION
 			types_bytes_used += 1
 			:function_type_loop
-				byte 0xcc ; @TODO
+				param_base_type = p
+				param_prefix = type_get_base_end(param_base_type)
+				param_prefix_end = type_get_prefix_end(param_prefix)
+				param_suffix = param_prefix_end
+				if *1param_suffix != TOKEN_IDENTIFIER goto functype_no_ident
+				param_suffix += 16
+				:functype_no_ident
+				param_suffix_end = type_get_suffix_end(param_prefix)
+				parse_type_declarators(param_prefix, param_prefix_end, param_suffix, param_suffix_end)
+				parse_base_type(param_base_type)
+				p = param_suffix_end
+				if *1p == SYMBOL_RPAREN goto function_type_loop_end
+				if *1p != SYMBOL_COMMA goto parse_typedecls_bad_type
+				p += 16
+				goto function_type_loop
+			:function_type_loop_end
 			out = types + types_bytes_used
 			*1out = 0
 			types_bytes_used += 1
@@ -964,9 +984,23 @@ function parse_expression
 			byte 10
 			byte 0
 	:parse_cast
-		p = best + 16
-		a = parse_type(&p, &c)
-		if c != 0 goto bad_cast ; e.g. (int x)5
+		local cast_base_type
+		local cast_prefix
+		local cast_suffix
+		local cast_suffix_end
+		
+		cast_base_type = best + 16
+		cast_prefix = type_get_base_end(cast_base_type)
+		cast_suffix = type_get_prefix_end(cast_prefix)
+		cast_suffix_end = type_get_suffix_end(cast_prefix)
+		
+		a = types_bytes_used
+		
+		parse_type_declarators(cast_prefix, cast_suffix, cast_suffix, cast_suffix_end)
+		parse_base_type(cast_base_type)
+		
+		p = cast_suffix_end
+		
 		if *1p != SYMBOL_RPAREN goto bad_cast ; e.g. (int ,)5
 		out += 4
 		*4out = a
@@ -1013,6 +1047,11 @@ function parse_expression
 		byte 0
 	
 	:parse_sizeof
+		local sizeof_base_type
+		local sizeof_prefix
+		local sizeof_suffix
+		local sizeof_suffix_end
+		
 		*1out = EXPRESSION_CONSTANT_INT
 		out += 4
 		*1out = TYPE_UNSIGNED_LONG
@@ -1023,8 +1062,15 @@ function parse_expression
 		b = token_is_type(p)
 		if b == 0 goto parse_sizeof_expr
 			; it's a type, e.g. sizeof(int)
-			a = parse_type(&p, &c)
-			if c != 0 goto bad_expression ; e.g. sizeof(int x)
+			sizeof_base_type = p
+			sizeof_prefix = type_get_base_end(sizeof_base_type)
+			sizeof_suffix = type_get_prefix_end(sizeof_prefix)
+			sizeof_suffix_end = type_get_suffix_end(sizeof_prefix)
+			p = sizeof_suffix_end
+			a = types_bytes_used
+			parse_type_declarators(sizeof_prefix, sizeof_suffix, sizeof_suffix, sizeof_suffix_end)
+			parse_base_type(sizeof_base_type)
+			if *1p != SYMBOL_RPAREN goto bad_expression ; e.g. sizeof(int ,)
 			*8out = type_sizeof(a)
 			goto parse_sizeof_finish
 		:parse_sizeof_expr

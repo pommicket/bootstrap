@@ -3,5 +3,4 @@
 	long double d;
 } (*x)(void);
 */
-typedef int *Foo[3+342<<5];
-typedef int A, *B[10];
+typedef int *Foo[sizeof(unsigned short int)];
