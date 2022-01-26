@@ -3,4 +3,4 @@
 	long double d;
 } (*x)(void);
 */
-typedef int Foo(struct Bar *);
+typedef int Foo;

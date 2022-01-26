@@ -29,6 +29,7 @@ function parse_tokens
 	local token
 	local ident
 	local type
+	local p
 	
 	token = tokens
 	:parse_tokens_loop
@@ -39,16 +40,27 @@ function parse_tokens
 		
 		:parse_typedef
 			token += 16
-			type = parse_type(&token, &ident)
-			if ident == 0 goto typedef_no_ident
+			type = parse_type(&token)
+			if type != 0 goto typedef_no_ident
 			if *1token != SYMBOL_SEMICOLON goto typedef_no_semicolon
-			puts(ident)
-			putc(':)
-			putc(32)
-			print_type(type)
-			putc(10)
 			
-			ident_list_add(typedefs, ident, type)
+			p = parse_type_result
+			:typedef_loop
+				if *1p == 255 goto typedef_loop_end
+				ident = p
+				p = memchr(p, 0)
+				p += 1
+				type = *8p
+				p += 8
+				puts(ident)
+				putc(':)
+				putc(32)
+				print_type(type)
+				putc(10)
+				ident_list_add(typedefs, ident, type)
+				goto typedef_loop
+			:typedef_loop_end
+			
 			token += 16 ; skip semicolon
 			goto parse_tokens_loop
 		:typedef_no_ident
@@ -127,35 +139,17 @@ function token_skip_to_matching_rsquare
 		string Unmatched [
 		byte 0
 
-; ident list of type IDs
-global parse_types_result
-
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token
-; returns type ID, or 0, in which case you should look at parse_type_idents
+; returns type ID, or 0, in which case you should look at parse_type_result
 function parse_type
-	argument p_token
-	argument p_ident
-	local type
-	local p
-	local n
-	type = types_bytes_used
-	p = types + type
-	n = parse_type_to(p_token, p_ident, p)
-	types_bytes_used = n - types
-	return type
-	
-; like parse_type, but outputs to out.
-; returns new position of out, after type gets put there
-function parse_type_to
 	; split types into base (B), prefix (P) and suffix (S)
 	;     struct Thing (*things[5])(void), *something_else[3];
 	;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
 	; Here, we call `struct Thing` the "base type".
 	
 	argument p_token
-	argument p_ident
-	argument out ; pointer to type
+	local typeid
 	local token
 	local c
 	local p
@@ -166,10 +160,11 @@ function parse_type_to
 	local prefix_end
 	local suffix
 	local suffix_end
+	local ident
 	
 	token = *8p_token
 	prefix = token
-	*8p_ident = 0
+	ident_list_clear(parse_type_result)
 	
 	c = *1token
 	if c == KEYWORD_STRUCT goto skip_struct_union_enum
@@ -185,15 +180,17 @@ function parse_type_to
 		if c == KEYWORD_INT goto skip_base_type_loop_cont ;e.g. unsigned int x;
 		if c == KEYWORD_LONG goto skip_base_type_loop_cont ;e.g. unsigned long x;
 		if c == KEYWORD_DOUBLE goto skip_base_type_loop_cont ;e.g. long double x;
-		goto find_prefix_end
+		goto skip_base_type_loop_end
 		:skip_base_type_loop_cont
 			token += 16
 			goto skip_base_type_loop
 	
-	:find_prefix_end
-	; find end of prefix
+	:skip_base_type_loop_end
+	
+	; find end of 1st prefix
 	base_type_end = token
 	
+	ident = 0
 	:find_prefix_end_loop
 		c = *1token
 		if c == TOKEN_IDENTIFIER goto found_prefix_end
@@ -218,7 +215,7 @@ function parse_type_to
 	
 	if *1token != TOKEN_IDENTIFIER goto parse_type_no_ident
 	token += 8
-	*8p_ident = *8token
+	ident = *8token
 	token += 8
 	:parse_type_no_ident
 	
@@ -237,7 +234,7 @@ function parse_type_to
 		if c == SYMBOL_RPAREN goto suffix_end_decdepth
 		if c == SYMBOL_TIMES goto suffix_end_cont
 		if depth == 0 goto suffix_end_found
-		if c == TOKEN_EOF goto to_bad_type
+		if c == TOKEN_EOF goto pt_bad_type
 		goto suffix_end_cont
 		
 		:suffix_end_incdepth
@@ -274,24 +271,31 @@ function parse_type_to
 	TYPEDEBUG	putc(32)
 	TYPEDEBUG	print_tokens(suffix, suffix_end)
 	
-	out = parse_type_given_base_prefix_suffix(*8p_token, prefix, prefix_end, suffix, suffix_end, out)
+	typeid = types_bytes_used
+	p = types + typeid
+	p = parse_type_given_base_prefix_suffix(*8p_token, prefix, prefix_end, suffix, suffix_end, p)
+	if ident == 0 goto type_no_ident
+		ident_list_add(parse_type_result, typeid)
+		typeid = 0
+	:type_no_ident
 	*8p_token = suffix_end
-	return out
+	types_bytes_used = p - types
+	return typeid
 	
 	:skip_struct_union_enum
 		token += 16
 		if *1token != TOKEN_IDENTIFIER goto skip_sue_no_name
 			token += 16 ; struct *blah*
 		:skip_sue_no_name
-		if *1token != SYMBOL_LBRACE goto find_prefix_end ; e.g. struct Something x[5];
+		if *1token != SYMBOL_LBRACE goto skip_base_type_loop_end ; e.g. struct Something x[5];
 		; okay we have something like
 		;   struct {
 		;       int x, y;
 		;   } test;
 		token_skip_to_matching_rbrace(&token)
 		token += 16
-		goto find_prefix_end
-	:to_bad_type
+		goto skip_base_type_loop_end
+	:pt_bad_type
 		token_error(*8p_token, .str_bad_type)
 	:str_bad_type
 		string Bad type.
@@ -361,12 +365,22 @@ function parse_type_given_base_prefix_suffix
 				string Very large or negative array size.
 				byte 0 
 		:parse_function_type
+			local prev_parse_type_result
+			prev_parse_type_result = parse_type_result
+			parse_type_result = ident_list_create(16000)
 			p = suffix + 16
 			*1out = TYPE_FUNCTION
 			out += 1
 			:function_type_loop
 				if *1p == SYMBOL_RPAREN goto function_type_loop_end ; only needed for 1st iteration
-				out = parse_type_to(&p, &c, out)
+				n = parse_type(&p)
+				if n != 0 goto fparam_have_type
+				c = ident_list_len(parse_type_result)
+				if c != 1 goto bps_bad_type
+				n = ident_list_value_at_index(parse_type_result, 0)
+				:fparam_have_type
+				n += type_length(n)
+				out = types + n
 				if *1p == SYMBOL_RPAREN goto function_type_loop_end
 				if *1p != SYMBOL_COMMA goto bps_bad_type
 				p += 16
@@ -375,6 +389,8 @@ function parse_type_given_base_prefix_suffix
 			*1out = 0
 			out += 1
 			suffix = p + 16
+			ident_list_free(parse_type_result)
+			parse_type_result = prev_parse_type_result
 			goto parse_type_loop
 		:parse_type_remove_parentheses
 			if *1p != SYMBOL_LPAREN goto bps_bad_type

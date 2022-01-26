@@ -7,6 +7,44 @@ function ident_list_create
 	*1list = 255
 	return list
 
+function ident_list_clear
+	argument list
+	*1list = 255
+	return
+
+function ident_list_free
+	argument list
+	free(list)
+	return
+
+function ident_list_len
+	argument list
+	local len
+	len = 0
+	:ilist_len_loop
+		if *1list == 255 goto ilist_len_ret
+		list = memchr(list, 0)
+		list += 9 ; skip null byte and value
+		len += 1
+		goto ilist_len_loop
+	:ilist_len_ret
+	return len
+
+function ident_list_value_at_index
+	argument list
+	argument idx
+	:ilist_vai_loop
+		if *1list == 255 goto return_0
+		list = memchr(list, 0)
+		list += 1
+		if idx <= 0 goto ilist_vai_ret
+		list += 8
+		idx -= 1
+		goto ilist_vai_loop
+	:ilist_vai_ret
+	return *8list
+	
+
 function ident_list_add
 	argument list
 	argument ident
