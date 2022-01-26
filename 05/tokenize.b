@@ -672,3 +672,10 @@ function print_tokens
 	:str_eof
 		string EOF
 		byte 0
+
+function print_token
+	argument token
+	local p
+	p = token + 16
+	print_tokens(token, p)
+	return

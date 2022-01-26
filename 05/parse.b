@@ -212,9 +212,6 @@ function type_get_base_end
 		token_skip_to_matching_rbrace(&token)
 		token += 16
 		goto skip_base_type_loop_end
-	:str_bad_type
-		string Bad type.
-		byte 0
 
 
 ; return the end of this type prefix
@@ -285,7 +282,10 @@ function type_get_suffix_end
 	
 	return token
 	:type_get_suffix_bad_type
-		token_error(prefix, .str_bad_type)
+		token_error(prefix, .str_bad_type_suffix)
+	:str_bad_type_suffix
+		string Bad type suffix.
+		byte 0
 
 
 ; writes to *(types + types_bytes_used), and updates types_bytes_used
@@ -397,8 +397,11 @@ function parse_type_declarators
 	:type_declarators_loop_end
 	return 0
 	:parse_typedecls_bad_type
-		token_error(prefix, .str_bad_type)
-
+		token_error(prefix, .str_bad_type_declarators)
+	:str_bad_type_declarators
+		string Bad type declarators.
+		byte 0
+	
 ; writes to *(types + types_bytes_used), and updates types_bytes_used (no return value)
 function parse_base_type
 	argument base_type
@@ -407,7 +410,8 @@ function parse_base_type
 	local p
 	local c
 	local depth
-	local expr
+	local is_struct
+	is_struct = 0
 	
 	out = types + types_bytes_used
 	
@@ -437,7 +441,6 @@ function parse_base_type
 	:base_type_normal_loop
 		c = *1p
 		p += 16
-		; yes, this allows for `int int x;` but whatever
 		if c == KEYWORD_CHAR goto base_type_flag_char
 		if c == KEYWORD_SHORT goto base_type_flag_short
 		if c == KEYWORD_INT goto base_type_flag_int
@@ -446,23 +449,40 @@ function parse_base_type
 		if c == KEYWORD_DOUBLE goto base_type_flag_double
 		goto base_type_normal_loop_end
 		:base_type_flag_char
+			c = flags & PARSETYPE_FLAG_CHAR
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_CHAR
 			goto base_type_normal_loop
 		:base_type_flag_short
+			c = flags & PARSETYPE_FLAG_SHORT
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_SHORT
 			goto base_type_normal_loop
 		:base_type_flag_int
+			c = flags & PARSETYPE_FLAG_INT
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_INT
 			goto base_type_normal_loop
 		:base_type_flag_long
+			c = flags & PARSETYPE_FLAG_LONG
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_LONG
 			goto base_type_normal_loop
 		:base_type_flag_unsigned
+			c = flags & PARSETYPE_FLAG_UNSIGNED
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_UNSIGNED
 			goto base_type_normal_loop
 		:base_type_flag_double
+			c = flags & PARSETYPE_FLAG_DOUBLE
+			if c != 0 goto repeated_base_type
 			flags |= PARSETYPE_FLAG_DOUBLE
 			goto base_type_normal_loop
+		:repeated_base_type
+			token_error(p, .str_repeated_base_type)
+		:str_repeated_base_type
+			string Arithmetic type repeated (e.g. unsigned unsigned int).
+			byte 0
 	:base_type_normal_loop_end
 	if flags == 8 goto base_type_int ; `int`
 	if flags == 1 goto base_type_uint ; `unsigned`
@@ -524,13 +544,21 @@ function parse_base_type
 	return 0
 	
 	:base_type_struct
+		is_struct = 1
+		; fallthrough
 	:base_type_union
+		local struct_name
+		local struct
+		struct_name = .empty_string
 		p = base_type + 16
-		if *1p != TOKEN_IDENTIFIER goto base_type_struct_definition
-		p += 16
+		if *1p != TOKEN_IDENTIFIER goto base_type_have_name
+		p += 8
+		struct_name = *8p
+		p += 8
+		:base_type_have_name
+		c = ident_list_lookup(structures, struct_name)
 		if *1p == SYMBOL_LBRACE goto base_type_struct_definition
-		p -= 8
-		c = ident_list_lookup(struct_names, *8p)
+		
 		if c == 0 goto base_type_incomplete_struct
 			; e.g. struct Foo x;  where struct Foo has been defined
 			*1out = TYPE_STRUCT
@@ -544,10 +572,99 @@ function parse_base_type
 			out += 1
 			goto base_type_done
 		:base_type_struct_definition
-			if *1p != SYMBOL_LBRACE goto bad_base_type
-			byte 0xcc ; @TODO
+			local member_base_type
+			local member_prefix
+			local member_prefix_end
+			local member_suffix
+			local member_suffix_end
+			local member_name
+			local member_type
+			local member_align
+			local member_size
+			
+			if c != 0 goto struct_redefinition
+			struct = ident_list_create(8000) ; note: maximum "* 127 members in a single structure or union" C89 § 2.2.4.1
+			*1out = TYPE_STRUCT
+			out += 1
+			*8out = struct
+			out += 8
+			types_bytes_used = out - types
+			p += 16 ; skip opening {
+			
+			local offset
+			offset = 0
+			
+			ident_list_add(structures, struct_name, struct)
+			
+			:struct_defn_loop
+				if *1p == SYMBOL_RBRACE goto struct_defn_loop_end
+				member_base_type = p
+				p = type_get_base_end(member_base_type)
+				:struct_defn_decl_loop ; handle each element of  int x, y[5], *z;
+					member_prefix = p
+					member_prefix_end = type_get_prefix_end(member_prefix)
+					if *1member_prefix_end != TOKEN_IDENTIFIER goto member_no_identifier
+					member_name = member_prefix_end + 8
+					member_name = *8member_name
+					member_suffix = member_prefix_end + 16
+					member_suffix_end = type_get_suffix_end(member_prefix)
+					member_type = types_bytes_used
+					
+					
+					parse_type_declarators(member_prefix, member_prefix_end, member_suffix, member_suffix_end)
+					parse_base_type(member_base_type)
+					
+					; make sure struct member is aligned
+					member_align = type_alignof(member_type)
+					; offset = ceil(offset / align) * align
+					offset += member_align - 1
+					offset /= member_align
+					offset *= member_align
+					
+					if offset ] 0xffffffff goto struct_too_large
+					;putnln(offset)
+					; data = (type << 32) | offset
+					c = member_type < 32
+					c |= offset
+					ident_list_add(struct, member_name, c)
+					
+					member_size = type_sizeof(member_type)
+					offset += member_size * is_struct ; keep offset as 0 if this is a union
+					p = member_suffix_end
+					if *1p == SYMBOL_SEMICOLON goto struct_defn_decl_loop_end
+					if *1p != SYMBOL_COMMA goto struct_bad_declaration
+					p += 16 ; skip comma
+					goto struct_defn_decl_loop
+				:struct_defn_decl_loop_end
+				p += 16 ; skip semicolon
+				goto struct_defn_loop
+			:struct_defn_loop_end
+			out = types + types_bytes_used
+			goto base_type_done
+		:struct_redefinition
+			token_error(p, .str_struct_redefinition)
+		:str_struct_redefinition
+			string struct redefinition.
+			byte 0
+		:struct_bad_declaration
+			token_error(p, .str_struct_bad_declaration)
+		:str_struct_bad_declaration
+			string Bad declaration in struct.
+			byte 0
+		:struct_too_large
+			token_error(p, .str_struct_too_large)
+		:str_struct_too_large
+			string struct too large (maximum is 4GB).
+			byte 0
+		:member_no_identifier
+			; e.g. struct { int; };
+			token_error(p, .str_member_no_identifier)
+		:str_member_no_identifier
+			string No identifier in struct member.
+			byte 0
 	:base_type_enum
 		local q
+		local expr
 		
 		*1out = TYPE_INT ; treat any enum as int
 		out += 1
@@ -1319,6 +1436,36 @@ function type_sizeof
 		p -= types
 		c = type_sizeof(p)
 		return n * c
+
+function type_alignof
+	argument type
+	local p
+	local c
+	p = types + type
+	c = *1p
+	if c == TYPE_CHAR goto return_1
+	if c == TYPE_UNSIGNED_CHAR goto return_1
+	if c == TYPE_SHORT goto return_2
+	if c == TYPE_UNSIGNED_SHORT goto return_2
+	if c == TYPE_INT goto return_4
+	if c == TYPE_UNSIGNED_INT goto return_4
+	if c == TYPE_LONG goto return_8
+	if c == TYPE_UNSIGNED_LONG goto return_8
+	if c == TYPE_FLOAT goto return_4
+	if c == TYPE_DOUBLE goto return_8
+	if c == TYPE_VOID goto return_1
+	if c == TYPE_POINTER goto return_8
+	if c == TYPE_FUNCTION goto return_8
+	if c == TYPE_ARRAY goto alignof_array
+	fputs(2, .str_alignof_ni) ;  @TODO
+	exit(1)
+	:str_alignof_ni
+		string type_alignof for this type not implemented.
+		byte 0
+	
+	:alignof_array
+		p = type + 9 ; skip TYPE_ARRAY and size
+		return type_alignof(p)
 
 ; evaluate an expression which can be the size of an array, e.g.
 ;    enum { A, B, C };

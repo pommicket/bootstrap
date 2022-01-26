@@ -437,6 +437,11 @@ function putx64
 	argument n
 	fputx64(1, n)
 	return
+function putx64ln
+	argument n
+	fputx64(1, n)
+	fputc(1, 10)
+	return
 	
 function fputx32
 	argument fd
@@ -455,6 +460,11 @@ function fputx32
 function putx32
 	argument n
 	fputx32(1, n)
+	return
+function putx32ln
+	argument n
+	fputx32(1, n)
+	fputc(1, 10)
 	return
 
 function putn
@@ -666,6 +676,10 @@ function leftmost_1bit
 	:str_leftmost1bit_0
 		string 0 passed to leftmost_1bit.
 		byte 0
+
+:empty_string
+	byte 0
+
 :return_0
 	return 0
 :return_1

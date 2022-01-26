@@ -1,15 +1,21 @@
 ; an "identifier list" is a list of identifiers and 64-bit values associated with them.
+; they are stored as
+;   null-terminated string
+;   64-bit value (unaligned)
+;   ...
+;   null-terminated string
+;   64-bit value (unaligned)
+;   0 byte
 
 function ident_list_create
 	argument nbytes
 	local list
 	list = malloc(nbytes)
-	*1list = 255
 	return list
 
 function ident_list_clear
 	argument list
-	*1list = 255
+	*1list = 0
 	return
 
 function ident_list_free
@@ -22,7 +28,7 @@ function ident_list_len
 	local len
 	len = 0
 	:ilist_len_loop
-		if *1list == 255 goto ilist_len_ret
+		if *1list == 0 goto ilist_len_ret
 		list = memchr(list, 0)
 		list += 9 ; skip null byte and value
 		len += 1
@@ -34,7 +40,7 @@ function ident_list_value_at_index
 	argument list
 	argument idx
 	:ilist_vai_loop
-		if *1list == 255 goto return_0
+		if *1list == 0 goto return_0
 		list = memchr(list, 0)
 		list += 1
 		if idx <= 0 goto ilist_vai_ret
@@ -50,10 +56,8 @@ function ident_list_add
 	argument ident
 	argument value
 	
-	; note: we can't just do list = memchr(list, 255) because values
-	; might have a 255 byte.
 	:ilist_add_go_to_end_loop
-		if *1list == 255 goto ilist_add_found_end
+		if *1list == 0 goto ilist_add_found_end
 		list = memchr(list, 0)
 		list += 9 ; skip null byte and value
 		goto ilist_add_go_to_end_loop
@@ -62,7 +66,7 @@ function ident_list_add
 	list += 1
 	*8list = value ; UNALIGNED
 	list += 8
-	*1list = 255
+	*1list = 0
 	
 	return
 
@@ -72,7 +76,7 @@ function ident_list_lookup
 	argument ident
 	local b
 	:ilist_lookup_loop
-		if *1list == 255 goto return_0
+		if *1list == 0 goto return_0
 		b = str_equals(list, ident)
 		list = memchr(list, 0)
 		list += 9 ; skip null byte and value
@@ -88,7 +92,7 @@ function ident_list_lookup_check
 	argument pvalue
 	local b
 	:ilist_lookcheck_loop
-		if *1list == 255 goto return_0
+		if *1list == 0 goto return_0
 		b = str_equals(list, ident)
 		list = memchr(list, 0)
 		list += 9 ; skip null byte and value
@@ -101,7 +105,7 @@ function ident_list_lookup_check
 function ident_list_print
 	argument list
 	:ilist_print_loop
-		if *1list == 255 goto ilist_print_loop_end
+		if *1list == 0 goto ilist_print_loop_end
 		puts(list)
 		putc(':)
 		putc(32)
