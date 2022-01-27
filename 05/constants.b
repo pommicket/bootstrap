@@ -20,7 +20,7 @@
 ;   b << >>
 ;   c + -
 ;   d * / %
-;   e8 cast
+;   d8 cast
 ;   e sizeof, unary prefixes ++ -- & * + - ~ !
 ;   f . -> () [] postfix ++ --
 ;   highest

@@ -165,6 +165,32 @@ function token_skip_to_matching_rsquare
 		string Unmatched [
 		byte 0
 
+
+; *p_token should be on a ); this goes back to the corresponding (
+;  THERE MUST ACTUALLY BE A MATCHING BRACKET, OTHERWISE THIS WILL DO BAD THINGS
+function token_reverse_to_matching_lparen
+	argument p_token
+	local token
+	local depth
+	token = *8p_token
+	depth = 0
+	:reverse_paren_loop
+		if *1token == SYMBOL_LPAREN goto reverse_paren_incdepth
+		if *1token == SYMBOL_RPAREN goto reverse_paren_decdepth
+		:reverse_paren_next
+		token -= 16
+		goto reverse_paren_loop
+		:reverse_paren_incdepth
+			depth += 1
+			if depth == 0 goto reverse_paren_ret
+			goto reverse_paren_next
+		:reverse_paren_decdepth
+			depth -= 1
+			goto reverse_paren_next
+	:reverse_paren_ret
+	*8p_token = token
+	return
+	
 ; parse things like  `int x` or `int f(void, int, char *)`
 ; advances *p_token
 ; returns type ID, or 0, in which case you should look at parse_type_result
@@ -863,7 +889,7 @@ function parse_expression
 	local first_token
 	:parse_expression_top
 	
-	print_tokens(tokens, tokens_end)
+	;print_tokens(tokens, tokens_end)
 	
 	type = out + 4
 	
@@ -929,6 +955,13 @@ function parse_expression
 		if n > best_precedence goto expr_findop_not_new_best
 		; new best!
 		best = p - 16
+		;putc('O)
+		;putc(':)
+		;putn(*1best)
+		;putc(32)
+		;putc('P)
+		;putc(':)
+		;putnln(a)
 		best_precedence = a
 		:expr_findop_not_new_best
 		if c == SYMBOL_LPAREN goto expr_findop_incdepth
@@ -1913,6 +1946,7 @@ function operator_precedence
 	argument token
 	argument is_first
 	local op
+	local b
 	
 	if is_first != 0 goto operator_precedence_unary
 	
@@ -1920,11 +1954,15 @@ function operator_precedence
 	;   in 5 + *x, * is a unary operator
 	op = token - 16
 	op = *1op
+	if op == SYMBOL_RPAREN goto figre_out_rparen_arity
 	op = is_operator(op)
+	
+	; if an operator is immediately followed by another (including lparen), the second must be 
+	; unary.
 	if op != 0 goto operator_precedence_unary
 	
+	:operator_precedence_binary
 	op = *1token
-	
 	
 	; see "C OPERATOR PRECEDENCE" in constants.b
 	if op == SYMBOL_COMMA goto return_0x10
@@ -1989,10 +2027,22 @@ function operator_precedence
 	;     and - (int)x->something
 	;   correctly (in the first case, the arrow is the top-level operator, but in the second, the cast is)
 	token += 16
-	local b
 	b = token_is_type(token)
 	if b == 0 goto return_0xffff
-	goto return_0xe8 ; it's a cast
+	goto return_0xd8 ; it's a cast
+	
+	:figre_out_rparen_arity
+	; given that the token before this one is a right-parenthesis, figure out if
+	; this is a unary or binary operator. this is (annoyingly) necessary, because:
+	;  (int)-x;   /* cast processed first */
+	;  (y)-x;     /* subtraction processed first */
+	local p
+	p = token - 16
+	token_reverse_to_matching_lparen(&p)
+	p += 16
+	b = token_is_type(p)
+	if b != 0 goto operator_precedence_unary ; e.g. (int)-x;	
+	goto operator_precedence_binary ; e.g. (y)-x;
 	
 function unary_op_to_expression_type
 	argument op

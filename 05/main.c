@@ -16,4 +16,4 @@ typedef struct A {
 	long f;
 } A;
 
-typedef int x[(int)&((struct A*)0)->e];
+typedef int x[(unsigned)-3];
