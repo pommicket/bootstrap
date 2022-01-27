@@ -96,7 +96,7 @@ I'll leave that to someone else.
 ## instruction set
 
 x86-64 has a *gigantic* instruction set. The manual for it is over 2,000 pages
-long! So it makes sense to select only a small subset of it to use.
+long! To make things simpler, we will only use a small subset.
 
 Here are all the instructions we'll be using. If you're not familiar with
 x86-64 assembly, you might want to look over these (but you don't need to understand everything).

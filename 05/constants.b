@@ -1,9 +1,13 @@
 ; this is the format of the executables we produce:
-;   elf header + code 4MB  addresses 0x400000-0x7fffff
+;   elf header        4MB  addresses 0x000000-0x400000 (no, it won't actually take up that much space)
+;   code              4MB  addresses 0x400000-0x7fffff
 ;   read-only data    4MB  addresses 0x800000-0xbfffff
 ;   read-write data   4MB  addresses 0xc00000-0xffffff
-#define RODATA_OFFSET 0x400000
+; note that file offsets and runtime addresses are the same.
+; you should be able to change these constants without breaking anything:
 #define RODATA_ADDR 0x800000
+#define RWDATA_END 0x1000000
+#define EXECUTABLE_SIZE 0x1000000
 
 ; C OPERATOR PRECEDENCE
 ;   lowest

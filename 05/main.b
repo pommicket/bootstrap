@@ -8,8 +8,6 @@ byte 0
 byte 0
 goto main
 
-global output_fd
-
 
 global object_macros_size
 global function_macros_size
@@ -36,6 +34,9 @@ global enumerators
 ;    for unions, offset will always be 0.
 global structures
 global structures_bytes_used
+; file offset/runtime address to write next piece of read-only data; initialized in main
+global rodata_end_addr
+global output_file_data
 
 #include util.b
 #include idents.b
@@ -149,6 +150,8 @@ function main
 	local ast
 	local p
 	local i
+	local output_fd
+	
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)
@@ -173,8 +176,12 @@ function main
 	input_filename = argv1
 	output_filename = argv2
 	:have_filenames
-	output_fd = open_w(output_filename)
-	rodata_end_offset = RODATA_OFFSET
+	output_fd = open_rw(output_filename, 493)
+	rodata_end_addr = RODATA_ADDR
+	
+	ftruncate(output_fd, RWDATA_END)
+	output_file_data = mmap(0, RWDATA_END, PROT_READ_WRITE, MAP_SHARED, output_fd, 0)
+	if output_file_data ] 0xffffffffffff0000 goto mmap_output_fd_failed
 	
 	pptokens = split_into_preprocessing_tokens(input_filename)
 	;print_pptokens(pptokens)
@@ -195,7 +202,19 @@ function main
 	
 	parse_tokens(tokens)
 	
+	p = output_file_data + RODATA_ADDR
+	munmap(output_file_data, RWDATA_END)
+	close(output_fd)
+	
 	exit(0)
+
+:mmap_output_fd_failed
+	fputs(2, .str_mmap_output_fd_failed)
+	exit(1)
+:str_mmap_output_fd_failed
+	string Couldn't mmap output file.
+	byte 10
+	byte 0
 
 :usage_error
 	fputs(2, .str_usage_error)

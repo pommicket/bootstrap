@@ -97,9 +97,6 @@ function get_keyword_str
 		byte 0
 	
 
-; file offset to write next piece of read-only data; initialized in main.b
-global rodata_end_offset
-
 ; turn pptokens into tokens, written to out.
 ; tokens are 16 bytes and have the following format:
 ;    uchar type
@@ -256,26 +253,28 @@ function tokenize
 			data = c
 			goto token_output
 		:tokenize_string_literal
-			n = rodata_end_offset - RODATA_OFFSET
-			n += RODATA_ADDR ; address of string
-			lseek(output_fd, rodata_end_offset, SEEK_SET)
+			data = rodata_end_addr
+			p = output_file_data + rodata_end_addr
+			
 			:string_literal_loop
 				in += 1 ; skip opening "
 				:string_literal_char_loop
 					if *1in == '" goto string_literal_char_loop_end
 					c = read_c_char(&in)
 					if c ] 255 goto bad_char_in_string
-					fputc(output_fd, c)
+					*1p = c
+					p += 1
 					goto string_literal_char_loop					
 				:string_literal_char_loop_end
 				pptoken_skip(&in) ; skip closing "
 				pptoken_skip_spaces(&in)
 				if *1in == '" goto string_literal_loop ; string concatenation, e.g. "Hello, " "world!"
-			fputc(output_fd, 0) ; null terminator
-			rodata_end_offset = lseek(output_fd, 0, SEEK_CUR)
+			*1p = 0 ; null terminator
+			p += 1
+			rodata_end_addr = p - output_file_data
+			
 			*1out = TOKEN_STRING_LITERAL
 			out += 2 ; no info
-			data = n
 			goto token_output
 		:tokenize_float
 			; @NONSTANDARD: this doesn't allow for floats whose integral part is >=2^64, e.g. 1000000000000000000000000.0

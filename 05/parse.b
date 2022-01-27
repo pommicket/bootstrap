@@ -1500,7 +1500,7 @@ function type_sizeof
 	if c == TYPE_ARRAY goto sizeof_array
 	if c == TYPE_STRUCT goto sizeof_struct
 	
-	fputs(2, .str_sizeof_bad) ;  @TODO
+	fputs(2, .str_sizeof_bad)
 	exit(1)
 	:str_sizeof_bad
 		string type_sizeof bad type.
@@ -1621,7 +1621,6 @@ function evaluate_constant_expression
 	c = *1expr
 	
 	if c == EXPRESSION_CONSTANT_INT goto eval_constant_int
-	if c == EXPRESSION_IDENTIFIER goto eval_constant_identifier
 	if c == EXPRESSION_UNARY_PLUS goto eval_unary_plus
 	if c == EXPRESSION_UNARY_MINUS goto eval_unary_minus
 	if c == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
@@ -1665,14 +1664,6 @@ function evaluate_constant_expression
 			token_error(token, .str_eval_cast_bad_type)
 		:str_eval_cast_bad_type
 			string Bad type for constant cast (note: floating-point casts are not supported even though they are standard).
-			byte 0
-	:eval_constant_identifier
-		; @TODO: enum values
-		fputs(2, .str_constant_identifier)
-		exit(1)
-		:str_constant_identifier
-			string Constant identifiers not handled (see @TODO).
-			byte 10
 			byte 0
 	:eval_constant_int
 		expr += 8

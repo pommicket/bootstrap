@@ -24,5 +24,5 @@ typedef union B{
 	} c;
 }B;
 
-typedef int x[sizeof(A)];
+typedef int x[sizeof(A)+sizeof"hello"];
 typedef int y[sizeof(struct B)];

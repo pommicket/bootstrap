@@ -139,12 +139,48 @@ function die
 	fputs(2, message)
 	exit(1)
 
+function ftruncate
+	argument fd
+	argument length
+	local x
+	x = syscall(77, fd, length)
+	if x != 0 goto ftruncate_failed
+	return
+	
+:ftruncate_failed
+	fputs(2, .str_ftruncate_failed)
+	exit(1)
+:str_ftruncate_failed
+	string ftruncated failed.
+	byte 10
+	byte 0
+
+function mmap
+	argument addr
+	argument length
+	argument prot
+	argument flags
+	argument fd
+	argument offset
+	return syscall(9, addr, length, prot, flags, fd, offset)
+
+function munmap
+	argument addr
+	argument length
+	return syscall(11, addr, length)
+
+#define PROT_READ 1
+#define PROT_WRITE 2
+#define PROT_READ_WRITE 3
+#define MAP_SHARED 0x01
+#define MAP_PRIVATE_ANONYMOUS 0x22
+
 function malloc
 	argument size
 	local total_size
 	local memory
 	total_size = size + 8
-	memory = syscall(9, 0, total_size, 3, 0x22, -1, 0)
+	memory = mmap(0, total_size, PROT_READ_WRITE, MAP_PRIVATE_ANONYMOUS, -1, 0)
 	if memory ] 0xffffffffffff0000 goto malloc_failed
 	*8memory = total_size
 	return memory + 8
@@ -164,7 +200,7 @@ function free
 	local size
 	psize = memory - 8
 	size = *8psize
-	syscall(11, psize, size)
+	munmap(psize, size)
 	return
 
 ; returns a pointer to a null-terminated string containing the
@@ -566,6 +602,18 @@ function open_w
 	if fd < 0 goto open_w_error
 		return fd
 	:open_w_error
+		file_error(filename)
+		return -1
+
+; open the given file for reading and writing with the given mode
+function open_rw
+	argument filename
+	argument mode
+	local fd
+	fd = syscall(2, filename, 0x242, mode)
+	if fd < 0 goto open_rw_error
+		return fd
+	:open_rw_error
 		file_error(filename)
 		return -1
 	
