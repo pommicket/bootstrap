@@ -61,20 +61,22 @@ function parse_tokens
 				suffix = prefix_end + 16
 				suffix_end = type_get_suffix_end(prefix)
 				
-				putc('B)
-				putc(':)
-				print_tokens(base_type, base_type_end)
-				putc('P)
-				putc(':)
-				print_tokens(prefix, prefix_end)
-				putc('S)
-				putc(':)
-				print_tokens(suffix, suffix_end)
+				;putc('B)
+				;putc(':)
+				;print_tokens(base_type, base_type_end)
+				;putc('P)
+				;putc(':)
+				;print_tokens(prefix, prefix_end)
+				;putc('S)
+				;putc(':)
+				;print_tokens(suffix, suffix_end)
 				
 				type = types_bytes_used
 				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
 				parse_base_type(base_type)
 				
+				puts(.str_typedef)
+				putc(32)
 				print_type(type)
 				putc(10)
 				
@@ -322,14 +324,11 @@ function parse_type_declarators
 			*1out = TYPE_ARRAY
 			types_bytes_used += 1
 			
-			local prev_types
-			local prev_types_bytes_used
 			; little hack to avoid screwing up types like  double[sizeof(int)]
-			;  temporarily switch out types array to parse the cast's type
-			prev_types = types
+			;   temporarily pretend we're using a lot more of types
+			local prev_types_bytes_used
 			prev_types_bytes_used = types_bytes_used
-			types = malloc(4000)
-			types_init(types, &types_bytes_used)
+			types_bytes_used += 4000
 			
 			expr = malloc(4000)
 			p = suffix
@@ -341,8 +340,7 @@ function parse_type_declarators
 			evaluate_constant_expression(prefix, expr, &n)
 			if n < 0 goto bad_array_size
 			free(expr)
-			free(types)
-			types = prev_types
+			
 			types_bytes_used = prev_types_bytes_used
 			
 			out = types + types_bytes_used
@@ -606,6 +604,10 @@ function parse_base_type
 					if *1member_prefix_end != TOKEN_IDENTIFIER goto member_no_identifier
 					member_name = member_prefix_end + 8
 					member_name = *8member_name
+					
+					c = ident_list_lookup_check(struct, member_name, 0)
+					if c == 1 goto duplicate_member
+					
 					member_suffix = member_prefix_end + 16
 					member_suffix_end = type_get_suffix_end(member_prefix)
 					member_type = types_bytes_used
@@ -635,6 +637,11 @@ function parse_base_type
 					if *1p != SYMBOL_COMMA goto struct_bad_declaration
 					p += 16 ; skip comma
 					goto struct_defn_decl_loop
+					:duplicate_member
+						token_error(p, .str_duplicate_member)
+					:str_duplicate_member
+						string Duplicate member in struct/union.
+						byte 0
 				:struct_defn_decl_loop_end
 				p += 16 ; skip semicolon
 				goto struct_defn_loop
@@ -856,7 +863,7 @@ function parse_expression
 	local first_token
 	:parse_expression_top
 	
-	;print_tokens(tokens, tokens_end)
+	print_tokens(tokens, tokens_end)
 	
 	type = out + 4
 	
@@ -944,7 +951,7 @@ function parse_expression
 	n = best - tokens
 	
 	c = *1best
-	
+		
 	if best == tokens goto parse_expr_unary
 	
 	; it's a binary expression.
@@ -1206,16 +1213,41 @@ function parse_expression
 	:parse_expr_member ; -> or .
 		p = best + 16
 		if *1p != TOKEN_IDENTIFIER goto bad_expression
+		
+		a = out + 4 ; pointer to type ID
+		out = parse_expression(tokens, best, out)
+		a = types + *4a
+		if c == EXPRESSION_DOT goto type_dot
+			if *1a != TYPE_POINTER goto arrow_non_pointer
+			a += 1
+		:type_dot
+		if *1a != TYPE_STRUCT goto member_non_struct
+		a += 1
+		a = *8a ; pointer to struct data
 		p += 8
-		*8out = *8p ; copy identifier name
+		c = ident_list_lookup(a, *8p)
+		if c == 0 goto member_not_in_struct
+		*8out = c & 0xffffffff ; offset
+		*4type = c > 32 ; type
+		out += 8
 		p += 8
 		if p != tokens_end goto bad_expression ; e.g. foo->bar hello
-		out += 8
-		out = parse_expression(tokens, best, out)
-		; @TODO: typing
 		return out
-		
-	
+		:arrow_non_pointer
+			token_error(p, .str_arrow_non_pointer)
+		:str_arrow_non_pointer
+			string Trying to use -> operator on a non-pointer type.
+			byte 0
+		:member_non_struct
+			token_error(p, .str_member_non_struct)
+		:str_member_non_struct
+			string Trying to access member of something other than a (complete) structure/union.
+			byte 0
+		:member_not_in_struct
+			token_error(p, .str_member_not_in_struct)
+		:str_member_not_in_struct
+			string Trying to access non-existent member of structure or union.
+			byte 0
 	:parse_conditional
 		depth = 0 ; bracket depth
 		n = 0 ; ? : depth
@@ -1947,10 +1979,21 @@ function operator_precedence
 	if op == SYMBOL_MINUS goto return_0xe0
 	if op == SYMBOL_TILDE goto return_0xe0
 	if op == SYMBOL_NOT goto return_0xe0
-	if op == SYMBOL_LPAREN goto return_0xe8 ; casts
+	if op == SYMBOL_LPAREN goto cast_precedence
 	
 	return 0xffff
-
+	:cast_precedence
+	; make sure this actually is a cast
+	;   this is necessary to handle both
+	;         - (x)->something
+	;     and - (int)x->something
+	;   correctly (in the first case, the arrow is the top-level operator, but in the second, the cast is)
+	token += 16
+	local b
+	b = token_is_type(token)
+	if b == 0 goto return_0xffff
+	goto return_0xe8 ; it's a cast
+	
 function unary_op_to_expression_type
 	argument op
 	if op == SYMBOL_PLUS_PLUS goto return_EXPRESSION_PRE_INCREMENT
@@ -2194,21 +2237,19 @@ function print_expression
 	:print_expr_dot
 		putc(40)
 		expression += 8
-		p = *8expression
-		expression += 8
 		expression = print_expression(expression)
-		putc('.)
-		puts(p)
+		puts(.str_dot)
+		putn(*8expression)
+		expression += 8
 		putc(41)
 		return expression
 	:print_expr_arrow
 		putc(40)
 		expression += 8
-		p = *8expression
-		expression += 8
 		expression = print_expression(expression)
 		puts(.str_arrow)
-		puts(p)
+		putn(*8expression)
+		expression += 8
 		putc(41)
 		return expression
 	:print_post_increment

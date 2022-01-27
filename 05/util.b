@@ -734,6 +734,8 @@ function leftmost_1bit
 	return 0xe8
 :return_0xf0
 	return 0xf0
+:return_0xffff
+	return 0xffff
 
 function syscall
 	; I've done some testing, and this should be okay even if

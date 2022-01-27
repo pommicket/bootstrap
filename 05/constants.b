@@ -134,7 +134,8 @@
 ;    - for unary operators, the operand
 ;    - for casts, the operand (type is given by type member)
 ;    - for binary operators, the first operand followed by the second
-;        - for the operators . and ->, the first argument is a 64-bit pointer to the name of the member and the second is the left hand side of the . / -> 
+;        - for the operators . and ->, the first argument is the expression on the left-hand side, and the second argument is a 64-bit offset.
+;                  we could use a 32-bit offset but that would cause things to be unaligned.
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
 ; Note that file/line number are not stored in expressions.
@@ -684,4 +685,7 @@
 	byte 0
 :str_union
 	string union
+	byte 0
+:str_typedef ; currently only used for nice debug output
+	string typedef
 	byte 0

@@ -13,7 +13,7 @@ typedef struct A {
 	long double c;
 	unsigned long d;
 	char e[3];
-	char c[2];
-	char d;
 	long f;
 } A;
+
+typedef int x[(int)&((struct A*)0)->e];
