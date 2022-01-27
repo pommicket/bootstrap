@@ -16,4 +16,13 @@ typedef struct A {
 	long f;
 } A;
 
-typedef int x[(unsigned)-3];
+typedef union B{
+	int x;
+	struct {
+		int y;
+		struct {long z; } c;
+	} c;
+}B;
+
+typedef int x[sizeof(A)];
+typedef int y[sizeof(struct B)];

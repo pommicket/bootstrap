@@ -30,6 +30,7 @@ function parse_tokens
 	local ident
 	local type
 	local p
+	local b
 	local base_type
 	local base_type_end
 	local prefix
@@ -80,6 +81,9 @@ function parse_tokens
 				print_type(type)
 				putc(10)
 				
+				b = ident_list_lookup(typedefs, ident)
+				if b != 0 goto typedef_redefinition
+				
 				ident_list_add(typedefs, ident, type)
 				token = suffix_end
 				if *1token == SYMBOL_SEMICOLON goto typedef_loop_end
@@ -90,14 +94,19 @@ function parse_tokens
 			token += 16 ; skip semicolon
 			goto parse_tokens_loop
 		:typedef_no_ident
-			token_error(tokens, .str_typedef_no_ident)
+			token_error(token, .str_typedef_no_ident)
 		:str_typedef_no_ident
 			string No identifier in typedef declaration.
 			byte 0
 		:bad_typedef
-			token_error(tokens, .str_bad_typedef)
+			token_error(token, .str_bad_typedef)
 		:str_bad_typedef
 			string Bad typedef.
+			byte 0
+		:typedef_redefinition
+			token_error(token, .str_typedef_redefinition)
+		:str_typedef_redefinition
+			string typedef redefinition.
 			byte 0
 	:parse_tokens_eof
 	return
@@ -618,7 +627,9 @@ function parse_base_type
 			local offset
 			offset = 0
 			
+			if *1struct_name == 0 goto struct_unnamed
 			ident_list_add(structures, struct_name, struct)
+			:struct_unnamed
 			
 			:struct_defn_loop
 				if *1p == SYMBOL_RBRACE goto struct_defn_loop_end
@@ -825,7 +836,7 @@ function type_length
 		n = type_length(type)
 		return n + 9
 	:type_length_not_array
-	if *1p == TYPE_STRUCT goto return_5
+	if *1p == TYPE_STRUCT goto return_9
 	if *1p != TYPE_FUNCTION goto type_length_not_function
 		local start
 		start = type
@@ -1487,10 +1498,13 @@ function type_sizeof
 	if c == TYPE_POINTER goto return_8
 	if c == TYPE_FUNCTION goto return_8
 	if c == TYPE_ARRAY goto sizeof_array
-	fputs(2, .str_sizeof_ni) ;  @TODO
+	if c == TYPE_STRUCT goto sizeof_struct
+	
+	fputs(2, .str_sizeof_bad) ;  @TODO
 	exit(1)
-	:str_sizeof_ni
-		string type_sizeof for this type not implemented.
+	:str_sizeof_bad
+		string type_sizeof bad type.
+		byte 10
 		byte 0
 	
 	:sizeof_array
@@ -1501,6 +1515,33 @@ function type_sizeof
 		p -= types
 		c = type_sizeof(p)
 		return n * c
+
+	:sizeof_struct
+		; size of struct is  offset of last member + size of last member,
+		;  rounded up to fit alignment
+		local align
+		local offset
+		local member
+		align = type_alignof(type)
+		p += 1
+		member = *8p
+		:sizeof_struct_loop
+			if *1member == 0 goto sizeof_struct_loop_end
+			member = memchr(member, 0) ; don't care about name
+			member += 1 ; skip null terminator
+			c = *8member
+			member += 8
+			offset = c & 0xffffffff
+			c >= 32 ; extract type
+			offset += type_sizeof(c)
+			goto sizeof_struct_loop
+		:sizeof_struct_loop_end
+		
+		offset += align - 1
+		offset /= align
+		offset *= align
+		
+		return offset
 
 function type_alignof
 	argument type
@@ -1522,12 +1563,35 @@ function type_alignof
 	if c == TYPE_POINTER goto return_8
 	if c == TYPE_FUNCTION goto return_8
 	if c == TYPE_ARRAY goto alignof_array
-	fputs(2, .str_alignof_ni) ;  @TODO
-	exit(1)
-	:str_alignof_ni
-		string type_alignof for this type not implemented.
-		byte 0
+	if c == TYPE_STRUCT goto alignof_struct
 	
+	fputs(2, .str_alignof_bad)
+	exit(1)
+	:str_alignof_bad
+		string type_alignof bad type.
+		byte 10
+		byte 0
+	:alignof_struct
+		; alignment of struct is max alignment of members
+		local align
+		local member
+		local a
+		align = 1
+		p += 1
+		member = *8p
+		:alignof_struct_loop
+			if *1member == 0 goto alignof_struct_loop_end
+			member = memchr(member, 0) ; don't care about name
+			member += 1 ; skip null terminator
+			c = *8member
+			member += 8
+			c >= 32 ; ignore offset
+			a = type_alignof(c)
+			if a <= align goto alignof_struct_loop
+			align = a
+			goto alignof_struct_loop
+		:alignof_struct_loop_end
+		return align
 	:alignof_array
 		p = type + 9 ; skip TYPE_ARRAY and size
 		return type_alignof(p)
