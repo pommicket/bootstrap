@@ -6,6 +6,7 @@
 ; note that file offsets and runtime addresses are the same.
 ; you should be able to change these constants without breaking anything:
 #define RODATA_ADDR 0x800000
+#define RWDATA_ADDR 0xc00000
 #define RWDATA_END 0x1000000
 #define EXECUTABLE_SIZE 0x1000000
 

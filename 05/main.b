@@ -36,7 +36,11 @@ global structures
 global structures_bytes_used
 ; file offset/runtime address to write next piece of read-only data; initialized in main
 global rodata_end_addr
+; file offset/runtime address to write next piece of read-write data; initialized in main
+global rwdata_end_addr
 global output_file_data
+; ident list of addresses of global variables.
+global global_variables
 
 #include util.b
 #include idents.b
@@ -157,6 +161,7 @@ function main
 	typedefs = ident_list_create(100000)
 	enumerators = ident_list_create(4000000)
 	structures = ident_list_create(4000000)
+	global_variables = ident_list_create(4000000)
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -178,6 +183,7 @@ function main
 	:have_filenames
 	output_fd = open_rw(output_filename, 493)
 	rodata_end_addr = RODATA_ADDR
+	rwdata_end_addr = RWDATA_ADDR
 	
 	ftruncate(output_fd, RWDATA_END)
 	output_file_data = mmap(0, RWDATA_END, PROT_READ_WRITE, MAP_SHARED, output_fd, 0)
@@ -205,6 +211,8 @@ function main
 	p = output_file_data + RODATA_ADDR
 	munmap(output_file_data, RWDATA_END)
 	close(output_fd)
+	
+	ident_list_printx32(global_variables)
 	
 	exit(0)
 

@@ -111,8 +111,39 @@ function ident_list_print
 		putc(32)
 		list = memchr(list, 0)
 		list += 1
-		putn(*8list)
+		putnln(*8list)
 		list += 8
 		goto ilist_print_loop
 	:ilist_print_loop_end
 	return
+	
+function ident_list_printx64
+	argument list
+	:ilist_printx64_loop
+		if *1list == 0 goto ilist_printx64_loop_end
+		puts(list)
+		putc(':)
+		putc(32)
+		list = memchr(list, 0)
+		list += 1
+		putx64ln(*8list)
+		list += 8
+		goto ilist_printx64_loop
+	:ilist_printx64_loop_end
+	return
+
+function ident_list_printx32
+	argument list
+	:ilist_printx32_loop
+		if *1list == 0 goto ilist_printx32_loop_end
+		puts(list)
+		putc(':)
+		putc(32)
+		list = memchr(list, 0)
+		list += 1
+		putx32ln(*8list)
+		list += 8
+		goto ilist_printx32_loop
+	:ilist_printx32_loop_end
+	return
+

@@ -33,20 +33,105 @@ function parse_tokens
 	local b
 	local base_type
 	local base_type_end
+	local name
 	local prefix
 	local prefix_end
 	local suffix
 	local suffix_end
+	local is_extern
 	
 	token = tokens
 	:parse_tokens_loop
+		is_extern = 0
 		if *1token == TOKEN_EOF goto parse_tokens_eof
+		if *1token == KEYWORD_STATIC goto parse_static_toplevel_decl
+		if *1token == KEYWORD_EXTERN goto parse_extern_toplevel_decl
 		if *1token == KEYWORD_TYPEDEF goto parse_typedef
 		
-		die(.str_parse_tokens_ni)
-		:str_parse_tokens_ni
-			string parse_tokens not implemented.
+		b = token_is_type(token)
+		if b != 0 goto parse_toplevel_decl
+		
+		die(.str_bad_statement)
+		:str_bad_statement
+			string Bad statement.
 			byte 0
+		:parse_static_toplevel_decl
+			token += 16 ; we don't care that this is static
+			goto parse_toplevel_decl
+		:parse_extern_toplevel_decl
+			token += 16
+			is_extern = 1
+			goto parse_toplevel_decl
+		:parse_toplevel_decl
+			base_type = token
+			base_type_end = type_get_base_end(token)
+			token = base_type_end
+			:tl_decl_loop
+				prefix = token
+				prefix_end = type_get_prefix_end(prefix)
+				if *1prefix_end != TOKEN_IDENTIFIER goto tl_decl_no_ident
+				name = prefix_end + 8
+				name = *8name
+				suffix = prefix_end + 16
+				suffix_end = type_get_suffix_end(prefix)
+				type = types_bytes_used
+				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+				parse_base_type(base_type, base_type_end)
+				token = suffix_end
+				if *1token == SYMBOL_LBRACE goto parse_function_definition
+				if *1token == SYMBOL_SEMICOLON goto parse_tld_no_initializer
+				if *1token == SYMBOL_COMMA goto parse_tld_no_initializer
+				if *1token == SYMBOL_EQ goto parse_tld_initializer
+				token_error(token, .str_unrecognized_stuff_after_declaration)
+				:str_unrecognized_stuff_after_declaration
+					string Declaration should be followed by one of: { , =
+					byte 32
+					byte 59 ; semicolon
+					byte 0	
+				:parse_tl_decl_cont
+				if *1token == SYMBOL_SEMICOLON goto tl_decl_loop_done
+				if *1token != SYMBOL_COMMA goto tld_bad_stuff_after_decl
+				goto tl_decl_loop
+			:tl_decl_loop_done
+			token += 16 ; skip semicolon
+			goto parse_tokens_loop
+				 				 
+			:tl_decl_no_ident
+				token_error(prefix_end, .str_tl_decl_no_ident)
+			:str_tl_decl_no_ident
+				string No identifier in top-level declaration.
+				byte 0
+			:tld_bad_stuff_after_decl
+				token_error(token, .str_tld_bad_stuff_after_decl)
+			:str_tld_bad_stuff_after_decl
+				string Declarations should be immediately followed by a comma or semicolon.
+				byte 0
+		:parse_tld_no_initializer
+			p = types + type
+			if *1p == TYPE_FUNCTION goto parse_tl_decl_cont ; ignore function declarations -- we do two passes anyways
+			ident_list_add(global_variables, name, rwdata_end_addr)
+			; just skip forward by the size of this variable -- it'll automatically be filled with 0s.
+			rwdata_end_addr += type_sizeof(type)
+			goto parse_tl_decl_cont
+		:parse_tld_initializer
+			die(.str_tldinNI) ; @TODO
+			:str_tldinNI
+				string tld initializer not implemented.
+				byte 10
+				byte 0
+		:parse_function_definition
+			p = types + type
+			if *1p != TYPE_FUNCTION goto lbrace_after_declaration
+			die(.str_fdNI) ; @TODO
+			:str_fdNI
+				string function definitions not implemented.
+				byte 10
+				byte 0
+			:lbrace_after_declaration
+				token_error(token, .str_lbrace_after_declaration)
+			:str_lbrace_after_declaration
+				string Opening { after declaration of non-function.
+				byte 0
 		:parse_typedef
 			base_type = token + 16
 			base_type_end = type_get_base_end(base_type)
@@ -359,6 +444,11 @@ function parse_type_declarators
 			*1out = TYPE_ARRAY
 			types_bytes_used += 1
 			
+			p = suffix
+			token_skip_to_matching_rsquare(&p)
+			suffix += 16 ; skip [
+			if *1suffix == SYMBOL_RSQUARE goto array_no_size
+			
 			; little hack to avoid screwing up types like  double[sizeof(int)]
 			;   temporarily pretend we're using a lot more of types
 			local prev_types_bytes_used
@@ -366,9 +456,7 @@ function parse_type_declarators
 			types_bytes_used += 4000
 			
 			expr = malloc(4000)
-			p = suffix
-			token_skip_to_matching_rsquare(&p)
-			suffix += 16 ; skip [
+			
 			parse_expression(suffix, p, expr)
 			;print_expression(expr)
 			;putc(10)
@@ -388,7 +476,14 @@ function parse_type_declarators
 				token_error(suffix, .str_bad_array_size)
 			:str_bad_array_size
 				string Very large or negative array size.
-				byte 0 
+				byte 0
+			:array_no_size
+				; e.g. int x[] = {1,2,3};
+				out = types + types_bytes_used
+				*8out = 0
+				types_bytes_used += 8
+				suffix += 16
+				goto type_declarators_loop
 		:parse_function_type
 			local param_base_type
 			local param_prefix
@@ -605,6 +700,8 @@ function parse_base_type
 			out += 1
 			goto base_type_done
 		:base_type_struct_definition
+			;  @NONSTANDARD: we don't handle bit-fields.
+			
 			local member_base_type
 			local member_prefix
 			local member_prefix_end
