@@ -271,9 +271,9 @@ function parse_constant_initializer
 	:found_init_end
 	
 	if *1token == SYMBOL_LBRACE goto parse_braced_initializer
-	
+	if *1token == TOKEN_STRING_LITERAL goto parse_string_literal_initializer
 	p = types + type
-	if *1p > TYPE_DOUBLE goto expression_initializer_for_nonscalar_type
+	if *1p > TYPE_POINTER goto expression_initializer_for_nonscalar_type
 	
 	global 8000 dat_const_initializer
 	expr = &dat_const_initializer
@@ -307,13 +307,15 @@ function parse_constant_initializer
 		return
 	
 	
-	:init_floating_check
+	:init_floating_check ; also checks pointer types (e.g. don't do   static void *x = 1;)
 		if value != 0 goto floating_initializer_other_than_0
 		goto init_good
 	
 	:parse_braced_initializer
 	byte 0xcc ; @TODO
-
+	:parse_string_literal_initializer
+	byte 0xcc ; @TODO
+	
 	:find_init_end_eof
 		token_error(token, .str_find_init_end_eof)
 	:str_find_init_end_eof
@@ -332,7 +334,7 @@ function parse_constant_initializer
 	:floating_initializer_other_than_0
 		token_error(token, .str_floating_initializer_other_than_0)
 	:str_floating_initializer_other_than_0
-		string Only 0 is supported as a floating-point initializer.
+		string Only 0 is supported as a floating-point/pointer initializer.
 		byte 0
 ; *p_token should be pointing to a {, this will advance it to point to the matching }
 function token_skip_to_matching_rbrace

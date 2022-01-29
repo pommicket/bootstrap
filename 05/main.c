@@ -38,6 +38,7 @@ typedef struct {
 
 int a = -138;
 double f = 0;
+void *p = 0;
 int j = 3+7<<5, k = 123;
 
 /*
