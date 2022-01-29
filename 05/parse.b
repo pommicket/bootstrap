@@ -31,6 +31,7 @@ function parse_tokens
 	local type
 	local p
 	local b
+	local c
 	local base_type
 	local base_type_end
 	local name
@@ -79,6 +80,8 @@ function parse_tokens
 				parse_base_type(base_type, base_type_end)
 				token = suffix_end
 				if *1token == SYMBOL_LBRACE goto parse_function_definition
+				if is_extern != 0 goto parse_tl_decl_cont  ; ignore external variable declarations
+				; deal with the initializer if there is one
 				if *1token == SYMBOL_SEMICOLON goto parse_tld_no_initializer
 				if *1token == SYMBOL_COMMA goto parse_tld_no_initializer
 				if *1token == SYMBOL_EQ goto parse_tld_initializer
@@ -89,8 +92,15 @@ function parse_tokens
 					byte 59 ; semicolon
 					byte 0	
 				:parse_tl_decl_cont
+				
+				; ensure rwdata_end_addr is aligned to 8 bytes
+				rwdata_end_addr += 7
+				rwdata_end_addr >= 3
+				rwdata_end_addr <= 3
+				
 				if *1token == SYMBOL_SEMICOLON goto tl_decl_loop_done
 				if *1token != SYMBOL_COMMA goto tld_bad_stuff_after_decl
+				token += 16
 				goto tl_decl_loop
 			:tl_decl_loop_done
 			token += 16 ; skip semicolon
@@ -109,16 +119,34 @@ function parse_tokens
 		:parse_tld_no_initializer
 			p = types + type
 			if *1p == TYPE_FUNCTION goto parse_tl_decl_cont ; ignore function declarations -- we do two passes anyways
-			ident_list_add(global_variables, name, rwdata_end_addr)
+			b = ident_list_lookup(global_variables, name)
+			if b != 0 goto global_redefinition
+			c = type < 32
+			c |= rwdata_end_addr
+			ident_list_add(global_variables, name, c)
 			; just skip forward by the size of this variable -- it'll automatically be filled with 0s.
 			rwdata_end_addr += type_sizeof(type)
 			goto parse_tl_decl_cont
 		:parse_tld_initializer
-			die(.str_tldinNI) ; @TODO
-			:str_tldinNI
-				string tld initializer not implemented.
-				byte 10
-				byte 0
+			if *1p == TYPE_FUNCTION goto function_initializer
+			b = ident_list_lookup(global_variables, name)
+			if b != 0 goto global_redefinition
+			token += 16 ; skip =
+			c = type < 32
+			c |= rwdata_end_addr
+			ident_list_add(global_variables, name, c)
+			parse_constant_initializer(&token, type)
+			goto parse_tl_decl_cont
+		:global_redefinition
+			token_error(token, .str_global_redefinition)
+		:str_global_redefinition
+			string Redefinition of global variable.
+			byte 0
+		:function_initializer
+			token_error(token, .str_function_initializer)
+		:str_function_initializer
+			string Functions should not have initializers.
+			byte 0
 		:parse_function_definition
 			p = types + type
 			if *1p != TYPE_FUNCTION goto lbrace_after_declaration
@@ -196,7 +224,116 @@ function parse_tokens
 	:parse_tokens_eof
 	return
 
+; parse a global variable's initializer
+; e.g.    int x[5] = {1+8, 2, 3, 4, 5};
+; advances *p_token to the token right after the initializer
+; if `type` refers to a sizeless array type (e.g. int x[] = {1,2,3};), it will be altered to the correct size
+; outputs the initializer data to rwdata_end_addr, and advances it accordingly.
+; after calling this, make sure you update rwdata_end_addr to a multiple of 8 if necessary
+function parse_constant_initializer
+	argument p_token
+	argument type
+	local token
+	local end
+	local depth
+	local c
+	local p
+	local expr
+	local value
+	
+	token = *8p_token
+	depth = 0
+	end = token
+	; find the end of the initializer, i.e. the next comma or semicolon not inside braces,
+	; square brackets, or parentheses:
+	:find_init_end_loop
+		c = *1end
+		if c == TOKEN_EOF goto find_init_end_eof
+		if c == SYMBOL_LPAREN goto find_init_end_incdepth
+		if c == SYMBOL_LSQUARE goto find_init_end_incdepth
+		if c == SYMBOL_LBRACE goto find_init_end_incdepth
+		if c == SYMBOL_RPAREN goto find_init_end_decdepth
+		if c == SYMBOL_RSQUARE goto find_init_end_decdepth
+		if c == SYMBOL_RBRACE goto find_init_end_decdepth
+		if depth > 0 goto find_init_cont
+		if depth < 0 goto init_end_bad_brackets
+		if c == SYMBOL_COMMA goto found_init_end
+		if c == SYMBOL_SEMICOLON goto found_init_end
+		:find_init_cont
+		end += 16
+		goto find_init_end_loop
+		:find_init_end_incdepth
+			depth += 1
+			goto find_init_cont
+		:find_init_end_decdepth
+			depth -= 1
+			goto find_init_cont
+	:found_init_end
+	
+	if *1token == SYMBOL_LBRACE goto parse_braced_initializer
+	
+	p = types + type
+	if *1p > TYPE_DOUBLE goto expression_initializer_for_nonscalar_type
+	
+	global 8000 dat_const_initializer
+	expr = &dat_const_initializer
+	parse_expression(token, end, expr)
+	evaluate_constant_expression(token, expr, &value)
+	if *1p > TYPE_UNSIGNED_LONG goto init_floating_check
+	:init_good
+	c = type_sizeof(type)
+	p = output_file_data + rwdata_end_addr
+	rwdata_end_addr += c
+	*8p_token = end
+	if c == 1 goto write_initializer1
+	if c == 2 goto write_initializer2
+	if c == 4 goto write_initializer4
+	if c == 8 goto write_initializer8
+	die(.init_somethings_very_wrong)
+	:init_somethings_very_wrong
+		string Scalar type with a weird size. This shouldn't happen.
+		byte 0
+	:write_initializer1
+		*1p = value
+		return
+	:write_initializer2
+		*2p = value
+		return
+	:write_initializer4
+		*4p = value
+		return
+	:write_initializer8
+		*8p = value
+		return
+	
+	
+	:init_floating_check
+		if value != 0 goto floating_initializer_other_than_0
+		goto init_good
+	
+	:parse_braced_initializer
+	byte 0xcc ; @TODO
 
+	:find_init_end_eof
+		token_error(token, .str_find_init_end_eof)
+	:str_find_init_end_eof
+		string Can't find end of initializer.
+		byte 0
+	:init_end_bad_brackets
+		token_error(end, .str_init_end_bad_brackets)
+	:str_init_end_bad_brackets
+		string Too many closing brackets.
+		byte 0
+	:expression_initializer_for_nonscalar_type
+		token_error(token, .str_expression_initializer_for_nonscalar_type)
+	:str_expression_initializer_for_nonscalar_type
+		string Expression initializer for non-scalar type.
+		byte 0
+	:floating_initializer_other_than_0
+		token_error(token, .str_floating_initializer_other_than_0)
+	:str_floating_initializer_other_than_0
+		string Only 0 is supported as a floating-point initializer.
+		byte 0
 ; *p_token should be pointing to a {, this will advance it to point to the matching }
 function token_skip_to_matching_rbrace
 	argument p_token

@@ -39,7 +39,8 @@ global rodata_end_addr
 ; file offset/runtime address to write next piece of read-write data; initialized in main
 global rwdata_end_addr
 global output_file_data
-; ident list of addresses of global variables.
+; ident list of global variables. each one is stored as
+;  (type << 32) | address
 global global_variables
 
 #include util.b
@@ -212,7 +213,7 @@ function main
 	munmap(output_file_data, RWDATA_END)
 	close(output_fd)
 	
-	ident_list_printx32(global_variables)
+	ident_list_printx64(global_variables)
 	
 	exit(0)
 

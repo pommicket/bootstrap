@@ -32,6 +32,14 @@ static unsigned int y;
 static unsigned int z[1000];
 static unsigned int w;
 
+typedef struct {
+	int x;
+} Test;
+
+int a = -138;
+double f = 0;
+int j = 3+7<<5, k = 123;
+
 /*
 NOTE: THIS MUST WORK
 int x[] = {1,2,3}
