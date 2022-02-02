@@ -36,4 +36,6 @@ static char w[] = "friendly";
 static char x_[] = "hi";
 typedef int A[sizeof x_ + sizeof u];
 
-static int a[3] = {1,2,3};
+static int a[5] = {1,2,3};
+static char b[6][7] = {{'a'},{'b'},{'c'},{'d'},{'e'}};
+static int _u = 0x12345678;

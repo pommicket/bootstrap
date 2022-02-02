@@ -345,17 +345,38 @@ function parse_constant_initializer
 		token += 16
 		:array_init_no_lbrace
 		addr0 = rwdata_end_addr
+		
+		local len
+		len = types + type
+		len += 1 ; skip TYPE_ARRAY
+		len = *8len
+		
 		subtype = type + 9 ; skip TYPE_ARRAY and size
 		:array_init_loop
 			if *1token == TOKEN_EOF goto array_init_eof
 			parse_constant_initializer(&token, subtype)
+			len -= 1
+			if len == 0 goto array_init_loop_end
 			if *1token == SYMBOL_RBRACE goto array_init_loop_end
 			if *1token != SYMBOL_COMMA goto bad_array_initializer
 			token += 16 ; skip comma
 			goto array_init_loop
 		:array_init_loop_end
-		putcln('*)
-		
+	
+		if *1token == SYMBOL_COMMA goto array_init_skip
+		p = *8p_token
+		if *1p != SYMBOL_LBRACE goto array_init_noskip ; we don't want to skip the closing } because it doesn't belong to us.
+		:array_init_skip
+			token += 16 ; skip } or ,
+		:array_init_noskip
+		p = types + type
+		p += 1 ; skip TYPE_ARRAY
+		if *8p == 0 goto sizeless_array_initializer
+		rwdata_end_addr = addr0
+		c = type_sizeof(subtype)
+		rwdata_end_addr += *8p * c ; e.g. int x[50] = {1,2};  advance rwdata_end_addr by 50*sizeof(int)
+		goto const_init_ret
+		:sizeless_array_initializer
 		byte 0xcc ; @TODO
 	:array_init_eof
 		token_error(token, .str_array_init_eof)
