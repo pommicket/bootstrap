@@ -103,7 +103,7 @@ function get_keyword_str
 ;    uchar info
 ;    ushort file
 ;    uint line
-;    ulong data
+;    ulong data  -- for int/float literals, the value; for string literals, the runtime address; for identifiers, the name of the identifier
 ; This corresponds to translation phases 5-6 and the first half of 7
 ; IMPORTANT: this function uses pointers to pptokens, so it should NOT be freed!
 ; Returns a pointer to the end of tokens.

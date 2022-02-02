@@ -229,7 +229,7 @@ function parse_tokens
 ; advances *p_token to the token right after the initializer
 ; if `type` refers to a sizeless array type (e.g. int x[] = {1,2,3};), it will be altered to the correct size
 ; outputs the initializer data to rwdata_end_addr, and advances it accordingly.
-; after calling this, make sure you update rwdata_end_addr to a multiple of 8 if necessary
+; after calling this, make sure to align rwdata_end_addr properly
 function parse_constant_initializer
 	argument p_token
 	argument type
@@ -272,6 +272,9 @@ function parse_constant_initializer
 	
 	if *1token == SYMBOL_LBRACE goto parse_braced_initializer
 	if *1token == TOKEN_STRING_LITERAL goto parse_string_literal_initializer
+	
+	; an ordinary expression
+	
 	p = types + type
 	if *1p > TYPE_POINTER goto expression_initializer_for_nonscalar_type
 	
@@ -284,7 +287,6 @@ function parse_constant_initializer
 	c = type_sizeof(type)
 	p = output_file_data + rwdata_end_addr
 	rwdata_end_addr += c
-	*8p_token = end
 	if c == 1 goto write_initializer1
 	if c == 2 goto write_initializer2
 	if c == 4 goto write_initializer4
@@ -295,27 +297,52 @@ function parse_constant_initializer
 		byte 0
 	:write_initializer1
 		*1p = value
-		return
+		goto const_init_ret
 	:write_initializer2
 		*2p = value
-		return
+		goto const_init_ret
 	:write_initializer4
 		*4p = value
-		return
+		goto const_init_ret
 	:write_initializer8
 		*8p = value
-		return
-	
-	
+		goto const_init_ret
 	:init_floating_check ; also checks pointer types (e.g. don't do   static void *x = 1;)
 		if value != 0 goto floating_initializer_other_than_0
 		goto init_good
 	
+	:const_init_ret
+	*8p_token = end
+	return
+	
 	:parse_braced_initializer
 	byte 0xcc ; @TODO
 	:parse_string_literal_initializer
-	byte 0xcc ; @TODO
-	
+		p = token + 16
+		if p != end goto stuff_after_string_literal
+		p = types + type
+		if *1p == TYPE_ARRAY goto string_literal_array_initializer
+		if *1p != TYPE_POINTER goto string_literal_bad_type
+		p += 1
+		if *1p != TYPE_CHAR goto string_literal_bad_type
+		token += 8
+		p = output_file_data + rwdata_end_addr
+		*8p = *8token
+		rwdata_end_addr += 8
+		goto const_init_ret
+		
+	:string_literal_array_initializer
+		byte 0xcc
+	:stuff_after_string_literal
+		token_error(token, .str_stuff_after_string_literal)
+	:str_stuff_after_string_literal
+		string Stuff after string literal in initializer.
+		byte 0
+	:string_literal_bad_type
+		token_error(token, .str_string_literal_bad_type)
+	:str_string_literal_bad_type
+		string Bad type for string literal initializer (i.e. not char* or char[]).
+		byte 0
 	:find_init_end_eof
 		token_error(token, .str_find_init_end_eof)
 	:str_find_init_end_eof
@@ -1890,10 +1917,13 @@ function evaluate_constant_expression
 		byte 0
 	:eval_cast
 		p = types + type
-		if *1p == TYPE_VOID goto eval_cast_bad_type
-		if *1p > TYPE_UNSIGNED_LONG goto eval_cast_bad_type
-		expr += 8
+		c = *1p
+		if c == TYPE_VOID goto eval_cast_bad_type
 		; @NONSTANDARD: we don't support, for example,  int x[(int)(float)5];
+		if c == TYPE_FLOAT goto eval_cast_bad_type
+		if c == TYPE_DOUBLE goto eval_cast_bad_type
+		if c > TYPE_POINTER goto eval_cast_bad_type
+		expr += 8
 		expr = evaluate_constant_expression(token, expr, p_value)
 		goto eval_fit_to_type
 		:eval_cast_bad_type
@@ -2124,6 +2154,7 @@ function fit_to_type
 	if c == TYPE_UNSIGNED_INT goto fit_to_type_uint
 	if c == TYPE_LONG goto fit_to_type_long
 	if c == TYPE_UNSIGNED_LONG goto fit_to_type_ulong
+	if c == TYPE_POINTER goto fit_to_type_ulong
 	fputs(2, .str_bad_fit_to_type)
 	exit(1)
 	:str_bad_fit_to_type

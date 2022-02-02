@@ -27,20 +27,9 @@
 /* typedef int x[sizeof(A)+sizeof"hello"]; */
 /* typedef int y[sizeof(struct B)]; */
 
-static unsigned int x;
-static unsigned int y;
-static unsigned int z[1000];
-static unsigned int w;
-
-typedef struct {
-	int x;
-} Test;
-
-int a = -138;
-double f = 0;
-void *p = 0;
-int j = 3+7<<5, k = 123;
-
+static unsigned int x=55;
+static char *s = "hello";
+static char *t = "goodbye";
 /*
 NOTE: THIS MUST WORK
 int x[] = {1,2,3}
