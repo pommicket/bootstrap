@@ -27,7 +27,7 @@
 /* typedef int x[sizeof(A)+sizeof"hello"]; */
 /* typedef int y[sizeof(struct B)]; */
 
-static unsigned int x=55;
+static unsigned int x={55};
 static char *s = "hello";
 static char *t = "goodbye";
 static char u[8] = "hellothe";
@@ -36,8 +36,4 @@ static char w[] = "friendly";
 static char x_[] = "hi";
 typedef int A[sizeof x_ + sizeof u];
 
-/*
-NOTE: THIS MUST WORK
-int x[] = {1,2,3}
-sizeof x
-*/
+static int a[3] = {1,2,3};

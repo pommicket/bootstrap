@@ -233,8 +233,10 @@ function parse_tokens
 function parse_constant_initializer
 	argument p_token
 	argument type
+	
+	local addr0
+	local subtype
 	local token
-	local end
 	local depth
 	local a
 	local b
@@ -244,6 +246,15 @@ function parse_constant_initializer
 	local value
 	
 	token = *8p_token
+	
+	p = types + type
+	if *1p == TYPE_STRUCT goto parse_struct_initializer
+	if *1p == TYPE_ARRAY goto parse_array_initializer
+	if *1token == SYMBOL_LBRACE goto parse_braced_expression_initializer
+	
+	; an ordinary expression
+	; first, find the end of the expression.
+	local end
 	depth = 0
 	end = token
 	; find the end of the initializer, i.e. the next comma or semicolon not inside braces,
@@ -269,13 +280,9 @@ function parse_constant_initializer
 			goto find_init_cont
 		:find_init_end_decdepth
 			depth -= 1
+			if depth < 0 goto found_init_end
 			goto find_init_cont
 	:found_init_end
-	
-	if *1token == SYMBOL_LBRACE goto parse_braced_initializer
-	if *1token == TOKEN_STRING_LITERAL goto parse_string_literal_initializer
-	
-	; an ordinary expression
 	
 	p = types + type
 	if *1p > TYPE_POINTER goto expression_initializer_for_nonscalar_type
@@ -284,8 +291,10 @@ function parse_constant_initializer
 	expr = &dat_const_initializer
 	parse_expression(token, end, expr)
 	evaluate_constant_expression(token, expr, &value)
-	if *1p > TYPE_UNSIGNED_LONG goto init_floating_check
+	if *1p == TYPE_FLOAT goto init_floating_check
+	if *1p == TYPE_DOUBLE goto init_floating_check
 	:init_good
+	token = end
 	c = type_sizeof(type)
 	p = output_file_data + rwdata_end_addr
 	rwdata_end_addr += c
@@ -309,36 +318,67 @@ function parse_constant_initializer
 	:write_initializer8
 		*8p = value
 		goto const_init_ret
-	:init_floating_check ; also checks pointer types (e.g. don't do   static void *x = 1;)
+	:init_floating_check ; we only support 0 as a floating-point initializer
 		if value != 0 goto floating_initializer_other_than_0
 		goto init_good
 	
 	:const_init_ret
-	*8p_token = end
+	*8p_token = token
 	return
 	
-	:parse_braced_initializer
-	byte 0xcc ; @TODO
-	:parse_string_literal_initializer
-		p = token + 16
-		if p != end goto stuff_after_string_literal
-		p = types + type
-		if *1p == TYPE_ARRAY goto string_literal_array_initializer
-		if *1p != TYPE_POINTER goto string_literal_bad_type
-		p += 1
-		if *1p != TYPE_CHAR goto string_literal_bad_type
-		token += 8
-		p = output_file_data + rwdata_end_addr
-		*8p = *8token
-		rwdata_end_addr += 8
+	:parse_braced_expression_initializer
+		; a scalar initializer may optionally be enclosed in braces, e.g.
+		;   int x = {3};
+		token += 16
+		parse_constant_initializer(&token, type)
+		if *1token != SYMBOL_RBRACE goto bad_scalar_initializer
+		token += 16
 		goto const_init_ret
+		:bad_scalar_initializer
+			token_error(token, .str_bad_scalar_initializer)
+		:str_bad_scalar_initializer
+			string Bad scalar initializer.
+			byte 0
+	:parse_array_initializer
+		if *1token == TOKEN_STRING_LITERAL goto parse_string_array_initializer ; check for  char x[] = "hello";
+		if *1token != SYMBOL_LBRACE goto array_init_no_lbrace ; only happens when recursing
+		token += 16
+		:array_init_no_lbrace
+		addr0 = rwdata_end_addr
+		subtype = type + 9 ; skip TYPE_ARRAY and size
+		:array_init_loop
+			if *1token == TOKEN_EOF goto array_init_eof
+			parse_constant_initializer(&token, subtype)
+			if *1token == SYMBOL_RBRACE goto array_init_loop_end
+			if *1token != SYMBOL_COMMA goto bad_array_initializer
+			token += 16 ; skip comma
+			goto array_init_loop
+		:array_init_loop_end
+		putcln('*)
 		
-	:string_literal_array_initializer
-		p += 1
+		byte 0xcc ; @TODO
+	:array_init_eof
+		token_error(token, .str_array_init_eof)
+	:str_array_init_eof
+		string Array initializer does not end.
+		byte 0
+	:bad_array_initializer
+		token_error(token, .str_bad_array_initializer)
+	:str_bad_array_initializer
+		string Bad array initializer.
+		byte 0
+	:parse_struct_initializer
+		byte 0xcc ; @TODO
+	:parse_string_array_initializer
+		p = types + type
+		p += 9
+		if *1p != TYPE_CHAR goto string_literal_bad_type
+		p -= 8
 		c = *8p ; array size
 		token += 8
 		a = output_file_data + rwdata_end_addr ; destination (where to put the string data)
 		b = output_file_data + *8token ; source (where the string data is now)
+		token += 8
 		if c == 0 goto string_literal_sizeless_initializer
 		value = strlen(b)
 		if c < value goto string_literal_init_too_long ; e.g. char x[3] = "hello";
@@ -385,7 +425,7 @@ function parse_constant_initializer
 	:floating_initializer_other_than_0
 		token_error(token, .str_floating_initializer_other_than_0)
 	:str_floating_initializer_other_than_0
-		string Only 0 is supported as a floating-point/pointer initializer.
+		string Only 0 is supported as a floating-point initializer.
 		byte 0
 ; *p_token should be pointing to a {, this will advance it to point to the matching }
 function token_skip_to_matching_rbrace
@@ -1732,13 +1772,13 @@ function parse_expression
 		return out
 		
 	:expression_string_literal
-		*1out = EXPRESSION_STRING_LITERAL
+		*1out = EXPRESSION_CONSTANT_INT
 		p = in + 8
 		value = *8p
 		p = out + 8
 		*8p = value
 		
-		; we already know this is char*
+		; must be char*
 		p = out + 4
 		*4p = TYPE_POINTER_TO_CHAR
 		
@@ -2589,7 +2629,6 @@ function print_expression
 	
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto print_expr_float
-	if c == EXPRESSION_STRING_LITERAL goto print_expr_str
 	if c == EXPRESSION_POST_INCREMENT goto print_post_increment
 	if c == EXPRESSION_POST_DECREMENT goto print_post_decrement
 	if c == EXPRESSION_DOT goto print_expr_dot
@@ -2627,13 +2666,6 @@ function print_expression
 	:print_expr_float
 		expression += 8
 		putx64(*8expression)
-		expression += 8
-		return expression
-	:print_expr_str
-		expression += 8
-		putc('0)
-		putc('x)
-		putx32(*8expression)
 		expression += 8
 		return expression
 	:print_expr_binop

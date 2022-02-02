@@ -136,7 +136,6 @@
 ;    - for global variables, the 64-bit runtime address
 ;    - for constant ints, the 64-bit integral value
 ;    - for constant floats, the 64-bit double value (even if expression has type float)
-;    - for string literals, a 64-bit pointer to the string (for the executable, not for the compiler)
 ;    - for unary operators, the operand
 ;    - for casts, the operand (type is given by type member)
 ;    - for binary operators, the first operand followed by the second
@@ -144,11 +143,11 @@
 ;                  we could use a 32-bit offset but that would cause things to be unaligned.
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
-; Note that file/line number are not stored in expressions.
+; File/line number are not stored in expressions.
+; Note that string literals are stored as constant integers (you can check the type to know what it is)
 #define EXPRESSION_GLOBAL_VARIABLE 200
 #define EXPRESSION_CONSTANT_INT 201
 #define EXPRESSION_CONSTANT_FLOAT 202
-#define EXPRESSION_STRING_LITERAL 203
 #define EXPRESSION_SUBSCRIPT 204
 #define EXPRESSION_CALL 205
 #define EXPRESSION_DOT 206
