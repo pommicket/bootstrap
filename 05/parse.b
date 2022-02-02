@@ -236,6 +236,8 @@ function parse_constant_initializer
 	local token
 	local end
 	local depth
+	local a
+	local b
 	local c
 	local p
 	local expr
@@ -332,7 +334,29 @@ function parse_constant_initializer
 		goto const_init_ret
 		
 	:string_literal_array_initializer
-		byte 0xcc
+		p += 1
+		c = *8p ; array size
+		token += 8
+		a = output_file_data + rwdata_end_addr ; destination (where to put the string data)
+		b = output_file_data + *8token ; source (where the string data is now)
+		if c == 0 goto string_literal_sizeless_initializer
+		value = strlen(b)
+		if c < value goto string_literal_init_too_long ; e.g. char x[3] = "hello";
+		strcpy(a, b)
+		rwdata_end_addr += c ; advance by c, which is possibly more than the length of the string--the remaining bytes will be 0s
+		goto const_init_ret
+	:string_literal_sizeless_initializer ; e.g. char x[] = "hello";
+		c = strlen(b)
+		c += 1 ; null terminator
+		*8p = c ; set array size
+		strcpy(a, b)
+		rwdata_end_addr += c
+		goto const_init_ret
+	:string_literal_init_too_long
+		token_error(token, .str_string_literal_init_too_long)
+	:str_string_literal_init_too_long
+		string String literal is too long to fit in array.
+		byte 0 
 	:stuff_after_string_literal
 		token_error(token, .str_stuff_after_string_literal)
 	:str_stuff_after_string_literal
@@ -1651,8 +1675,23 @@ function parse_expression
 			out += 8
 			return out
 		:not_enumerator
-			in -= 16
-			token_error(in, .str_undeclared_variable)
+		; @TODO: check if it's a local variable
+		
+		; check if it's a global
+		c = ident_list_lookup(global_variables, a)
+		if c == 0 goto not_global
+			; it is a global variable
+			*1out = EXPRESSION_GLOBAL_VARIABLE
+			out += 4
+			*4out = c > 32 ; extract type
+			out += 4
+			*8out = c & 0xffffffff ; extract address
+			out += 8
+			return out
+		:not_global
+		
+		in -= 16
+		token_error(in, .str_undeclared_variable)
 		:str_undeclared_variable
 			string Undeclared variable.
 			byte 0

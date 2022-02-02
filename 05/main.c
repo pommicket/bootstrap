@@ -30,6 +30,12 @@
 static unsigned int x=55;
 static char *s = "hello";
 static char *t = "goodbye";
+static char u[8] = "hellothe";
+static char v[100] = "re my";
+static char w[] = "friendly";
+static char x_[] = "hi";
+typedef int A[sizeof x_ + sizeof u];
+
 /*
 NOTE: THIS MUST WORK
 int x[] = {1,2,3}

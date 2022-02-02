@@ -133,6 +133,7 @@
 ;    ushort (padding)
 ;    uint type
 ; immediately following the header in memory are the arguments of the expression
+;    - for global variables, the 64-bit runtime address
 ;    - for constant ints, the 64-bit integral value
 ;    - for constant floats, the 64-bit double value (even if expression has type float)
 ;    - for string literals, a 64-bit pointer to the string (for the executable, not for the compiler)
@@ -144,7 +145,7 @@
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
 ; Note that file/line number are not stored in expressions.
-#define EXPRESSION_IDENTIFIER 200
+#define EXPRESSION_GLOBAL_VARIABLE 200
 #define EXPRESSION_CONSTANT_INT 201
 #define EXPRESSION_CONSTANT_FLOAT 202
 #define EXPRESSION_STRING_LITERAL 203
