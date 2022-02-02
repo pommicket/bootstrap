@@ -23,6 +23,18 @@ function token_is_type
 		b = ident_list_lookup(typedefs, c)
 		if b != 0 goto return_1
 		goto return_0
+
+; NB: this takes a pointer to struct data, NOT a type
+; Returns 1 if it's a union OR a struct with 1 member (we don't distinguish between these in any way)
+function structure_is_union
+	argument struct
+	local offset
+	; calculate offset of 2nd member, or 0 if there is only one member
+	offset = ident_list_value_at_index(struct, 1)
+	offset &= 0xffffffff
+	if offset == 0 goto return_1 ; if that's 0, it's a union or 1-element struct
+	goto return_0
+	
 	
 function parse_tokens
 	argument tokens
@@ -78,6 +90,13 @@ function parse_tokens
 				type = types_bytes_used
 				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
 				parse_base_type(base_type, base_type_end)
+				
+				; ensure rwdata_end_addr is aligned to 8 bytes
+				; otherwise addresses could be screwed up
+				rwdata_end_addr += 7
+				rwdata_end_addr >= 3
+				rwdata_end_addr <= 3
+				
 				token = suffix_end
 				if *1token == SYMBOL_LBRACE goto parse_function_definition
 				if is_extern != 0 goto parse_tl_decl_cont  ; ignore external variable declarations
@@ -93,10 +112,6 @@ function parse_tokens
 					byte 0	
 				:parse_tl_decl_cont
 				
-				; ensure rwdata_end_addr is aligned to 8 bytes
-				rwdata_end_addr += 7
-				rwdata_end_addr >= 3
-				rwdata_end_addr <= 3
 				
 				if *1token == SYMBOL_SEMICOLON goto tl_decl_loop_done
 				if *1token != SYMBOL_COMMA goto tld_bad_stuff_after_decl
@@ -229,7 +244,8 @@ function parse_tokens
 ; advances *p_token to the token right after the initializer
 ; if `type` refers to a sizeless array type (e.g. int x[] = {1,2,3};), it will be altered to the correct size
 ; outputs the initializer data to rwdata_end_addr, and advances it accordingly.
-; after calling this, make sure to align rwdata_end_addr properly
+;    this aligns rwdata_end_addr before writing data, so if you want the initial value of rwdata_end_addr
+;    to correspond to the address, ALIGN IT FIRST.
 function parse_constant_initializer
 	argument p_token
 	argument type
@@ -296,6 +312,10 @@ function parse_constant_initializer
 	:init_good
 	token = end
 	c = type_sizeof(type)
+	; align rwdata_end_addr to size of type
+	rwdata_end_addr += c - 1
+	rwdata_end_addr /= c
+	rwdata_end_addr *= c
 	p = output_file_data + rwdata_end_addr
 	rwdata_end_addr += c
 	if c == 1 goto write_initializer1
@@ -355,7 +375,7 @@ function parse_constant_initializer
 		:array_init_loop
 			if *1token == TOKEN_EOF goto array_init_eof
 			parse_constant_initializer(&token, subtype)
-			len -= 1
+			len -= 1 ; kind of horrible hack.  -len will track the number of elements for sizeless arrays, and len will count down to 0 for sized arrays
 			if len == 0 goto array_init_loop_end
 			if *1token == SYMBOL_RBRACE goto array_init_loop_end
 			if *1token != SYMBOL_COMMA goto bad_array_initializer
@@ -363,7 +383,7 @@ function parse_constant_initializer
 			goto array_init_loop
 		:array_init_loop_end
 	
-		if *1token == SYMBOL_COMMA goto array_init_skip
+		if *1token != SYMBOL_RBRACE goto array_init_noskip
 		p = *8p_token
 		if *1p != SYMBOL_LBRACE goto array_init_noskip ; we don't want to skip the closing } because it doesn't belong to us.
 		:array_init_skip
@@ -372,12 +392,15 @@ function parse_constant_initializer
 		p = types + type
 		p += 1 ; skip TYPE_ARRAY
 		if *8p == 0 goto sizeless_array_initializer
-		rwdata_end_addr = addr0
-		c = type_sizeof(subtype)
-		rwdata_end_addr += *8p * c ; e.g. int x[50] = {1,2};  advance rwdata_end_addr by 50*sizeof(int)
-		goto const_init_ret
+			; sized array
+			rwdata_end_addr = addr0
+			c = type_sizeof(subtype)
+			rwdata_end_addr += *8p * c ; e.g. int x[50] = {1,2};  advance rwdata_end_addr by 50*sizeof(int)
+			goto const_init_ret
 		:sizeless_array_initializer
-		byte 0xcc ; @TODO
+			; sizeless array
+			*8p = 0 - len
+			goto const_init_ret
 	:array_init_eof
 		token_error(token, .str_array_init_eof)
 	:str_array_init_eof
@@ -389,7 +412,41 @@ function parse_constant_initializer
 		string Bad array initializer.
 		byte 0
 	:parse_struct_initializer
+		if *1token != SYMBOL_LBRACE goto struct_init_no_lbrace ; only happens when recursing
+		token += 16
+		:struct_init_no_lbrace
+		
+		a = type_alignof(type)
+		; align rwdata_end_addr properly
+		rwdata_end_addr += a - 1
+		rwdata_end_addr /= a
+		rwdata_end_addr *= a
+		
+		p = types + type
+		p += 1
+		b = structure_is_union(*8p)
+		if b != 0 goto parse_union_initializer
 		byte 0xcc ; @TODO
+		
+		:struct_init_ret
+		if *1token != SYMBOL_RBRACE goto struct_init_noskip
+		p = *8p_token
+		if *1p != SYMBOL_LBRACE goto struct_init_noskip ; we don't want to skip the closing } because it doesn't belong to us.
+		token += 16 ; skip }
+		:struct_init_noskip
+		goto const_init_ret
+		
+	:parse_union_initializer
+		addr0 = rwdata_end_addr
+		a = ident_list_value_at_index(*8p, 0)
+		subtype = a > 32 ; extract type
+		
+		parse_constant_initializer(&token, subtype)
+		
+		c = type_sizeof(type)
+		rwdata_end_addr = addr0 + c ; add full size of union to rwdata_end_addr, even if initialized member is smaller than that.
+		goto struct_init_ret
+		
 	:parse_string_array_initializer
 		p = types + type
 		p += 9

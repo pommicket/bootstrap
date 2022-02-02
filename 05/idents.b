@@ -36,6 +36,7 @@ function ident_list_len
 	:ilist_len_ret
 	return len
 
+; idxth value stored in ident list, or 0 if idx >= length
 function ident_list_value_at_index
 	argument list
 	argument idx

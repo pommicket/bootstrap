@@ -26,7 +26,7 @@
 /*  */
 /* typedef int x[sizeof(A)+sizeof"hello"]; */
 /* typedef int y[sizeof(struct B)]; */
-
+/*  */
 static unsigned int x={55};
 static char *s = "hello";
 static char *t = "goodbye";
@@ -38,4 +38,12 @@ typedef int A[sizeof x_ + sizeof u];
 
 static int a[5] = {1,2,3};
 static char b[6][7] = {{'a'},{'b'},{'c'},{'d'},{'e'}};
-static int _u = 0x12345678;
+static char __b[][7] = {{'a'},"hello",'r'};
+static int _u = sizeof __b;
+
+union {
+	int a;
+	long b;
+} x1[3] = {0x1234567890, 1ul<<60|1ul<<3, 77};
+int y1 = 0x12345678;
+typedef int R[sizeof x1];
