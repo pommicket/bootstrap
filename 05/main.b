@@ -1,3 +1,6 @@
+; @TODO: string literals should have type char[n] where n = strlen(s)+1
+;  gah
+
 ; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
 byte 0x48
 byte 0x81

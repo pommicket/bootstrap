@@ -164,6 +164,7 @@ function parse_tokens
 			byte 0
 		:parse_function_definition
 			p = types + type
+			; @NOTE: remember to turn array members into pointers
 			if *1p != TYPE_FUNCTION goto lbrace_after_declaration
 			die(.str_fdNI) ; @TODO
 			:str_fdNI
@@ -257,6 +258,7 @@ function parse_constant_initializer
 	local a
 	local b
 	local c
+	local len
 	local p
 	local expr
 	local value
@@ -366,7 +368,6 @@ function parse_constant_initializer
 		:array_init_no_lbrace
 		addr0 = rwdata_end_addr
 		
-		local len
 		len = types + type
 		len += 1 ; skip TYPE_ARRAY
 		len = *8len
@@ -412,6 +413,8 @@ function parse_constant_initializer
 		string Bad array initializer.
 		byte 0
 	:parse_struct_initializer
+		addr0 = rwdata_end_addr
+		
 		if *1token != SYMBOL_LBRACE goto struct_init_no_lbrace ; only happens when recursing
 		token += 16
 		:struct_init_no_lbrace
@@ -426,27 +429,55 @@ function parse_constant_initializer
 		p += 1
 		b = structure_is_union(*8p)
 		if b != 0 goto parse_union_initializer
-		byte 0xcc ; @TODO
+		
+		; struct initializer
+		a = *8p
+		:struct_init_loop
+			if *1token == TOKEN_EOF goto struct_init_eof
+			
+			; skip name of member
+			a = memchr(a, 0)
+			a += 5 ; skip null terminator, offset
+			subtype = *4a
+			a += 4
+			
+			parse_constant_initializer(&token, subtype)
+			if *1token == SYMBOL_RBRACE goto struct_init_loop_end
+			if *1a == 0 goto struct_init_loop_end ; finished reading all the members of the struct
+			if *1token != SYMBOL_COMMA goto bad_struct_initializer
+			token += 16 ; skip comma
+			goto struct_init_loop
+		:struct_init_loop_end
 		
 		:struct_init_ret
+		c = type_sizeof(type)
+		rwdata_end_addr = addr0 + c ; add full size of struct/union to rwdata_end_addr, even if initialized member is smaller than that
+		
 		if *1token != SYMBOL_RBRACE goto struct_init_noskip
 		p = *8p_token
 		if *1p != SYMBOL_LBRACE goto struct_init_noskip ; we don't want to skip the closing } because it doesn't belong to us.
 		token += 16 ; skip }
 		:struct_init_noskip
+		
 		goto const_init_ret
 		
 	:parse_union_initializer
-		addr0 = rwdata_end_addr
 		a = ident_list_value_at_index(*8p, 0)
 		subtype = a > 32 ; extract type
-		
 		parse_constant_initializer(&token, subtype)
-		
-		c = type_sizeof(type)
-		rwdata_end_addr = addr0 + c ; add full size of union to rwdata_end_addr, even if initialized member is smaller than that.
 		goto struct_init_ret
-		
+	
+	:struct_init_eof
+		token_error(token, .str_struct_init_eof)
+	:str_struct_init_eof
+		string struct initializer does not end.
+		byte 0
+	:bad_struct_initializer
+		token_error(token, .str_bad_struct_initializer)
+	:str_bad_struct_initializer
+		string Bad struct initializer.
+		byte 0
+	
 	:parse_string_array_initializer
 		p = types + type
 		p += 9
