@@ -623,16 +623,12 @@ function token_reverse_to_matching_lparen
 	:reverse_paren_ret
 	*8p_token = token
 	return
-	
-; parse things like  `int x` or `int f(void, int, char *)`
-; advances *p_token
-; returns type ID, or 0, in which case you should look at parse_type_result
-function parse_type
-	; split types into base (B), prefix (P) and suffix (S)
-	;     struct Thing (*things[5])(void), *something_else[3];
-	;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
-	; Here, we call `struct Thing` the "base type".
-	byte 0xcc
+
+
+; we split types into base (B), prefix (P) and suffix (S)
+;     struct Thing (*things[5])(void), *something_else[3];
+;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
+; the following functions deal with figuring out where these parts are.
 
 ; return the end of the base for this type.
 function type_get_base_end
@@ -787,7 +783,7 @@ function parse_type_declarators
 			token_skip_to_matching_rsquare(&p)
 			suffix += 16 ; skip [
 			if *1suffix == SYMBOL_RSQUARE goto array_no_size
-			
+	
 			; little hack to avoid screwing up types like  double[sizeof(int)]
 			;   temporarily pretend we're using a lot more of types
 			local prev_types_bytes_used
@@ -795,10 +791,7 @@ function parse_type_declarators
 			types_bytes_used += 4000
 			
 			expr = malloc(4000)
-			
 			parse_expression(suffix, p, expr)
-			;print_expression(expr)
-			;putc(10)
 			evaluate_constant_expression(prefix, expr, &n)
 			if n < 0 goto bad_array_size
 			free(expr)
@@ -2165,6 +2158,7 @@ function evaluate_constant_expression
 		expr += 8
 		expr = evaluate_constant_expression(token, expr, &a)
 		expr = evaluate_constant_expression(token, expr, &b)
+		p = types + type
 		if *1p == TYPE_UNSIGNED_LONG goto eval_div_unsigned
 			; division is signed or uses a small type, so we can use 64-bit signed division
 			*8p_value = a / b
