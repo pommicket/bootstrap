@@ -1329,7 +1329,7 @@ function parse_expression
 	local first_token
 	:parse_expression_top
 	
-	;print_tokens(tokens, tokens_end)
+	print_tokens(tokens, tokens_end)
 	
 	type = out + 4
 	
@@ -1487,12 +1487,16 @@ function parse_expression
 		byte 0	
 	
 	:type_plus
+		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer(*4b)
 		p = types + *4a
 		if *1p == TYPE_POINTER goto type_binary_left ; pointer plus integer
 		p = types + *4b
 		if *1p == TYPE_POINTER goto type_binary_right ; integer plus pointer
 		goto type_binary_usual
 	:type_minus
+		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer(*4b)
 		p = types + *4a
 		if *1p == TYPE_POINTER goto type_minus_left_ptr
 		goto type_binary_usual
@@ -1501,6 +1505,7 @@ function parse_expression
 		if *1p == TYPE_POINTER goto type_long ; pointer difference
 		goto type_binary_left ; pointer minus integer
 	:type_subscript
+		type_decay_array_to_pointer(*4a)
 		p = types + *4a
 		if *1p == TYPE_POINTER goto type_subscript_pointer
 		if *1p == TYPE_ARRAY goto type_subscript_array
@@ -1614,10 +1619,17 @@ function parse_expression
 		*4type = type_create_pointer(*4a)
 		return out
 	:unary_dereference
+		print_type(*4a)
+		putc(10)
+		type_decay_array_to_pointer(*4a)
+		print_type(*4a)
+		putc(10)
+		; @TODO : dereferencing a function  (annoyingly, p is the same as *p for function pointers)
 		if *1p != TYPE_POINTER goto unary_bad_type
 		*4type = *4a + 1
 		return out
 	:unary_type_logical_not
+		type_decay_array_to_pointer(*4a)
 		if *1p > TYPE_POINTER goto unary_bad_type
 		*4type = TYPE_INT
 		return out
@@ -1880,9 +1892,19 @@ function parse_expression
 		p = out + 8
 		*8p = value
 		
-		; must be char*
+		; the type of this is array of n chars, where n = strlen(s)+1
+		type = types + types_bytes_used
+		*1type = TYPE_ARRAY
+		type += 1
+		p = output_file_data + value
+		*8type = strlen(p)
+		*8type += 1
+		type += 8
+		*1type = TYPE_CHAR
+		
 		p = out + 4
-		*4p = TYPE_POINTER_TO_CHAR
+		*4p = types_bytes_used
+		types_bytes_used += 10 ; TYPE_ARRAY + length + TYPE_CHAR
 		
 		in += 16
 		out += 16
@@ -1921,6 +1943,23 @@ function parse_expression
 	return TYPE_FLOAT
 :return_type_double
 	return TYPE_DOUBLE
+
+; if type is an array type, turn it into a pointer.
+;   e.g.
+;    char s[] = "hello";
+;    char *t = s + 3; /* s "decays" into a pointer */
+function type_decay_array_to_pointer
+	argument type
+	local dest
+	local src
+	src = types + type
+	if *1src != TYPE_ARRAY goto return_0
+	dest = types + type
+	*1dest = TYPE_POINTER
+	src = type + 9 ; skip TYPE_ARRAY and size
+	dest = type + 1 ; skip TYPE_POINTER
+	type_copy_ids(dest, src)
+	return
 
 function type_sizeof
 	argument type
@@ -2512,6 +2551,8 @@ function operator_precedence
 	:operator_precedence_unary
 	op = *1token
 	
+	
+	
 	if op == KEYWORD_SIZEOF goto return_0xe0
 	if op == SYMBOL_PLUS_PLUS goto return_0xe0
 	if op == SYMBOL_MINUS_MINUS goto return_0xe0
@@ -2673,12 +2714,13 @@ function binop_symbol_to_expression_type
 		return *1p
 
 function is_operator
-	argument symbol
+	argument token_type
 	local b
-	b = binop_symbol_to_expression_type(symbol)
+	b = binop_symbol_to_expression_type(token_type)
 	if b != 0 goto return_1
-	b = unary_op_to_expression_type(symbol)
+	b = unary_op_to_expression_type(token_type)
 	if b != 0 goto return_1
+	if token_type == KEYWORD_SIZEOF goto return_1
 	goto return_0
 
 function binop_expression_type_to_symbol

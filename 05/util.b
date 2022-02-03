@@ -322,6 +322,7 @@ function memccpy
 	return dest
 
 ; like C, but returns 0
+;   also, you can copy overlapping regions as long as dest < src.
 function memcpy
 	argument dest
 	argument src
