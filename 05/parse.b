@@ -1619,11 +1619,7 @@ function parse_expression
 		*4type = type_create_pointer(*4a)
 		return out
 	:unary_dereference
-		print_type(*4a)
-		putc(10)
 		type_decay_array_to_pointer(*4a)
-		print_type(*4a)
-		putc(10)
 		; @TODO : dereferencing a function  (annoyingly, p is the same as *p for function pointers)
 		if *1p != TYPE_POINTER goto unary_bad_type
 		*4type = *4a + 1
@@ -2574,7 +2570,7 @@ function operator_precedence
 	token += 16
 	b = token_is_type(token)
 	if b == 0 goto return_0xffff
-	goto return_0xd8 ; it's a cast
+	goto return_0xe0 ; it's a cast
 	
 	:figre_out_rparen_arity
 	; given that the token before this one is a right-parenthesis, figure out if

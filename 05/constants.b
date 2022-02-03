@@ -25,8 +25,7 @@
 ;   b << >>
 ;   c + -
 ;   d * / %
-;   d8 cast
-;   e sizeof, unary prefixes ++ -- & * + - ~ !
+;   e casts, sizeof, unary prefixes ++ -- & * + - ~ !
 ;   f . -> () [] postfix ++ --
 ;   highest
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)

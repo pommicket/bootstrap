@@ -46,7 +46,7 @@
 /* 	long b; */
 /* } x1[] = {0x1234567890, 1ul<<60|1ul<<3, 77}; */
 /* int y1 = 0x12345678; */
-typedef int R[*(int*)3];
+typedef int R[sizeof *(int*)"hello"];
 
 /* struct { */
 /* 	int x[2], y; */
