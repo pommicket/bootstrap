@@ -35,7 +35,7 @@ function structure_is_union
 	if offset == 0 goto return_1 ; if that's 0, it's a union or 1-element struct
 	goto return_0
 	
-	
+; parse a translation unit
 function parse_tokens
 	argument tokens
 	local token
@@ -44,6 +44,7 @@ function parse_tokens
 	local p
 	local b
 	local c
+	local n
 	local base_type
 	local base_type_end
 	local name
@@ -52,6 +53,7 @@ function parse_tokens
 	local suffix
 	local suffix_end
 	local is_extern
+	local out
 	
 	token = tokens
 	:parse_tokens_loop
@@ -64,7 +66,7 @@ function parse_tokens
 		b = token_is_type(token)
 		if b != 0 goto parse_toplevel_decl
 		
-		die(.str_bad_statement)
+		token_error(token, .str_bad_statement)
 		:str_bad_statement
 			string Bad statement.
 			byte 0
@@ -164,12 +166,26 @@ function parse_tokens
 			byte 0
 		:parse_function_definition
 			p = types + type
-			; @NOTE: remember to turn array members into pointers
+			; @TODO: parameters
+			;   @NOTE: remember to turn array members into pointers
 			if *1p != TYPE_FUNCTION goto lbrace_after_declaration
-			die(.str_fdNI) ; @TODO
-			:str_fdNI
-				string function definitions not implemented.
-				byte 10
+			
+			global function_stmt_data ; initialized in main
+			global function_stmt_data_bytes_used
+			
+			n = function_stmt_data_bytes_used
+			out = function_stmt_data + function_stmt_data_bytes_used
+			parse_statement(&token, &out)
+			if parse_stmt_depth != 0 goto stmtdepth_internal_err
+			function_stmt_data_bytes_used = out - function_stmt_data
+			
+			ident_list_add(function_statements, name, n)
+			goto parse_tokens_loop
+			
+			:stmtdepth_internal_err
+				token_error(token, .str_stmtdepth_internal_err)
+			:str_stmtdepth_internal_err
+				string Internal compiler error: parse_stmt_depth is not 0 after parsing function body.
 				byte 0
 			:lbrace_after_declaration
 				token_error(token, .str_lbrace_after_declaration)
@@ -239,6 +255,106 @@ function parse_tokens
 			byte 0
 	:parse_tokens_eof
 	return
+
+; write type, file, and line info for statement
+function write_statement_header
+	local out
+	local type
+	local token
+	*1out = type
+	out += 2
+	token += 2
+	*2out = *2token
+	out += 2
+	token += 2
+	*4out = *4token
+	return 0
+
+; writes statement data for the statement at *p_token to (*)*p_out
+; always advances *p_out by exactly 40 bytes, since that's the length of a statement.
+function parse_statement
+	argument p_token
+	argument p_out
+	local out
+	local token
+	local p
+	local c
+	local n
+	
+	
+	out = *8p_out
+	token = *8p_token
+	
+	:stmt_label_loop
+		; if second token in statement is a colon, this must be a label
+		p = token + 16
+		if *1p == SYMBOL_COLON goto stmt_label
+		goto stmt_label_loop_end
+		
+		:stmt_label
+			write_statement_header(out, STATEMENT_LABEL, token)
+			out += 8
+			token += 8
+			*8out = *8token ; copy label name
+			out += 32
+			token += 24 ; skip ident name, and colon
+			goto stmt_label_loop
+	:stmt_label_loop_end
+	
+	c = *1token
+	if c == SYMBOL_SEMICOLON goto stmt_empty
+	if c == SYMBOL_LBRACE goto stmt_block
+	
+	token_error(token, .str_unrecognized_statement)
+	:str_unrecognized_statement
+		string Unrecognized statement.
+		byte 0
+	:parse_statement_ret
+		*8p_token = token
+		*8p_out = out
+		return
+	:stmt_block
+		local block_p_out
+		; find the appropriate statement data to use for this block's body
+		block_p_out = statement_datas_ends
+		block_p_out += parse_stmt_depth < 3
+		
+		write_statement_header(out, STATEMENT_BLOCK, token)
+		out += 8
+		*8out = *8block_p_out
+		out += 32
+		
+		parse_stmt_depth += 1
+		if parse_stmt_depth >= 16 goto too_much_nesting
+		
+		token += 16 ; skip opening {
+		:parse_block_loop
+			if *1token == TOKEN_EOF goto parse_block_eof
+			if *1token == SYMBOL_RBRACE goto parse_block_loop_end
+			parse_statement(&token, block_p_out)
+			goto parse_block_loop
+		:parse_block_loop_end
+		token += 16 ; skip closing }
+		p = *8block_p_out
+		*1p = 0  ; probably redundant, but whatever
+		*8block_p_out += 8 ; add 8 and not 1 because of alignment
+		parse_stmt_depth -= 1
+		goto parse_statement_ret
+		
+		:parse_block_eof
+			token_error(*8p_token, .str_parse_block_eof)
+		:str_parse_block_eof
+			string End of file reached while trying to parse block. Are you missing a closing brace?
+			byte 0
+		:too_much_nesting
+			token_error(token, .str_too_much_nesting)
+		:str_too_much_nesting
+			string Too many levels of nesting blocks.
+			byte 0
+	:stmt_empty
+		; empty statement, e.g. while(something)-> ; <-
+		token += 16 ; skip semicolon
+		goto parse_statement_ret
 
 ; parse a global variable's initializer
 ; e.g.    int x[5] = {1+8, 2, 3, 4, 5};

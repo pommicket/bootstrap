@@ -230,6 +230,52 @@
 ; types willl be initialized (in main) so that this refers to the type char*
 #define TYPE_POINTER_TO_CHAR 20
 
+; STATEMENTS
+; In C, note that `if', `while', etc. always have a single statement as their body:
+;    if (x)  { y; z; w; }
+;  here {y; z; w;}  is a single `compound' statement containing three statements.
+; our statements don't directly correspond to the C89 standard's notion of statements, in particular,
+;   labels count as separate statements and declarations count as statements.
+; each statement is stored as exactly 40 bytes
+;     uchar type
+;     uchar padding
+;     ushort file
+;     uint line
+;     ulong data1
+;     ulong data2
+;     ulong data3
+;     ulong data4
+; a type of 0 indicates the end of the block.
+; data layout for particular statements:
+;     - STATEMENT_EXPRESSION - data1 is a pointer to expression data; data2,3,4 are unused
+;     - STATEMENT_LOCAL_DECLARATION - declaring a local variable (automatic/"register" storage duration), data1 = total bytes used by all local variables so far in this function including this one; data2,3,4 unused
+;     - STATEMENT_LABEL      - data1 is a pointer to the name of the label; data2,3,4 are unused
+;     - STATEMENT_BLOCK      - data1 is a pointer to an array of statements; data2,3,4 are unused
+;     - STATEMENT_IF         - data1 is a pointer to the condition, data2 is a pointer to the `if' branch statement, data3 is a pointer to the `else' branch statement, or 0 if there is none; data4 is unused
+;     - STATEMENT_SWITCH     - data1 is a pointer to the expression, data2 is a pointer to the body statement; data3,4 are unused
+;     - STATEMENT_WHILE      - data1 is a pointer to the condition, data2 is a pointer to the body statement; data3,4 are unused
+;     - STATEMENT_DO         - data1 is a pointer to the body statement, data2 is a pointer to the condition; data3,4 are unused
+;     - STATEMENT_FOR        - data1,2,3 are pointers to the first, second, and third expressions inside parentheses, data4 is a pointer to the body statement
+;     - STATEMENT_GOTO       - data1 is a pointer to the name of the label; data2,3,4 are unused
+;     - STATEMENT_CONTINUE   - data1,2,3,4 are unused
+;     - STATEMENT_BREAK      - data1,2,3,4 are unused
+;     - STATEMENT_RETURN     - data1 is a pointer to the expression, or 0 if there is none; data2,3,4 are unused
+#define STATEMENT_EXPRESSION 1
+#define STATEMENT_LOCAL_DECLARATION 2
+#define STATEMENT_LABEL 3
+#define STATEMENT_BLOCK 4
+#define STATEMENT_IF 5
+#define STATEMENT_SWITCH 6
+#define STATEMENT_WHILE 7
+#define STATEMENT_DO 8
+#define STATEMENT_FOR 9
+#define STATEMENT_GOTO 0xa
+#define STATEMENT_CONTINUE 0xb
+#define STATEMENT_BREAK 0xc
+#define STATEMENT_RETURN 0xd
+
+
+
 :keyword_table
 	byte SYMBOL_SEMICOLON
 	byte 59

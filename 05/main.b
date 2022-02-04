@@ -42,6 +42,16 @@ global output_file_data
 ; ident list of global variables. each one is stored as
 ;  (type << 32) | address
 global global_variables
+; ident list of functions. each entry is a pointer to a single statement - which should always be a STATEMENT_BLOCK
+global function_statements
+; statement_datas[0] = pointer to statement data for block-nesting depth 0 (i.e. function bodies)
+; statement_datas[1] = pointer to statement data for block-nesting depth 1 (blocks inside functions)
+; statement_datas[2] = pointer to statement data for block-nesting depth 2 (blocks inside blocks inside functions)
+; etc. up to statement_datas[15]  "* 15 nesting levels of compound statements, iteration control structures, and selection control structures" C89 § 2.2.4.1 
+; these have to be separated for reasons™
+global statement_datas
+global statement_datas_ends
+global parse_stmt_depth
 
 #include util.b
 #include idents.b
@@ -154,15 +164,32 @@ function main
 	local tokens
 	local ast
 	local p
+	local q
 	local i
 	local output_fd
+	
+	statement_datas = malloc(4000)
+	statement_datas_ends = malloc(4000)
+	p = statement_datas
+	q = statement_datas_ends
+	i = 0
+	:statement_datas_loop
+		*8p = malloc(4000000) ; supports 100,000 statements at each level
+		*8q = p
+		p += 8
+		q += 8
+		i += 1
+		if i < 16 goto statement_datas_loop
 	
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)
 	enumerators = ident_list_create(4000000)
 	structures = ident_list_create(4000000)
-	global_variables = ident_list_create(4000000)
+	global_variables = ident_list_create(400000)
+	function_statements = ident_list_create(400000)
+	
+	function_stmt_data = malloc(800000) ; should be at least 40 bytes * max # of functions
 	
 	dat_banned_objmacros = 255
 	dat_banned_fmacros = 255
@@ -197,14 +224,15 @@ function main
 	translation_phase_4(input_filename, pptokens, processed_pptokens)
 	free(pptokens)
 	pptokens = processed_pptokens
-	print_pptokens(pptokens)
-	print_separator()
+	;print_pptokens(pptokens)
+	;print_separator()
 	;print_object_macros()
 	;print_function_macros()
 	
 	tokens = malloc(16000000)
 	p = tokenize(pptokens, tokens, input_filename, 1)
 	print_tokens(tokens, p)
+	print_separator()
 	; NOTE: do NOT free pptokens; identifiers still reference them.
 	
 	parse_tokens(tokens)
