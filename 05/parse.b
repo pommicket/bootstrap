@@ -1620,9 +1620,12 @@ function parse_expression
 		return out
 	:unary_dereference
 		type_decay_array_to_pointer(*4a)
-		; @TODO : dereferencing a function  (annoyingly, p is the same as *p for function pointers)
+		if *2p == TYPE2_FUNCTION_POINTER goto type_deref_fpointer
 		if *1p != TYPE_POINTER goto unary_bad_type
 		*4type = *4a + 1
+		return out
+		:type_deref_fpointer
+		*4type = *4a
 		return out
 	:unary_type_logical_not
 		type_decay_array_to_pointer(*4a)

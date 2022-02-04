@@ -216,14 +216,16 @@
 #define TYPE_INT 7
 #define TYPE_UNSIGNED_INT 8
 #define TYPE_LONG 9
-#define TYPE_UNSIGNED_LONG 10
-#define TYPE_FLOAT 11
+#define TYPE_UNSIGNED_LONG 0xa
+#define TYPE_FLOAT 0xb
 ; note that long double is treated the same as double.
-#define TYPE_DOUBLE 12
-#define TYPE_POINTER 13
-#define TYPE_STRUCT 14
-#define TYPE_ARRAY 16
-#define TYPE_FUNCTION 17
+#define TYPE_DOUBLE 0xc
+#define TYPE_POINTER 0xd
+#define TYPE_STRUCT 0xe
+#define TYPE_ARRAY 0xf
+#define TYPE_FUNCTION 0x10
+; reading the first 16 bits of type data as a word will give this if the type refers to a function pointer.
+#define TYPE2_FUNCTION_POINTER 0x100d
 
 ; types willl be initialized (in main) so that this refers to the type char*
 #define TYPE_POINTER_TO_CHAR 20

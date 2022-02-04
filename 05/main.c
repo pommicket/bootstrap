@@ -53,5 +53,7 @@ struct {
 typedef int Blah[sizeof((B *)0)->c.y];
 unsigned marker = 0xdeadbeef;
 
+typedef int (*FUNCTION)(void);
+typedef int AAAA[sizeof*****((FUNCTION)0)];
 
 /* typedef int X[sizeof(int)+4]; */
