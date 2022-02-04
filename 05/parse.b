@@ -1329,7 +1329,7 @@ function parse_expression
 	local first_token
 	:parse_expression_top
 	
-	print_tokens(tokens, tokens_end)
+	;print_tokens(tokens, tokens_end)
 	
 	type = out + 4
 	
@@ -1676,8 +1676,15 @@ function parse_expression
 			parse_type_declarators(sizeof_prefix, sizeof_suffix, sizeof_suffix, sizeof_suffix_end)
 			parse_base_type(sizeof_base_type)
 			if *1p != SYMBOL_RPAREN goto bad_expression ; e.g. sizeof(int ,)
+			p += 16
+			if p != tokens_end goto stuff_after_sizeof_type
 			*8out = type_sizeof(a)
 			goto parse_sizeof_finish
+			:stuff_after_sizeof_type
+				token_error(sizeof_suffix_end, .str_stuff_after_sizeof_type)
+			:str_stuff_after_sizeof_type
+				string Unrecognized stuff after sizeof(T).
+				byte 0
 		:parse_sizeof_expr
 			; it's an expression, e.g. sizeof(x+3)
 			local temp
@@ -2575,15 +2582,20 @@ function operator_precedence
 	:figre_out_rparen_arity
 	; given that the token before this one is a right-parenthesis, figure out if
 	; this is a unary or binary operator. this is (annoyingly) necessary, because:
-	;  (int)-x;   /* cast processed first */
 	;  (y)-x;     /* subtraction processed first */
+	;  (int)-x;   /* cast processed first */
+	;  sizeof(int)-x;  /* subtraction processed first */
 	local p
 	p = token - 16
 	token_reverse_to_matching_lparen(&p)
 	p += 16
 	b = token_is_type(p)
-	if b != 0 goto operator_precedence_unary ; e.g. (int)-x;	
+	if b != 0 goto rparen_might_be_cast
 	goto operator_precedence_binary ; e.g. (y)-x;
+	:rparen_might_be_cast
+		p -= 32
+		if *1p != KEYWORD_SIZEOF goto operator_precedence_unary ; e.g. (int)-x
+		goto operator_precedence_binary ; e.g. sizeof(int)-x
 	
 function unary_op_to_expression_type
 	argument op
