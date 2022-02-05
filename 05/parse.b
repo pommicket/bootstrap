@@ -286,6 +286,7 @@ function parse_statement
 	token = *8p_token
 	
 	:stmt_label_loop
+		if *1token != TOKEN_IDENTIFIER goto stmt_label_loop_end
 		; if second token in statement is a colon, this must be a label
 		p = token + 16
 		if *1p == SYMBOL_COLON goto stmt_label
@@ -307,6 +308,8 @@ function parse_statement
 	if c == KEYWORD_BREAK goto stmt_break
 	if c == KEYWORD_CONTINUE goto stmt_continue
 	if c == KEYWORD_RETURN goto stmt_return
+	if c == KEYWORD_GOTO goto stmt_goto
+	if c == KEYWORD_CASE goto stmt_case
 	
 	token_error(token, .str_unrecognized_statement)
 	:str_unrecognized_statement
@@ -317,10 +320,10 @@ function parse_statement
 		*8p_out = out
 		return
 	:stmt_break
+		write_statement_header(out, STATEMENT_BREAK, token)
 		token += 16
 		if *1token != SYMBOL_SEMICOLON goto break_no_semicolon
 		token += 16
-		write_statement_header(out, STATEMENT_BREAK, token)
 		out += 40
 		goto parse_statement_ret
 		:break_no_semicolon
@@ -329,10 +332,10 @@ function parse_statement
 			string No semicolon after break.
 			byte 0
 	:stmt_continue
+		write_statement_header(out, STATEMENT_CONTINUE, token)
 		token += 16
 		if *1token != SYMBOL_SEMICOLON goto continue_no_semicolon
 		token += 16
-		write_statement_header(out, STATEMENT_CONTINUE, token)
 		out += 40
 		goto parse_statement_ret
 		:continue_no_semicolon
@@ -340,6 +343,36 @@ function parse_statement
 		:str_continue_no_semicolon
 			string No semicolon after continue.
 			byte 0
+	:stmt_case
+		write_statement_header(out, STATEMENT_CASE, token)
+		token += 16
+		out += 8
+		p = token
+		; @NONSTANDARD
+		;  technically (horribly), this is legal C:
+		;     switch (x) {
+		;       case 1 == 7 ? 5 : 6:
+		;          ...
+		;     }
+		; we don't handle it properly, even if the conditional is put in parentheses.
+		; at least it will definitely give an error if it encounters something like this.
+		:case_find_colon_loop
+			if *1p == TOKEN_EOF goto case_no_colon
+			if *1p == SYMBOL_COLON goto case_found_colon
+			p += 16
+			goto case_find_colon_loop
+		:case_found_colon
+		c = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		evaluate_constant_expression(token, c, &n)
+		*8out = n
+		out += 32
+		token = p + 16
+		goto parse_statement_ret
+		:case_no_colon
+			token_error(token, .str_case_no_colon)
+		:str_case_no_colon
+			string No : after case.
 	:stmt_return
 		write_statement_header(out, STATEMENT_RETURN, token)
 		out += 8
@@ -352,14 +385,37 @@ function parse_statement
 		:return_no_expr
 		out += 32
 		goto parse_statement_ret
+	:stmt_goto
+		write_statement_header(out, STATEMENT_GOTO, token)
+		out += 8
+		token += 16
+		if *1token != TOKEN_IDENTIFIER goto goto_not_ident
+		token += 8
+		*8out = *8token
+		out += 32
+		token += 8
+		if *1token != SYMBOL_SEMICOLON goto goto_no_semicolon
+		token += 16
+		goto parse_statement_ret
+		:goto_not_ident
+			token_error(token, .str_goto_not_ident)
+		:str_goto_not_ident
+			string goto not immediately followed by identifier.
+			byte 0
+		:goto_no_semicolon
+			token_error(token, .str_goto_no_semicolon)
+		:str_goto_no_semicolon
+			string No semicolon after goto.
+			byte 0
 	:stmt_block
+		write_statement_header(out, STATEMENT_BLOCK, token)
+		out += 8
+		
 		local block_p_out
 		; find the appropriate statement data to use for this block's body
 		block_p_out = statement_datas_ends
 		block_p_out += parse_stmt_depth < 3
 		
-		write_statement_header(out, STATEMENT_BLOCK, token)
-		out += 8
 		*8out = *8block_p_out
 		out += 32
 		
@@ -394,7 +450,7 @@ function parse_statement
 		; empty statement, e.g. while(something)-> ; <-
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
-
+	
 function print_statement
 	argument statement
 	print_statement_with_depth(statement, 0)
@@ -427,11 +483,13 @@ function print_statement_with_depth
 	dat4 = statement + 32
 	dat4 = *8dat4
 	
-	if c == STATEMENT_LABEL goto print_stmt_label
 	if c == STATEMENT_BLOCK goto print_stmt_block
 	if c == STATEMENT_CONTINUE goto print_stmt_continue
 	if c == STATEMENT_BREAK goto print_stmt_break
 	if c == STATEMENT_RETURN goto print_stmt_return
+	if c == STATEMENT_GOTO goto print_stmt_goto
+	if c == STATEMENT_LABEL goto print_stmt_label
+	if c == STATEMENT_CASE goto print_stmt_case
 	
 	die(.pristmtNI)
 	:pristmtNI
@@ -480,7 +538,19 @@ function print_statement_with_depth
 		:print_block_loop_end
 		putcln('})
 		return
-
+	:print_stmt_goto
+		puts(.str_goto)
+		putc(32)
+		puts(dat1)
+		puts(.str_semicolon_newline)
+		return
+	:print_stmt_case
+		puts(.str_case)
+		putc(32)
+		putn_signed(dat1)
+		putcln(':)
+		return
+		
 ; parse a global variable's initializer
 ; e.g.    int x[5] = {1+8, 2, 3, 4, 5};
 ; advances *p_token to the token right after the initializer
@@ -2367,8 +2437,8 @@ function type_alignof
 ; evaluate an expression which can be the size of an array, e.g.
 ;    enum { A, B, C };
 ;    int x[A * sizeof(float) + 3 << 5];
-; @NONSTANDARD: doesn't handle floats, but really why would you use floats in an array size
-;                 e.g.   SomeType x[(int)3.3];
+; @NONSTANDARD: doesn't handle floats. this means you can't do
+;                 e.g.   double x[] = {1.5,2.3};
 ; this is also used for #if evaluation
 ; token is used for error messages (e.g. if this "constant" expression is *x or something)
 ; NOTE: this returns the end of the expression, not the value (which is stored in *8p_value)

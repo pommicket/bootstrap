@@ -1,6 +1,9 @@
 int f(void) {
-	lbl1:break;;;
+	lbl1:break;;goto blah;
+	case -1-3:
 	continue;a:break;return;return 6+3<<sizeof(int);
+	goto lbl1;
+	case 77:;return 92834;
 }
 
 

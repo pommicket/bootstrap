@@ -269,6 +269,7 @@
 ;     - STATEMENT_CONTINUE   - data1,2,3,4 are unused
 ;     - STATEMENT_BREAK      - data1,2,3,4 are unused
 ;     - STATEMENT_RETURN     - data1 is a pointer to the expression, or 0 if there is none; data2,3,4 are unused
+;     - STATEMENT_CASE       - data1 is the value; data2,3,4 are unused
 #define STATEMENT_EXPRESSION 1
 #define STATEMENT_LOCAL_DECLARATION 2
 #define STATEMENT_LABEL 3
@@ -282,7 +283,7 @@
 #define STATEMENT_CONTINUE 0xb
 #define STATEMENT_BREAK 0xc
 #define STATEMENT_RETURN 0xd
-
+#define STATEMENT_CASE 0xe
 
 
 :keyword_table
@@ -507,6 +508,7 @@
 	byte 0
 	byte 255
 
+; NB: some of these are only used for nice debug output
 :str_missing_closing_paren
 	string Missing closing ).
 	byte 0
@@ -747,10 +749,15 @@
 :str_union
 	string union
 	byte 0
-; NB: some of these are only used for nice debug output
 :str_typedef
 	string typedef
 	byte 0
 :str_return
 	string return
+	byte 0
+:str_goto
+	string goto
+	byte 0
+:str_case
+	string case
 	byte 0
