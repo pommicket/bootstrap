@@ -195,6 +195,8 @@ function parse_toplevel_declaration
 		global function_stmt_data ; initialized in main
 		global function_stmt_data_bytes_used
 		
+		local_var_next_rbp_offset = 0
+		
 		p = function_stmt_data + function_stmt_data_bytes_used
 		out = p
 		parse_statement(&token, &out)
@@ -314,6 +316,7 @@ function parse_statement
 	local p
 	local c
 	local n
+	local b
 	
 	out = *8p_out
 	token = *8p_token
@@ -344,6 +347,10 @@ function parse_statement
 	if c == KEYWORD_GOTO goto stmt_goto
 	if c == KEYWORD_CASE goto stmt_case
 	if c == KEYWORD_STATIC goto stmt_static_declaration
+	if c == KEYWORD_EXTERN goto stmt_extern_declaration
+	
+	b = token_is_type(token)
+	if b != 0 goto stmt_local_declaration
 	
 	token_error(token, .str_unrecognized_statement)
 	:str_unrecognized_statement
@@ -353,6 +360,89 @@ function parse_statement
 		*8p_token = token
 		*8p_out = out
 		return
+	:stmt_extern_declaration
+		token_error(token, .str_stmt_extern_declaration)
+	:str_stmt_extern_declaration
+		; @NONSTANDARD
+		string Local extern declarations are not supported.
+		byte 0
+	:stmt_local_declaration
+		local l_base_type
+		local l_prefix
+		local l_prefix_end
+		local l_suffix
+		local l_suffix_end
+		local l_type
+		local l_offset
+		local l_name
+		
+		l_base_type = token
+		token = type_get_base_end(l_base_type)
+		:local_decl_loop
+			l_prefix = token
+			l_prefix_end = type_get_prefix_end(l_prefix)
+			if *1l_prefix_end != TOKEN_IDENTIFIER goto local_decl_no_ident
+			l_name = l_prefix_end + 8
+			l_name = *8l_name
+			l_suffix = l_prefix_end + 16
+			l_suffix_end = type_get_suffix_end(l_prefix)
+			l_type = types_bytes_used
+			parse_type_declarators(l_prefix, l_prefix_end, l_suffix, l_suffix_end)
+			parse_base_type(l_base_type)
+			write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
+			out += 8
+			*8out = local_var_next_rbp_offset
+			out += 8
+			*8out = type_sizeof(l_type)
+			out += 24
+			p = local_variables
+			p += block_depth < 3
+			l_offset = local_var_next_rbp_offset
+			c = l_offset
+			c |= l_type < 32
+			ident_list_add(*8p, l_name, c)
+			
+			; advance
+			local_var_next_rbp_offset += type_sizeof(l_type)
+			; align
+			local_var_next_rbp_offset += 7
+			local_var_next_rbp_offset >= 3
+			local_var_next_rbp_offset <= 3
+			
+			token = l_suffix_end
+			:local_decl_continue
+			if *1token == SYMBOL_SEMICOLON goto local_decl_loop_end
+			if *1token == SYMBOL_EQ goto local_decl_initializer
+			if *1token != SYMBOL_COMMA goto local_decl_badsuffix
+			
+			token += 16 ; skip comma
+			goto local_decl_loop
+			
+			:local_decl_initializer
+				token += 16
+				if *1token == SYMBOL_LBRACE goto local_init_lbrace
+				n = token_next_semicolon_or_comma_not_in_brackets(token)
+				out -= 16
+				*8out = expressions_end
+				out += 16
+				expressions_end = parse_expression(token, n, expressions_end)
+				token = n
+				goto local_decl_continue
+			:local_init_lbrace
+				byte 0xcc ; @TODO
+			:local_decl_badsuffix
+				token_error(token, .str_local_decl_badsuffix)
+			:str_local_decl_badsuffix
+				string Expected equals, comma, or semicolon after variable declaration.
+				byte 0
+		:local_decl_loop_end
+		token += 16 ; skip semicolon
+		goto parse_statement_ret
+		:local_decl_no_ident
+			token_error(token, .str_local_decl_no_ident)
+		:str_local_decl_no_ident
+			string No identifier in declaration.
+			byte 0
 	:stmt_static_declaration
 		p = block_static_variables
 		p += block_depth < 3
@@ -476,6 +566,9 @@ function parse_statement
 		p = block_static_variables
 		p += block_depth < 3
 		ident_list_clear(*8p)
+		p = local_variables
+		p += block_depth < 3
+		ident_list_clear(*8p)
 		
 		block_depth -= 1
 		
@@ -538,6 +631,7 @@ function print_statement_with_depth
 	if c == STATEMENT_GOTO goto print_stmt_goto
 	if c == STATEMENT_LABEL goto print_stmt_label
 	if c == STATEMENT_CASE goto print_stmt_case
+	if c == STATEMENT_LOCAL_DECLARATION goto print_stmt_local_decl
 	
 	die(.pristmtNI)
 	:pristmtNI
@@ -575,6 +669,37 @@ function print_statement_with_depth
 		:print_ret_noexpr
 		puts(.str_semicolon_newline)
 		return
+	:print_stmt_local_decl
+		puts(.str_local_decl)
+		putn(dat1)
+		puts(.str_local_size)
+		putn(dat2)
+		if dat3 != 0 goto print_stmt_local_initializer
+		if dat4 != 0 goto print_stmt_local_copy_address
+		:stmt_local_decl_finish
+		puts(.str_semicolon_newline)
+		return
+		:print_stmt_local_initializer
+			putc(32)
+			putc(61) ; =
+			putc(32)
+			print_expression(dat3)
+			goto stmt_local_decl_finish
+		:print_stmt_local_copy_address
+			puts(.str_local_copyfrom)
+			putx32(dat4)
+			goto stmt_local_decl_finish
+	:str_local_decl
+		string local variable at rbp-
+		byte 0
+	:str_local_size
+		string  size
+		byte 32
+		byte 0
+	:str_local_copyfrom
+		string  copy from
+		byte 32
+		byte 0
 	:print_stmt_block
 		putcln('{)
 		depth += 1
@@ -1023,6 +1148,49 @@ function token_next_semicolon_not_in_brackets
 		:str_next_semicolon_eof
 			string End of file found while searching for semicolon.
 			byte 0 
+
+
+; return the next semicolon or comma not in parentheses, square brackets, or braces. 
+function token_next_semicolon_or_comma_not_in_brackets
+	argument token0
+	
+	local token
+	local depth
+	local c
+	
+	depth = 0
+	token = token0
+	:next_semicomma_loop
+		c = *1token
+		if c == TOKEN_EOF goto next_semicomma_eof
+		if depth != 0 goto next_semicomma_nocheck
+		if c == SYMBOL_SEMICOLON goto next_semicomma_loop_end
+		if c == SYMBOL_COMMA goto next_semicomma_loop_end
+		:next_semicomma_nocheck
+		token += 16
+		if c == SYMBOL_LPAREN goto next_semicomma_incdepth
+		if c == SYMBOL_RPAREN goto next_semicomma_decdepth
+		if c == SYMBOL_LSQUARE goto next_semicomma_incdepth
+		if c == SYMBOL_RSQUARE goto next_semicomma_decdepth
+		if c == SYMBOL_LBRACE goto next_semicomma_incdepth
+		if c == SYMBOL_RBRACE goto next_semicomma_decdepth
+		goto next_semicomma_loop
+		:next_semicomma_incdepth
+			depth += 1
+			goto next_semicomma_loop
+		:next_semicomma_decdepth
+			depth -= 1
+			goto next_semicomma_loop
+	:next_semicomma_loop_end
+	return token
+	:next_semicomma_eof
+		token_error(token0, .str_next_semicomma_eof)
+		:str_next_semicomma_eof
+			string End of file found while searching for semicolon or comma.
+			byte 0 
+
+
+
 ; we split types into base (B), prefix (P) and suffix (S)
 ;     struct Thing (*things[5])(void), *something_else[3];
 ;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS

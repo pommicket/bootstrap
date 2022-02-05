@@ -260,7 +260,7 @@
 ; a type of 0 indicates the end of the block.
 ; data layout for particular statements:
 ;     - STATEMENT_EXPRESSION - data1 is a pointer to expression data; data2,3,4 are unused
-;     - STATEMENT_LOCAL_DECLARATION - declaring a local variable (automatic/"register" storage duration), data1 = total bytes used by all local variables so far in this function including this one; data2,3,4 unused
+;     - STATEMENT_LOCAL_DECLARATION - declaring a local variable, data1 = rbp offset, data2 = size of type, data3 = initializer expression or 0, data4 = initializer memory address to copy from (for braced initializers) or 0
 ;     - STATEMENT_LABEL      - data1 is a pointer to the name of the label; data2,3,4 are unused
 ;     - STATEMENT_BLOCK      - data1 is a pointer to an array of statements; data2,3,4 are unused
 ;     - STATEMENT_IF         - data1 is a pointer to the condition, data2 is a pointer to the `if' branch statement, data3 is a pointer to the `else' branch statement, or 0 if there is none; data4 is unused

@@ -58,14 +58,19 @@ global function_statements
 ; these have to be separated for reasons™
 global statement_datas
 global statement_datas_ends
-; ident lists of addresses
+; ident lists of (type << 32) | address
 ;  block_static_variables[0] = static variables inside this function
 ;  block_static_variables[1] = static variables inside this block inside this function
 ;  etc.
 global block_static_variables
+; ident lists of (type << 32) | rbp offset; one per block depth
+global local_variables
 global block_depth
 global expressions
 global expressions_end
+; where to put the next local variable
+global local_var_next_rbp_offset
+
 
 #include util.b
 #include idents.b
@@ -187,6 +192,8 @@ function main
 	statement_datas = memory
 	statement_datas_ends = memory + 400
 	block_static_variables = memory + 800
+	local_variables = memory + 1200
+	
 	p = statement_datas
 	q = statement_datas_ends
 	i = 0
@@ -204,6 +211,13 @@ function main
 		p += 8
 		i += 1
 		if i < BLOCK_DEPTH_LIMIT goto bsv_alloc_loop
+	p = local_variables
+	i = 0
+	:lv_alloc_loop
+		*8p = malloc(100000)
+		p += 8
+		i += 1
+		if i < BLOCK_DEPTH_LIMIT goto lv_alloc_loop
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)

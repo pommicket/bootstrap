@@ -12,12 +12,9 @@ int f(void) {
 }
 
 int h(void) {
-	static long x = 0x12345;
-	return x;
-	{
-	static unsigned short x = 0x123f;
-	return x;
-	}{{{{{{{{{{{{{{static unsigned x = 0x1234567; return x;}}}}}}}}return x;}}}}}return x;}
+	int y, r[3], s;
+	char d, e[5], f, g, *p;
+	int z = 3, R=12+459834-g;
 	return g;
 }
 
