@@ -54,11 +54,16 @@ global function_statements
 ; statement_datas[0] = pointer to statement data for block-nesting depth 0 (i.e. function bodies)
 ; statement_datas[1] = pointer to statement data for block-nesting depth 1 (blocks inside functions)
 ; statement_datas[2] = pointer to statement data for block-nesting depth 2 (blocks inside blocks inside functions)
-; etc. up to statement_datas[15]  "* 15 nesting levels of compound statements, iteration control structures, and selection control structures" C89 § 2.2.4.1 
+; etc. up to statement_datas[BLOCK_DEPTH_LIMIT-1]
 ; these have to be separated for reasons™
 global statement_datas
 global statement_datas_ends
-global parse_stmt_depth
+; ident lists of addresses
+;  block_static_variables[0] = static variables inside this function
+;  block_static_variables[1] = static variables inside this block inside this function
+;  etc.
+global block_static_variables
+global block_depth
 global expressions
 global expressions_end
 
@@ -176,20 +181,29 @@ function main
 	local q
 	local i
 	local output_fd
+	local memory
 	
-	statement_datas = malloc(4000)
-	statement_datas_ends = malloc(4000)
+	memory = malloc(4000)
+	statement_datas = memory
+	statement_datas_ends = memory + 400
+	block_static_variables = memory + 800
 	p = statement_datas
 	q = statement_datas_ends
 	i = 0
 	:statement_datas_loop
 		*8p = malloc(4000000) ; supports 100,000 statements at each level
-		*8q = p
+		*8q = *8p
 		p += 8
 		q += 8
 		i += 1
-		if i < 16 goto statement_datas_loop
-	
+		if i < BLOCK_DEPTH_LIMIT goto statement_datas_loop
+	p = block_static_variables
+	i = 0
+	:bsv_alloc_loop
+		*8p = malloc(24000) ; more than enough memory to hold static variable names/addresses for a particular block
+		p += 8
+		i += 1
+		if i < BLOCK_DEPTH_LIMIT goto bsv_alloc_loop
 	fill_in_powers_of_10()
 	
 	typedefs = ident_list_create(100000)

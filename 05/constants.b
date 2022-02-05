@@ -10,6 +10,9 @@
 #define RWDATA_END 0x1000000
 #define EXECUTABLE_SIZE 0x1000000
 
+; "* 15 nesting levels of compound statements, iteration control structures, and selection control structures" C89 § 2.2.4.1 
+#define BLOCK_DEPTH_LIMIT 16
+
 ; C OPERATOR PRECEDENCE
 ;   lowest
 ;   1 ,

@@ -176,7 +176,7 @@ function parse_tokens
 			p = function_stmt_data + function_stmt_data_bytes_used
 			out = p
 			parse_statement(&token, &out)
-			if parse_stmt_depth != 0 goto stmtdepth_internal_err
+			if block_depth != 0 goto stmtdepth_internal_err
 			function_stmt_data_bytes_used = out - function_stmt_data
 			ident_list_add(function_statements, name, p)
 			print_statement(p)
@@ -310,6 +310,7 @@ function parse_statement
 	if c == KEYWORD_RETURN goto stmt_return
 	if c == KEYWORD_GOTO goto stmt_goto
 	if c == KEYWORD_CASE goto stmt_case
+	if c == KEYWORD_STATIC goto stmt_static_declaration
 	
 	token_error(token, .str_unrecognized_statement)
 	:str_unrecognized_statement
@@ -319,6 +320,8 @@ function parse_statement
 		*8p_token = token
 		*8p_out = out
 		return
+	:stmt_static_declaration
+		byte 0xcc ; @TODO
 	:stmt_break
 		write_statement_header(out, STATEMENT_BREAK, token)
 		token += 16
@@ -414,13 +417,12 @@ function parse_statement
 		local block_p_out
 		; find the appropriate statement data to use for this block's body
 		block_p_out = statement_datas_ends
-		block_p_out += parse_stmt_depth < 3
-		
+		block_p_out += block_depth < 3
 		*8out = *8block_p_out
 		out += 32
 		
-		parse_stmt_depth += 1
-		if parse_stmt_depth >= 16 goto too_much_nesting
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
 		
 		token += 16 ; skip opening {
 		:parse_block_loop
@@ -433,7 +435,7 @@ function parse_statement
 		p = *8block_p_out
 		*1p = 0  ; probably redundant, but whatever
 		*8block_p_out += 8 ; add 8 and not 1 because of alignment
-		parse_stmt_depth -= 1
+		block_depth -= 1
 		goto parse_statement_ret
 		
 		:parse_block_eof
