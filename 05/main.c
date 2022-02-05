@@ -4,7 +4,10 @@ int f(void) {
 	continue;a:break;return;return 6+3<<sizeof(int);
 	goto lbl1;
 	case 77:;return 92834;
+	static int x = 0x12345;
 }
+
+/* typedef int AA[sizeof x]; */
 
 
 /* typedef struct { */

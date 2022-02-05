@@ -39,6 +39,24 @@ function structure_is_union
 function parse_tokens
 	argument tokens
 	local token
+	
+	token = tokens
+	:parse_tokens_loop
+		if *1token == TOKEN_EOF goto parse_tokens_eof
+		parse_toplevel_declaration(&token, global_variables)
+		goto parse_tokens_loop
+	:parse_tokens_eof
+	return
+
+
+; also handles static declarations inside functions
+; advances *p_token past semicolon
+; static_vars = where to put static variables
+function parse_toplevel_declaration
+	argument p_token
+	argument static_vars
+	
+	local token
 	local ident
 	local type
 	local p
@@ -55,206 +73,221 @@ function parse_tokens
 	local is_extern
 	local out
 	
-	token = tokens
-	:parse_tokens_loop
-		is_extern = 0
-		if *1token == TOKEN_EOF goto parse_tokens_eof
-		if *1token == KEYWORD_STATIC goto parse_static_toplevel_decl
-		if *1token == KEYWORD_EXTERN goto parse_extern_toplevel_decl
-		if *1token == KEYWORD_TYPEDEF goto parse_typedef
-		
-		b = token_is_type(token)
-		if b != 0 goto parse_toplevel_decl
-		
-		token_error(token, .str_bad_statement)
-		:str_bad_statement
-			string Bad statement.
-			byte 0
-		:parse_static_toplevel_decl
-			token += 16 ; we don't care that this is static
-			goto parse_toplevel_decl
-		:parse_extern_toplevel_decl
+	token = *8p_token
+	is_extern = 0
+
+	if *1token == KEYWORD_STATIC goto parse_static_toplevel_decl
+	if *1token == KEYWORD_EXTERN goto parse_extern_toplevel_decl
+	if *1token == KEYWORD_TYPEDEF goto parse_typedef
+	
+	b = token_is_type(token)
+	if b != 0 goto parse_toplevel_decl
+	
+	token_error(token, .str_bad_decl)
+	:str_bad_decl
+		string Bad declaration.
+		byte 0
+	:parse_tld_ret
+		*8p_token = token
+		return
+	:parse_static_toplevel_decl
+		token += 16 ; we don't care that this is static
+		goto parse_toplevel_decl
+	:parse_extern_toplevel_decl
+		token += 16
+		is_extern = 1
+		goto parse_toplevel_decl
+	:parse_toplevel_decl
+		base_type = token
+		base_type_end = type_get_base_end(token)
+		token = base_type_end
+		:tl_decl_loop
+			prefix = token
+			prefix_end = type_get_prefix_end(prefix)
+			if *1prefix_end != TOKEN_IDENTIFIER goto tl_decl_no_ident
+			name = prefix_end + 8
+			name = *8name
+			suffix = prefix_end + 16
+			suffix_end = type_get_suffix_end(prefix)
+			type = types_bytes_used
+			parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+			parse_base_type(base_type, base_type_end)
+			
+			; ensure rwdata_end_addr is aligned to 8 bytes
+			; otherwise addresses could be screwed up
+			rwdata_end_addr += 7
+			rwdata_end_addr >= 3
+			rwdata_end_addr <= 3
+			
+			token = suffix_end
+			if *1token == SYMBOL_LBRACE goto parse_function_definition
+			if is_extern != 0 goto parse_tl_decl_cont  ; ignore external variable declarations
+			; deal with the initializer if there is one
+			if *1token == SYMBOL_SEMICOLON goto parse_tld_no_initializer
+			if *1token == SYMBOL_COMMA goto parse_tld_no_initializer
+			if *1token == SYMBOL_EQ goto parse_tld_initializer
+			token_error(token, .str_unrecognized_stuff_after_declaration)
+			:str_unrecognized_stuff_after_declaration
+				string Declaration should be followed by one of: { , =
+				byte 32
+				byte 59 ; semicolon
+				byte 0	
+			:parse_tl_decl_cont
+			
+			
+			if *1token == SYMBOL_SEMICOLON goto tl_decl_loop_done
+			if *1token != SYMBOL_COMMA goto tld_bad_stuff_after_decl
 			token += 16
-			is_extern = 1
-			goto parse_toplevel_decl
-		:parse_toplevel_decl
-			base_type = token
-			base_type_end = type_get_base_end(token)
-			token = base_type_end
-			:tl_decl_loop
-				prefix = token
-				prefix_end = type_get_prefix_end(prefix)
-				if *1prefix_end != TOKEN_IDENTIFIER goto tl_decl_no_ident
-				name = prefix_end + 8
-				name = *8name
-				suffix = prefix_end + 16
-				suffix_end = type_get_suffix_end(prefix)
-				type = types_bytes_used
-				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
-				parse_base_type(base_type, base_type_end)
-				
-				; ensure rwdata_end_addr is aligned to 8 bytes
-				; otherwise addresses could be screwed up
-				rwdata_end_addr += 7
-				rwdata_end_addr >= 3
-				rwdata_end_addr <= 3
-				
-				token = suffix_end
-				if *1token == SYMBOL_LBRACE goto parse_function_definition
-				if is_extern != 0 goto parse_tl_decl_cont  ; ignore external variable declarations
-				; deal with the initializer if there is one
-				if *1token == SYMBOL_SEMICOLON goto parse_tld_no_initializer
-				if *1token == SYMBOL_COMMA goto parse_tld_no_initializer
-				if *1token == SYMBOL_EQ goto parse_tld_initializer
-				token_error(token, .str_unrecognized_stuff_after_declaration)
-				:str_unrecognized_stuff_after_declaration
-					string Declaration should be followed by one of: { , =
-					byte 32
-					byte 59 ; semicolon
-					byte 0	
-				:parse_tl_decl_cont
-				
-				
-				if *1token == SYMBOL_SEMICOLON goto tl_decl_loop_done
-				if *1token != SYMBOL_COMMA goto tld_bad_stuff_after_decl
-				token += 16
-				goto tl_decl_loop
-			:tl_decl_loop_done
-			token += 16 ; skip semicolon
-			goto parse_tokens_loop
-				 				 
-			:tl_decl_no_ident
-				token_error(prefix_end, .str_tl_decl_no_ident)
-			:str_tl_decl_no_ident
-				string No identifier in top-level declaration.
-				byte 0
-			:tld_bad_stuff_after_decl
-				token_error(token, .str_tld_bad_stuff_after_decl)
-			:str_tld_bad_stuff_after_decl
-				string Declarations should be immediately followed by a comma or semicolon.
-				byte 0
-		:parse_tld_no_initializer
-			p = types + type
-			if *1p == TYPE_FUNCTION goto parse_tl_decl_cont ; ignore function declarations -- we do two passes anyways
-			b = ident_list_lookup(global_variables, name)
-			if b != 0 goto global_redefinition
-			c = type < 32
-			c |= rwdata_end_addr
-			ident_list_add(global_variables, name, c)
-			; just skip forward by the size of this variable -- it'll automatically be filled with 0s.
-			rwdata_end_addr += type_sizeof(type)
-			goto parse_tl_decl_cont
-		:parse_tld_initializer
-			if *1p == TYPE_FUNCTION goto function_initializer
-			b = ident_list_lookup(global_variables, name)
-			if b != 0 goto global_redefinition
-			token += 16 ; skip =
-			c = type < 32
-			c |= rwdata_end_addr
-			ident_list_add(global_variables, name, c)
-			parse_constant_initializer(&token, type)
-			goto parse_tl_decl_cont
-		:global_redefinition
-			token_error(token, .str_global_redefinition)
-		:str_global_redefinition
-			string Redefinition of global variable.
+			goto tl_decl_loop
+		:tl_decl_loop_done
+		token += 16 ; skip semicolon
+		goto parse_tld_ret
+			 				 
+		:tl_decl_no_ident
+			token_error(prefix_end, .str_tl_decl_no_ident)
+		:str_tl_decl_no_ident
+			string No identifier in top-level declaration.
 			byte 0
-		:function_initializer
-			token_error(token, .str_function_initializer)
-		:str_function_initializer
-			string Functions should not have initializers.
+		:tld_bad_stuff_after_decl
+			token_error(token, .str_tld_bad_stuff_after_decl)
+		:str_tld_bad_stuff_after_decl
+			string Declarations should be immediately followed by a comma or semicolon.
 			byte 0
-		:parse_function_definition
-			p = types + type
-			; @TODO: parameters
-			;   @NOTE: remember to turn array members into pointers
-			if *1p != TYPE_FUNCTION goto lbrace_after_declaration
-			
-			global function_stmt_data ; initialized in main
-			global function_stmt_data_bytes_used
-			
-			p = function_stmt_data + function_stmt_data_bytes_used
-			out = p
-			parse_statement(&token, &out)
-			if block_depth != 0 goto stmtdepth_internal_err
-			function_stmt_data_bytes_used = out - function_stmt_data
-			ident_list_add(function_statements, name, p)
-			print_statement(p)
-			goto parse_tokens_loop
-			
-			:stmtdepth_internal_err
-				token_error(token, .str_stmtdepth_internal_err)
-			:str_stmtdepth_internal_err
-				string Internal compiler error: parse_stmt_depth is not 0 after parsing function body.
-				byte 0
-			:lbrace_after_declaration
-				token_error(token, .str_lbrace_after_declaration)
-			:str_lbrace_after_declaration
-				string Opening { after declaration of non-function.
-				byte 0
-		:parse_typedef
-			base_type = token + 16
-			base_type_end = type_get_base_end(base_type)
-			
-			token = base_type_end
-			
-			:typedef_loop
-				prefix = token
-				prefix_end = type_get_prefix_end(prefix)
-				if *1prefix_end != TOKEN_IDENTIFIER goto typedef_no_ident
-				ident = prefix_end + 8
-				ident = *8ident
-				suffix = prefix_end + 16
-				suffix_end = type_get_suffix_end(prefix)
-				
-				;putc('B)
-				;putc(':)
-				;print_tokens(base_type, base_type_end)
-				;putc('P)
-				;putc(':)
-				;print_tokens(prefix, prefix_end)
-				;putc('S)
-				;putc(':)
-				;print_tokens(suffix, suffix_end)
-				
-				type = types_bytes_used
-				parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
-				parse_base_type(base_type)
-				
-				puts(.str_typedef)
-				putc(32)
-				print_type(type)
-				putc(10)
-				
-				b = ident_list_lookup(typedefs, ident)
-				if b != 0 goto typedef_redefinition
-				
-				ident_list_add(typedefs, ident, type)
-				token = suffix_end
-				if *1token == SYMBOL_SEMICOLON goto typedef_loop_end
-				if *1token != SYMBOL_COMMA goto bad_typedef
-				token += 16 ; skip comma
-				goto typedef_loop
-			:typedef_loop_end
-			token += 16 ; skip semicolon
-			goto parse_tokens_loop
-		:typedef_no_ident
-			token_error(token, .str_typedef_no_ident)
-		:str_typedef_no_ident
-			string No identifier in typedef declaration.
+	:parse_tld_no_initializer
+		p = types + type
+		if *1p == TYPE_FUNCTION goto parse_tl_decl_cont ; ignore function declarations -- we do two passes anyways
+		b = ident_list_lookup(static_vars, name)
+		if b != 0 goto global_redefinition
+		c = type < 32
+		c |= rwdata_end_addr
+		ident_list_add(static_vars, name, c)
+		; just skip forward by the size of this variable -- it'll automatically be filled with 0s.
+		rwdata_end_addr += type_sizeof(type)
+		goto parse_tl_decl_cont
+	:parse_tld_initializer
+		p = types + type
+		if *1p == TYPE_FUNCTION goto function_initializer
+		b = ident_list_lookup(static_vars, name)
+		if b != 0 goto global_redefinition
+		token += 16 ; skip =
+		c = type < 32
+		c |= rwdata_end_addr
+		ident_list_add(static_vars, name, c)
+		parse_constant_initializer(&token, type)
+		goto parse_tl_decl_cont
+	:global_redefinition
+		token_error(token, .str_global_redefinition)
+	:str_global_redefinition
+		string Redefinition of global variable.
+		byte 0
+	:function_initializer
+		token_error(token, .str_function_initializer)
+	:str_function_initializer
+		string Functions should not have initializers.
+		byte 0
+	:parse_function_definition
+		if block_depth != 0 goto nested_function
+		p = types + type
+		; @TODO: parameters
+		;   @NOTE: remember to turn array members into pointers
+		if *1p != TYPE_FUNCTION goto lbrace_after_declaration
+		
+		global function_stmt_data ; initialized in main
+		global function_stmt_data_bytes_used
+		
+		p = function_stmt_data + function_stmt_data_bytes_used
+		out = p
+		parse_statement(&token, &out)
+		if block_depth != 0 goto stmtdepth_internal_err
+		function_stmt_data_bytes_used = out - function_stmt_data
+		ident_list_add(function_statements, name, p)
+		print_statement(p)
+		goto parse_tld_ret
+		
+		:stmtdepth_internal_err
+			token_error(token, .str_stmtdepth_internal_err)
+		:str_stmtdepth_internal_err
+			string Internal compiler error: parse_stmt_depth is not 0 after parsing function body.
 			byte 0
-		:bad_typedef
-			token_error(token, .str_bad_typedef)
-		:str_bad_typedef
-			string Bad typedef.
+		:lbrace_after_declaration
+			token_error(token, .str_lbrace_after_declaration)
+		:str_lbrace_after_declaration
+			string Opening { after declaration of non-function.
 			byte 0
-		:typedef_redefinition
-			token_error(token, .str_typedef_redefinition)
-		:str_typedef_redefinition
-			string typedef redefinition.
+		:nested_function
+			token_error(token, .str_nested_function)
+		:str_nested_function
+			string Nested function.
 			byte 0
-	:parse_tokens_eof
-	return
+	:parse_typedef
+		if block_depth > 0 goto local_typedef
+		base_type = token + 16
+		base_type_end = type_get_base_end(base_type)
+		
+		token = base_type_end
+		
+		:typedef_loop
+			prefix = token
+			prefix_end = type_get_prefix_end(prefix)
+			if *1prefix_end != TOKEN_IDENTIFIER goto typedef_no_ident
+			ident = prefix_end + 8
+			ident = *8ident
+			suffix = prefix_end + 16
+			suffix_end = type_get_suffix_end(prefix)
+			
+			;putc('B)
+			;putc(':)
+			;print_tokens(base_type, base_type_end)
+			;putc('P)
+			;putc(':)
+			;print_tokens(prefix, prefix_end)
+			;putc('S)
+			;putc(':)
+			;print_tokens(suffix, suffix_end)
+			
+			type = types_bytes_used
+			parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+			parse_base_type(base_type)
+			
+			puts(.str_typedef)
+			putc(32)
+			print_type(type)
+			putc(10)
+			
+			b = ident_list_lookup(typedefs, ident)
+			if b != 0 goto typedef_redefinition
+			
+			ident_list_add(typedefs, ident, type)
+			token = suffix_end
+			if *1token == SYMBOL_SEMICOLON goto typedef_loop_end
+			if *1token != SYMBOL_COMMA goto bad_typedef
+			token += 16 ; skip comma
+			goto typedef_loop
+		:typedef_loop_end
+		token += 16 ; skip semicolon
+		goto parse_tld_ret
+	:local_typedef
+		; @NONSTANDARD
+		; we could add an extra "typedefs" argument to this function to fix this.
+		token_error(token, .str_local_typedef)
+	:str_local_typedef
+		string typedefs inside functions are not supported.
+		byte 0
+	:typedef_no_ident
+		token_error(token, .str_typedef_no_ident)
+	:str_typedef_no_ident
+		string No identifier in typedef declaration.
+		byte 0
+	:bad_typedef
+		token_error(token, .str_bad_typedef)
+	:str_bad_typedef
+		string Bad typedef.
+		byte 0
+	:typedef_redefinition
+		token_error(token, .str_typedef_redefinition)
+	:str_typedef_redefinition
+		string typedef redefinition.
+		byte 0
 
 ; write type, file, and line info for statement
 function write_statement_header
@@ -280,7 +313,6 @@ function parse_statement
 	local p
 	local c
 	local n
-	
 	
 	out = *8p_out
 	token = *8p_token
@@ -321,7 +353,10 @@ function parse_statement
 		*8p_out = out
 		return
 	:stmt_static_declaration
-		byte 0xcc ; @TODO
+		p = block_static_variables
+		p += block_depth < 3
+		parse_toplevel_declaration(&token, *8p)
+		goto parse_statement_ret
 	:stmt_break
 		write_statement_header(out, STATEMENT_BREAK, token)
 		token += 16
