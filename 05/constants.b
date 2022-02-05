@@ -30,6 +30,14 @@
 ;   highest
 ; NB: for equal precedence, operators are applied left-to-right except for assignment operators (precedence 2)
 
+
+; TOKENS
+; tokens are 16 bytes and have the following format:
+;    uchar type
+;    uchar info
+;    ushort file
+;    uint line
+;    ulong data  -- for int/float literals, the value; for string literals, the runtime address; for identifiers, the name of the identifier
 #define SYMBOL_COMMA 200
 ; NOTE: operator_right_associative and others require SYMBOL_EQ to be the first assignment operator
 #define SYMBOL_EQ 201
@@ -78,6 +86,7 @@
 #define SYMBOL_RPAREN 243
 #define SYMBOL_SEMICOLON 244
 #define SYMBOL_DOT 245
+
 
 #define TOKEN_IDENTIFIER 1
 #define TOKEN_CONSTANT_FLOAT 2
@@ -738,6 +747,10 @@
 :str_union
 	string union
 	byte 0
-:str_typedef ; currently only used for nice debug output
+; NB: some of these are only used for nice debug output
+:str_typedef
 	string typedef
+	byte 0
+:str_return
+	string return
 	byte 0

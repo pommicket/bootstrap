@@ -98,12 +98,6 @@ function get_keyword_str
 	
 
 ; turn pptokens into tokens, written to out.
-; tokens are 16 bytes and have the following format:
-;    uchar type
-;    uchar info
-;    ushort file
-;    uint line
-;    ulong data  -- for int/float literals, the value; for string literals, the runtime address; for identifiers, the name of the identifier
 ; This corresponds to translation phases 5-6 and the first half of 7
 ; IMPORTANT: this function uses pointers to pptokens, so it should NOT be freed!
 ; Returns a pointer to the end of tokens.

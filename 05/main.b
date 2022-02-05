@@ -1,3 +1,10 @@
+; @TODO: if we have,
+;   1  extern int blah;
+;   2  ...
+;   n  int blah;
+; give `blah` an address on line 1, then ignore declaration on line n
+
+
 ; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
 byte 0x48
 byte 0x81
@@ -52,6 +59,8 @@ global function_statements
 global statement_datas
 global statement_datas_ends
 global parse_stmt_depth
+global expressions
+global expressions_end
 
 #include util.b
 #include idents.b
@@ -198,6 +207,8 @@ function main
 	*1file_list = 255
 	object_macros = malloc(4000000)
 	function_macros = malloc(4000000)
+	expressions = malloc(16000000)
+	expressions_end = expressions
 	
 	types = malloc(16000000)
 	types_init(types, &types_bytes_used)

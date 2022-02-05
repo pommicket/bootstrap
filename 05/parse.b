@@ -173,13 +173,13 @@ function parse_tokens
 			global function_stmt_data ; initialized in main
 			global function_stmt_data_bytes_used
 			
-			n = function_stmt_data_bytes_used
-			out = function_stmt_data + function_stmt_data_bytes_used
+			p = function_stmt_data + function_stmt_data_bytes_used
+			out = p
 			parse_statement(&token, &out)
 			if parse_stmt_depth != 0 goto stmtdepth_internal_err
 			function_stmt_data_bytes_used = out - function_stmt_data
-			
-			ident_list_add(function_statements, name, n)
+			ident_list_add(function_statements, name, p)
+			print_statement(p)
 			goto parse_tokens_loop
 			
 			:stmtdepth_internal_err
@@ -304,6 +304,9 @@ function parse_statement
 	c = *1token
 	if c == SYMBOL_SEMICOLON goto stmt_empty
 	if c == SYMBOL_LBRACE goto stmt_block
+	if c == KEYWORD_BREAK goto stmt_break
+	if c == KEYWORD_CONTINUE goto stmt_continue
+	if c == KEYWORD_RETURN goto stmt_return
 	
 	token_error(token, .str_unrecognized_statement)
 	:str_unrecognized_statement
@@ -313,6 +316,42 @@ function parse_statement
 		*8p_token = token
 		*8p_out = out
 		return
+	:stmt_break
+		token += 16
+		if *1token != SYMBOL_SEMICOLON goto break_no_semicolon
+		token += 16
+		write_statement_header(out, STATEMENT_BREAK, token)
+		out += 40
+		goto parse_statement_ret
+		:break_no_semicolon
+			token_error(token, .str_break_no_semicolon)
+		:str_break_no_semicolon
+			string No semicolon after break.
+			byte 0
+	:stmt_continue
+		token += 16
+		if *1token != SYMBOL_SEMICOLON goto continue_no_semicolon
+		token += 16
+		write_statement_header(out, STATEMENT_CONTINUE, token)
+		out += 40
+		goto parse_statement_ret
+		:continue_no_semicolon
+			token_error(token, .str_continue_no_semicolon)
+		:str_continue_no_semicolon
+			string No semicolon after continue.
+			byte 0
+	:stmt_return
+		write_statement_header(out, STATEMENT_RETURN, token)
+		out += 8
+		token += 16
+		if *1token == SYMBOL_SEMICOLON goto return_no_expr
+		n = token_next_semicolon_not_in_brackets(token)
+		*8out = expressions_end
+		expressions_end = parse_expression(token, n, expressions_end)
+		token = n + 16
+		:return_no_expr
+		out += 32
+		goto parse_statement_ret
 	:stmt_block
 		local block_p_out
 		; find the appropriate statement data to use for this block's body
@@ -355,6 +394,92 @@ function parse_statement
 		; empty statement, e.g. while(something)-> ; <-
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
+
+function print_statement
+	argument statement
+	print_statement_with_depth(statement, 0)
+	return
+
+function print_statement_with_depth
+	argument statement
+	argument depth
+	local c
+	local dat1
+	local dat2
+	local dat3
+	local dat4
+	
+	c = depth
+	:print_stmt_indent_loop
+		if c == 0 goto print_stmt_indent_loop_end
+		putc(9) ; tab
+		c -= 1
+		goto print_stmt_indent_loop
+	:print_stmt_indent_loop_end
+	
+	c = *1statement
+	dat1 = statement + 8
+	dat1 = *8dat1
+	dat2 = statement + 16
+	dat2 = *8dat2
+	dat3 = statement + 24
+	dat3 = *8dat3
+	dat4 = statement + 32
+	dat4 = *8dat4
+	
+	if c == STATEMENT_LABEL goto print_stmt_label
+	if c == STATEMENT_BLOCK goto print_stmt_block
+	if c == STATEMENT_CONTINUE goto print_stmt_continue
+	if c == STATEMENT_BREAK goto print_stmt_break
+	if c == STATEMENT_RETURN goto print_stmt_return
+	
+	die(.pristmtNI)
+	:pristmtNI
+		string print_statement not implemented.
+		byte 0
+	:str_semicolon_newline
+		byte 59
+		byte 10
+		byte 0
+	:print_stmt_label
+		puts(dat1)
+		putcln(':)
+		return
+	:print_stmt_break
+		puts(.str_stmt_break)
+		return
+	:str_stmt_break
+		string break
+		byte 59 ; semicolon
+		byte 10
+		byte 0
+	:print_stmt_continue
+		puts(.str_stmt_continue)
+		return
+	:str_stmt_continue
+		string continue
+		byte 59 ; semicolon
+		byte 10
+		byte 0
+	:print_stmt_return
+		puts(.str_return)
+		if dat1 == 0 goto print_ret_noexpr
+		putc(32)
+		print_expression(dat1)
+		:print_ret_noexpr
+		puts(.str_semicolon_newline)
+		return
+	:print_stmt_block
+		putcln('{)
+		depth += 1
+		:print_block_loop
+			if *1dat1 == 0 goto print_block_loop_end
+			print_statement_with_depth(dat1, depth)
+			dat1 += 40
+			goto print_block_loop
+		:print_block_loop_end
+		putcln('})
+		return
 
 ; parse a global variable's initializer
 ; e.g.    int x[5] = {1+8, 2, 3, 4, 5};
@@ -741,6 +866,43 @@ function token_reverse_to_matching_lparen
 	return
 
 
+; return the next semicolon not in parentheses, square brackets, or braces. 
+function token_next_semicolon_not_in_brackets
+	argument token0
+	
+	local token
+	local depth
+	local c
+	
+	depth = 0
+	token = token0
+	:next_semicolon_loop
+		c = *1token
+		if c == TOKEN_EOF goto next_semicolon_eof
+		if depth != 0 goto next_semicolon_nocheck
+		if c == SYMBOL_SEMICOLON goto next_semicolon_loop_end
+		:next_semicolon_nocheck
+		token += 16
+		if c == SYMBOL_LPAREN goto next_semicolon_incdepth
+		if c == SYMBOL_RPAREN goto next_semicolon_decdepth
+		if c == SYMBOL_LSQUARE goto next_semicolon_incdepth
+		if c == SYMBOL_RSQUARE goto next_semicolon_decdepth
+		if c == SYMBOL_LBRACE goto next_semicolon_incdepth
+		if c == SYMBOL_RBRACE goto next_semicolon_decdepth
+		goto next_semicolon_loop
+		:next_semicolon_incdepth
+			depth += 1
+			goto next_semicolon_loop
+		:next_semicolon_decdepth
+			depth -= 1
+			goto next_semicolon_loop
+	:next_semicolon_loop_end
+	return token
+	:next_semicolon_eof
+		token_error(token0, .str_next_semicolon_eof)
+		:str_next_semicolon_eof
+			string End of file found while searching for semicolon.
+			byte 0 
 ; we split types into base (B), prefix (P) and suffix (S)
 ;     struct Thing (*things[5])(void), *something_else[3];
 ;     BBBBBBBBBBBB PP      SSSSSSSSSS  P              SSS
@@ -1426,7 +1588,8 @@ function type_create_pointer
 	p = id + 1
 	types_bytes_used += type_copy_ids(p, type)
 	return id
-	
+
+; returns pointer to end of expression data	
 function parse_expression
 	argument tokens
 	argument tokens_end

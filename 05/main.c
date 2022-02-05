@@ -1,5 +1,6 @@
 int f(void) {
-blah:blah:blah:;
+	lbl1:break;;;
+	continue;a:break;return;return 6+3<<sizeof(int);
 }
 
 

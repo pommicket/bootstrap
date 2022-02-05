@@ -137,6 +137,7 @@ function file_error
 function die
 	argument message
 	fputs(2, message)
+	fputc(2, 10)
 	exit(1)
 
 function ftruncate
