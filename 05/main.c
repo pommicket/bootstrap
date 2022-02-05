@@ -1,10 +1,24 @@
+static int g;
+
 int f(void) {
 	lbl1:break;;goto blah;
 	case -1-3:
 	continue;a:break;return;return 6+3<<sizeof(int);
 	goto lbl1;
 	case 77:;return 92834;
+	return g;
 	static int x = 0x12345;
+	return  x;
+}
+
+int h(void) {
+	static long x = 0x12345;
+	return x;
+	{
+	static unsigned short x = 0x123f;
+	return x;
+	}{{{{{{{{{{{{{{static unsigned x = 0x1234567; return x;}}}}}}}}return x;}}}}}return x;}
+	return g;
 }
 
 /* typedef int AA[sizeof x]; */

@@ -303,6 +303,7 @@ function write_statement_header
 	*4out = *4token
 	return 0
 
+
 ; writes statement data for the statement at *p_token to (*)*p_out
 ; always advances *p_out by exactly 40 bytes, since that's the length of a statement.
 function parse_statement
@@ -470,7 +471,14 @@ function parse_statement
 		p = *8block_p_out
 		*1p = 0  ; probably redundant, but whatever
 		*8block_p_out += 8 ; add 8 and not 1 because of alignment
+		
+		; clear block-related stuff for this depth
+		p = block_static_variables
+		p += block_depth < 3
+		ident_list_clear(*8p)
+		
 		block_depth -= 1
+		
 		goto parse_statement_ret
 		
 		:parse_block_eof
@@ -487,12 +495,21 @@ function parse_statement
 		; empty statement, e.g. while(something)-> ; <-
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
-	
+
 function print_statement
 	argument statement
 	print_statement_with_depth(statement, 0)
 	return
 
+
+function print_indents
+	argument count
+	:print_indent_loop
+		if count == 0 goto return_0
+		putc(9)
+		count -= 1
+		goto print_indent_loop
+	
 function print_statement_with_depth
 	argument statement
 	argument depth
@@ -502,13 +519,7 @@ function print_statement_with_depth
 	local dat3
 	local dat4
 	
-	c = depth
-	:print_stmt_indent_loop
-		if c == 0 goto print_stmt_indent_loop_end
-		putc(9) ; tab
-		c -= 1
-		goto print_stmt_indent_loop
-	:print_stmt_indent_loop_end
+	print_indents(depth)
 	
 	c = *1statement
 	dat1 = statement + 8
@@ -573,6 +584,8 @@ function print_statement_with_depth
 			dat1 += 40
 			goto print_block_loop
 		:print_block_loop_end
+		depth -= 1
+		print_indents(depth)
 		putcln('})
 		return
 	:print_stmt_goto
@@ -2221,11 +2234,22 @@ function parse_expression
 			out += 8
 			return out
 		:not_enumerator
-		; @TODO: check if it's a local variable
+		
+		n = block_depth
+		:var_lookup_loop
+			; check if it's a block static variable
+			p = block_static_variables
+			p += n < 3
+			c = ident_list_lookup(*8p, a)
+			if c != 0 goto found_global_variable
+			; @TODO: check if it's a local variable
+			n -= 1
+			if n >= 0 goto var_lookup_loop
 		
 		; check if it's a global
 		c = ident_list_lookup(global_variables, a)
 		if c == 0 goto not_global
+		:found_global_variable
 			; it is a global variable
 			*1out = EXPRESSION_GLOBAL_VARIABLE
 			out += 4
@@ -3169,6 +3193,7 @@ function print_expression
 	:print_expr_skip_type
 	c = *1expression
 	
+	if c == EXPRESSION_GLOBAL_VARIABLE goto print_global_variable
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto print_expr_float
 	if c == EXPRESSION_POST_INCREMENT goto print_post_increment
@@ -3195,6 +3220,15 @@ function print_expression
 		string Bad expression passed to print_expression.
 		byte 10
 		byte 0
+	:str_global_at
+		string global@
+		byte 0
+	:print_global_variable
+		puts(.str_global_at)
+		expression += 8
+		putx32(*8expression)
+		expression += 8
+		return expression
 	:print_cast
 		; we've already printed the type
 		expression += 8
