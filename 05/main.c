@@ -19,6 +19,7 @@ int h(void) {
 	struct {
 		char a,b;
 	} P[] = {1,2,3,4,5};
+	int *Y = x;
 	static int marker = 0x12345678;
 	return 5;
 }

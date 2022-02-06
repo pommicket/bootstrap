@@ -429,9 +429,12 @@ function parse_statement
 				if *1token == SYMBOL_LBRACE goto local_init_lbrace
 				n = token_next_semicolon_or_comma_not_in_brackets(token)
 				out -= 16
-				*8out = expressions_end
+				p = expressions_end
+				*8out = p
 				out += 16
-				expressions_end = parse_expression(token, n, expressions_end)
+				expressions_end = parse_expression(token, n, p)
+				p += 4
+				type_decay_array_to_pointer(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
 				token = n
 				goto local_decl_continue
 			:local_init_lbrace
@@ -2428,7 +2431,10 @@ function parse_expression
 			p += n < 3
 			c = ident_list_lookup(*8p, a)
 			if c != 0 goto found_global_variable
-			; @TODO: check if it's a local variable
+			p = local_variables
+			p += n < 3
+			c = ident_list_lookup(*8p, a)
+			if c != 0 goto found_local_variable
 			n -= 1
 			if n >= 0 goto var_lookup_loop
 		
@@ -2451,6 +2457,15 @@ function parse_expression
 		:str_undeclared_variable
 			string Undeclared variable.
 			byte 0
+		:found_local_variable
+			; it's a local variable
+			*1out = EXPRESSION_LOCAL_VARIABLE
+			out += 4
+			*4out = c > 32 ; extract type
+			out += 4
+			*8out = c & 0xffffffff ; extract rbp offset
+			out += 8
+			return out
 	:expression_integer
 		*1out = EXPRESSION_CONSTANT_INT
 		p = in + 8
@@ -3379,6 +3394,7 @@ function print_expression
 	:print_expr_skip_type
 	c = *1expression
 	
+	if c == EXPRESSION_LOCAL_VARIABLE goto print_local_variable
 	if c == EXPRESSION_GLOBAL_VARIABLE goto print_global_variable
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto print_expr_float
@@ -3408,6 +3424,16 @@ function print_expression
 		byte 0
 	:str_global_at
 		string global@
+		byte 0
+	:print_local_variable
+		puts(.str_local_prefix)
+		expression += 8
+		putn(*8expression)
+		putc('])
+		expression += 8
+		return expression
+	:str_local_prefix
+		string [rsp-
 		byte 0
 	:print_global_variable
 		puts(.str_global_at)
