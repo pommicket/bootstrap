@@ -49,7 +49,9 @@ global output_file_data
 ; ident list of global variables. each one is stored as
 ;  (type << 32) | address
 global global_variables
-; ident list of functions. each entry is a pointer to a single statement - which should always be a STATEMENT_BLOCK
+; ident list of functions. each entry is a pointer two statements
+;  - the first one is a STATEMENT_LOCAL_DECLARATION (with dat2=dat3=dat4=0), which is only there to set rsp properly because of parameters
+;  - the second one is the function body (a STATEMENT_BLOCK)
 global function_statements
 ; statement_datas[0] = pointer to statement data for block-nesting depth 0 (i.e. function bodies)
 ; statement_datas[1] = pointer to statement data for block-nesting depth 1 (blocks inside functions)
@@ -68,9 +70,9 @@ global local_variables
 global block_depth
 global expressions
 global expressions_end
-; where to put the next local variable
-global local_var_next_rbp_offset
-
+; current rbp offset (where rsp is)
+global local_var_rbp_offset
+global function_param_names
 
 #include util.b
 #include idents.b
@@ -193,6 +195,7 @@ function main
 	statement_datas_ends = memory + 400
 	block_static_variables = memory + 800
 	local_variables = memory + 1200
+	function_param_names = memory + 1600
 	
 	p = statement_datas
 	q = statement_datas_ends

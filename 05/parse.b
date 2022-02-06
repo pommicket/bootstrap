@@ -59,6 +59,7 @@ function parse_toplevel_declaration
 	local token
 	local ident
 	local type
+	local list
 	local p
 	local b
 	local c
@@ -72,6 +73,7 @@ function parse_toplevel_declaration
 	local suffix_end
 	local is_extern
 	local out
+	local out0
 	
 	token = *8p_token
 	is_extern = 0
@@ -110,7 +112,8 @@ function parse_toplevel_declaration
 			suffix = prefix_end + 16
 			suffix_end = type_get_suffix_end(prefix)
 			type = types_bytes_used
-			parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+			*1function_param_names = 0
+			parse_type_declarators(prefix, prefix_end, suffix, suffix_end, function_param_names)
 			parse_base_type(base_type, base_type_end)
 			
 			; ensure rwdata_end_addr is aligned to 8 bytes
@@ -188,22 +191,49 @@ function parse_toplevel_declaration
 	:parse_function_definition
 		if block_depth != 0 goto nested_function
 		p = types + type
-		; @TODO: parameters
-		;   @NOTE: remember to turn array members into pointers
 		if *1p != TYPE_FUNCTION goto lbrace_after_declaration
 		
 		global function_stmt_data ; initialized in main
 		global function_stmt_data_bytes_used
 		
-		local_var_next_rbp_offset = 0
+		local_var_rbp_offset = 0
+				
+		out = function_stmt_data + function_stmt_data_bytes_used
+		out0 = out
+		ident_list_add(function_statements, name, out)
 		
-		p = function_stmt_data + function_stmt_data_bytes_used
-		out = p
+		; deal with function parameters
+		p = type + 1
+		name = function_param_names
+		list = local_variables
+		list += 8
+		list = *8list
+		:fn_params_loop
+			if *1name == 0 goto fn_params_loop_end
+			local_var_rbp_offset += type_sizeof(p)
+			local_var_rbp_offset += 7
+			local_var_rbp_offset >= 3
+			local_var_rbp_offset <= 3
+			c = p < 32
+			c |= local_var_rbp_offset
+			ident_list_add(list, name, c)
+			p += type_length(p)
+			name = memchr(name, 0)
+			name += 1
+			goto fn_params_loop
+		:fn_params_loop_end
+		
+		write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
+		out += 8
+		*8out = local_var_rbp_offset
+		out += 32
+		
 		parse_statement(&token, &out)
 		if block_depth != 0 goto stmtdepth_internal_err
 		function_stmt_data_bytes_used = out - function_stmt_data
-		ident_list_add(function_statements, name, p)
-		print_statement(p)
+		print_statement(out0)
+		out0 += 40
+		print_statement(out0)
 		goto parse_tld_ret
 		
 		:stmtdepth_internal_err
@@ -248,7 +278,7 @@ function parse_toplevel_declaration
 			;print_tokens(suffix, suffix_end)
 			
 			type = types_bytes_used
-			parse_type_declarators(prefix, prefix_end, suffix, suffix_end)
+			parse_type_declarators(prefix, prefix_end, suffix, suffix_end, 0)
 			parse_base_type(base_type)
 			
 			puts(.str_typedef)
@@ -357,10 +387,16 @@ function parse_statement
 	b = token_is_type(token)
 	if b != 0 goto stmt_local_declaration
 	
-	token_error(token, .str_unrecognized_statement)
-	:str_unrecognized_statement
-		string Unrecognized statement.
-		byte 0
+	; it's an expression statement
+	write_statement_header(out, STATEMENT_EXPRESSION, token)
+	out += 8
+	p = token_next_semicolon_not_in_brackets(token)
+	*8out = expressions_end
+	expressions_end = parse_expression(token, p, expressions_end)
+	out += 32
+	token = p + 16
+	goto parse_statement_ret
+	
 	:parse_statement_ret
 		*8p_token = token
 		*8p_out = out
@@ -577,38 +613,38 @@ function parse_statement
 			l_suffix = l_prefix_end + 16
 			l_suffix_end = type_get_suffix_end(l_prefix)
 			l_type = types_bytes_used
-			parse_type_declarators(l_prefix, l_prefix_end, l_suffix, l_suffix_end)
+			parse_type_declarators(l_prefix, l_prefix_end, l_suffix, l_suffix_end, 0)
 			parse_base_type(l_base_type)
+			
+			
+			token = l_suffix_end
+			if *1token == SYMBOL_EQ goto local_decl_initializer
+			:local_decl_continue
+			; we need to calculate the size of the type here, because of stuff like
+			;    int x[] = {1,2,3};
+			n = type_sizeof(l_type)
+			; advance
+			local_var_rbp_offset += n
+			; align
+			local_var_rbp_offset += 7
+			local_var_rbp_offset >= 3
+			local_var_rbp_offset <= 3
 			write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
 			out += 8
-			*8out = local_var_next_rbp_offset
-			out += 32
+			*8out = local_var_rbp_offset
+			out += 8
+			*8out = n
+			out += 24
 			p = local_variables
 			p += block_depth < 3
-			l_offset = local_var_next_rbp_offset
+			l_offset = local_var_rbp_offset
 			c = ident_list_lookup(*8p, l_name)
 			if c != 0 goto local_redeclaration
 			c = l_offset
 			c |= l_type < 32
 			ident_list_add(*8p, l_name, c)
 			
-			
-			token = l_suffix_end
-			:local_decl_continue
-			; we need to calculate the size of the type here, because of stuff like
-			;    int x[] = {1,2,3};
-			n = type_sizeof(l_type)
-			out -= 24
-			*8out = n
-			out += 24
-			; advance
-			local_var_next_rbp_offset += type_sizeof(l_type)
-			; align
-			local_var_next_rbp_offset += 7
-			local_var_next_rbp_offset >= 3
-			local_var_next_rbp_offset <= 3
 			if *1token == SYMBOL_SEMICOLON goto local_decl_loop_end
-			if *1token == SYMBOL_EQ goto local_decl_initializer
 			if *1token != SYMBOL_COMMA goto local_decl_badsuffix
 			
 			token += 16 ; skip comma
@@ -618,10 +654,10 @@ function parse_statement
 				token += 16
 				if *1token == SYMBOL_LBRACE goto local_init_lbrace
 				n = token_next_semicolon_or_comma_not_in_brackets(token)
-				out -= 16
+				out += 16
 				p = expressions_end
 				*8out = p
-				out += 16
+				out -= 16
 				expressions_end = parse_expression(token, n, p)
 				p += 4
 				type_decay_array_to_pointer(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
@@ -631,9 +667,9 @@ function parse_statement
 				rwdata_end_addr += 7
 				rwdata_end_addr >= 3
 				rwdata_end_addr <= 3
-				out -= 8
+				out += 32
 				*8out = rwdata_end_addr
-				out += 8
+				out -= 32
 				parse_constant_initializer(&token, l_type)
 				goto local_decl_continue
 			:local_decl_badsuffix
@@ -841,6 +877,7 @@ function print_statement_with_depth
 	dat4 = *8dat4
 	
 	if c == STATEMENT_NOOP goto print_stmt_noop
+	if c == STATEMENT_EXPRESSION goto print_stmt_expr
 	if c == STATEMENT_BLOCK goto print_stmt_block
 	if c == STATEMENT_CONTINUE goto print_stmt_continue
 	if c == STATEMENT_BREAK goto print_stmt_break
@@ -855,9 +892,9 @@ function print_statement_with_depth
 	if c == STATEMENT_FOR goto print_stmt_for
 	if c == STATEMENT_LOCAL_DECLARATION goto print_stmt_local_decl
 	
-	die(.pristmtNI)
-	:pristmtNI
-		string print_statement not implemented.
+	die(.str_bad_print_stmt)
+	:str_bad_print_stmt
+		string Bad statement passed to print_statement.
 		byte 0
 	:str_semicolon_newline
 		byte 59
@@ -866,6 +903,10 @@ function print_statement_with_depth
 	:print_stmt_label
 		puts(dat1)
 		putcln(':)
+		return
+	:print_stmt_expr
+		print_expression(dat1)
+		putcln(59)
 		return
 	:print_stmt_noop
 		putcln(59)
@@ -1638,12 +1679,17 @@ function parse_type_declarators
 	argument prefix_end
 	argument suffix
 	argument suffix_end
+	; function parameters will be stored here (null-byte separated) if not 0
+	; make sure you check that it's actually a function type before reading this
+	argument parameters
 	local p
 	local expr
 	local n
 	local c
 	local depth
 	local out
+	local param_names_out
+	param_names_out = parameters
 	
 	; main loop for parsing types
 	:type_declarators_loop
@@ -1656,12 +1702,14 @@ function parse_type_declarators
 		goto parse_typedecls_bad_type
 		
 		:parse_pointer_type
+			param_names_out = 0
 			out = types + types_bytes_used
 			*1out = TYPE_POINTER
 			types_bytes_used += 1
 			prefix_end = p
 			goto type_declarators_loop
 		:parse_array_type
+			param_names_out = 0
 			out = types + types_bytes_used
 			*1out = TYPE_ARRAY
 			types_bytes_used += 1
@@ -1709,11 +1757,27 @@ function parse_type_declarators
 			local param_prefix_end
 			local param_suffix
 			local param_suffix_end
+			local d
 			
-			p = suffix + 16
 			out = types + types_bytes_used
 			*1out = TYPE_FUNCTION
 			types_bytes_used += 1
+			
+			p = suffix + 16
+			if *1p != KEYWORD_VOID goto ftype_has_parameters
+			if *1p == SYMBOL_RPAREN goto ftype_no_parameters ; e.g. int f() { return 17; }
+			n = p + 16
+			if *1n != SYMBOL_RPAREN goto ftype_has_parameters
+			:ftype_no_parameters
+			; special handling of function type with no parameters
+			out = types + types_bytes_used
+			*1out = 0
+			types_bytes_used += 1
+			suffix += 48
+			goto type_declarators_loop
+			
+			
+			:ftype_has_parameters
 			:function_type_loop
 				param_base_type = p
 				param_prefix = type_get_base_end(param_base_type)
@@ -1721,22 +1785,54 @@ function parse_type_declarators
 				param_suffix = param_prefix_end
 				if *1param_suffix != TOKEN_IDENTIFIER goto functype_no_ident
 				param_suffix += 16
+				if param_names_out == 0 goto functype_had_ident
+				param_suffix -= 8
+				param_names_out = strcpy(param_names_out, *8param_suffix)
+				param_names_out += 1
+				param_suffix += 8
+				goto functype_had_ident
 				:functype_no_ident
+				if param_names_out != 0 goto no_param_name
+				:functype_had_ident
 				param_suffix_end = type_get_suffix_end(param_prefix)
-				parse_type_declarators(param_prefix, param_prefix_end, param_suffix, param_suffix_end)
+				c = types + types_bytes_used
+				parse_type_declarators(param_prefix, param_prefix_end, param_suffix, param_suffix_end, 0)
 				parse_base_type(param_base_type)
+				if *1c != TYPE_ARRAY goto function_param_not_array
+				; decay array into pointer
+				*1c = TYPE_POINTER
+				c += 1
+				c -= types
+				d = c + 8
+				type_copy_ids(c, d)
+				types_bytes_used -= 8
+				:function_param_not_array
 				p = param_suffix_end
 				if *1p == SYMBOL_RPAREN goto function_type_loop_end
 				if *1p != SYMBOL_COMMA goto parse_typedecls_bad_type
 				p += 16
 				goto function_type_loop
 			:function_type_loop_end
+			if param_names_out == 0 goto ftype_skip_zpno
+			*1param_names_out = 0
+			; prevent lower-level parts of type from writing parameters 
+			param_names_out = 0
+			:ftype_skip_zpno
+			
 			out = types + types_bytes_used
 			*1out = 0
 			types_bytes_used += 1
 			suffix = p + 16
 			goto type_declarators_loop
+			:no_param_name
+				token_error(param_suffix, .str_no_param_name)
+			:str_no_param_name
+				string Function parameter has no name.
+				byte 0
 		:parse_type_remove_parentheses
+			; interestingly:
+			;   int (f(int x)) { return x * 2; }
+			; seems perfectly legal.
 			if *1p != SYMBOL_LPAREN goto parse_typedecls_bad_type
 			prefix_end = p
 			suffix += 16
@@ -1966,7 +2062,7 @@ function parse_base_type
 					member_type = types_bytes_used
 					
 					
-					parse_type_declarators(member_prefix, member_prefix_end, member_suffix, member_suffix_end)
+					parse_type_declarators(member_prefix, member_prefix_end, member_suffix, member_suffix_end, 0)
 					parse_base_type(member_base_type)
 					
 					; make sure struct member is aligned
@@ -2487,7 +2583,7 @@ function parse_expression
 		
 		a = types_bytes_used
 		
-		parse_type_declarators(cast_prefix, cast_suffix, cast_suffix, cast_suffix_end)
+		parse_type_declarators(cast_prefix, cast_suffix, cast_suffix, cast_suffix_end, 0)
 		parse_base_type(cast_base_type)
 		
 		p = cast_suffix_end
@@ -2565,7 +2661,7 @@ function parse_expression
 			sizeof_suffix_end = type_get_suffix_end(sizeof_prefix)
 			p = sizeof_suffix_end
 			a = types_bytes_used
-			parse_type_declarators(sizeof_prefix, sizeof_suffix, sizeof_suffix, sizeof_suffix_end)
+			parse_type_declarators(sizeof_prefix, sizeof_suffix, sizeof_suffix, sizeof_suffix_end, 0)
 			parse_base_type(sizeof_base_type)
 			if *1p != SYMBOL_RPAREN goto bad_expression ; e.g. sizeof(int ,)
 			p += 16
@@ -3734,7 +3830,7 @@ function print_expression
 		expression += 8
 		return expression
 	:str_local_prefix
-		string [rsp-
+		string [rbp-
 		byte 0
 	:print_global_variable
 		puts(.str_global_at)

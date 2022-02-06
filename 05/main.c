@@ -1,49 +1,10 @@
 static int g;
 
-int f(void) {
-	while (g+10 == 17){
-		while (g+100==1234){
-		}
-	}
-	do {
-		break;
-		continue;
-	}while(0);
-	if (0) {
-		if(1) {
-			return g;
-		}else;
-	} else if (5 == 6){
-		return 6 * g;
-	}
-	lbl1:break;;goto blah;
-	case -1-3:
-	continue;a:break;return;return 6+3<<sizeof(int);
-	goto lbl1;
-	case 77:;return 92834;
-	return g;
-	static int x = 0x12345;
-	return  x;
-	switch(g<<17){
-	case 88: break;
-	case 99: int x = 3;
-	}
-	int i;
-	for(i=0;i < 100; i ++);
-	for(;;);
-}
-
-int h(void) {
-	int y, r[3], s;
-	char d, e[5], f, g, *p;
-	int z = 3, R=12+459834-g;
-	int x[] = {1,2,3,4,5};
-	struct {
-		char a,b;
-	} P[] = {1,2,3,4,5};
-	int *Y = x;
-	static int marker = 0x12345678;
-	return 5;
+int f(int x, int y[3]) {
+	int z = 17 +x;
+	int g[]={1,2,3,4,5};
+	int h;
+	return *(g + x + z);
 }
 
 /* typedef int AA[sizeof x]; */
