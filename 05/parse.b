@@ -350,6 +350,9 @@ function parse_statement
 	if c == KEYWORD_EXTERN goto stmt_extern_declaration
 	if c == KEYWORD_WHILE goto stmt_while
 	if c == KEYWORD_DO goto stmt_do
+	if c == KEYWORD_FOR goto stmt_for
+	if c == KEYWORD_SWITCH goto stmt_switch
+	if c == KEYWORD_IF goto stmt_if
 	
 	b = token_is_type(token)
 	if b != 0 goto stmt_local_declaration
@@ -368,6 +371,34 @@ function parse_statement
 		; @NONSTANDARD
 		string Local extern declarations are not supported.
 		byte 0
+	:stmt_switch
+		write_statement_header(out, STATEMENT_SWITCH, token)		
+		token += 16
+		if *1token != SYMBOL_LPAREN goto switch_no_lparen
+		p = token_matching_rparen(token)
+		token += 16
+		out += 8
+		*8out = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		token = p + 16
+		out += 8
+		
+		; put the body statement 1 block_depth deeper
+		p = statement_datas_ends
+		p += block_depth < 3
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
+		*8out = *8p
+		out += 24
+		parse_statement(&token, p) ; the body
+		block_depth -= 1
+		
+		goto parse_statement_ret
+		:switch_no_lparen
+			token_error(token, .str_switch_no_lparen)
+		:str_switch_no_lparen
+			string No ( after switch.
+			byte 0
 	:stmt_while
 		write_statement_header(out, STATEMENT_WHILE, token)		
 		token += 16
@@ -381,7 +412,7 @@ function parse_statement
 		out += 8
 		
 		; put the body statement 1 block_depth deeper
-		p = statement_datas
+		p = statement_datas_ends
 		p += block_depth < 3
 		block_depth += 1
 		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
@@ -402,7 +433,7 @@ function parse_statement
 		token += 16
 		
 		; put the body statement 1 block_depth deeper
-		p = statement_datas
+		p = statement_datas_ends
 		p += block_depth < 3
 		block_depth += 1
 		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
@@ -439,6 +470,91 @@ function parse_statement
 			token_error(token, .str_do_no_semicolon)
 		:str_do_no_semicolon
 			string No semicolon after do ... while (...)
+			byte 0
+	:stmt_for
+		write_statement_header(out, STATEMENT_FOR, token)
+		out += 8
+		token += 16
+		if *1token != SYMBOL_LPAREN goto for_no_lparen
+		c = token_matching_rparen(token)
+		token += 16
+		p = token_next_semicolon_not_in_brackets(token)
+		if token == p goto for_no_expr1
+		*8out = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		:for_no_expr1
+		out += 8
+		token = p + 16
+		p = token_next_semicolon_not_in_brackets(token)
+		if token == p goto for_no_expr2
+		*8out = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		:for_no_expr2
+		out += 8
+		token = p + 16
+		if c < token goto bad_for
+		if c == token goto for_no_expr3
+		*8out = expressions_end
+		expressions_end = parse_expression(token, c, expressions_end)
+		:for_no_expr3
+		out += 8
+		token = c + 16
+		
+		; put the body statement 1 block_depth deeper
+		p = statement_datas_ends
+		p += block_depth < 3
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
+		*8out = *8p
+		out += 8
+		parse_statement(&token, p) ; the body
+		block_depth -= 1
+		
+		goto parse_statement_ret
+		
+		:bad_for
+			token_error(c, .str_bad_for)
+		:str_bad_for
+			string Bad for loop header.
+			byte 0
+		:for_no_lparen
+			token_error(token, .str_for_no_lparen)
+		:str_for_no_lparen
+			string Missing ( after for.
+			byte 0
+	:stmt_if
+		write_statement_header(out, STATEMENT_IF, token)
+		out += 8
+		token += 16
+		if *1token != SYMBOL_LPAREN goto if_no_lparen
+		p = token_matching_rparen(token)
+		token += 16
+		*8out = expressions_end
+		out += 8
+		expressions_end = parse_expression(token, p, expressions_end)
+		token = p + 16
+		
+		
+		; put the body statement(s) 1 block_depth deeper
+		p = statement_datas_ends
+		p += block_depth < 3
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
+		*8out = *8p
+		out += 8
+		parse_statement(&token, p) ; if body
+		if *1token != KEYWORD_ELSE goto stmt_if_no_else
+		token += 16
+		*8out = *8p
+		parse_statement(&token, p) ; else body
+		:stmt_if_no_else
+		out += 16
+		block_depth -= 1
+		goto parse_statement_ret
+		:if_no_lparen
+			token_error(token, .str_if_no_lparen)
+		:str_if_no_lparen
+			string No ( after if
 			byte 0
 	:stmt_local_declaration
 		local l_base_type
@@ -734,6 +850,9 @@ function print_statement_with_depth
 	if c == STATEMENT_CASE goto print_stmt_case
 	if c == STATEMENT_WHILE goto print_stmt_while
 	if c == STATEMENT_DO goto print_stmt_do
+	if c == STATEMENT_IF goto print_stmt_if
+	if c == STATEMENT_SWITCH goto print_stmt_switch
+	if c == STATEMENT_FOR goto print_stmt_for
 	if c == STATEMENT_LOCAL_DECLARATION goto print_stmt_local_decl
 	
 	die(.pristmtNI)
@@ -753,13 +872,44 @@ function print_statement_with_depth
 		return
 	:print_stmt_while
 		puts(.str_stmt_while)
-		putc(40)
 		print_expression(dat1)
 		putcln(41)
 		print_statement_with_depth(dat2, depth)
 		return
 		:str_stmt_while
 			string while (
+			byte 0
+	:print_stmt_for
+		puts(.str_stmt_for)
+		if dat1 == 0 goto print_for_noexpr1
+		print_expression(dat1)
+		:print_for_noexpr1
+		puts(.str_for_sep)
+		if dat2 == 0 goto print_for_noexpr2
+		print_expression(dat2)
+		:print_for_noexpr2
+		puts(.str_for_sep)
+		if dat2 == 0 goto print_for_noexpr3
+		print_expression(dat3)
+		:print_for_noexpr3
+		putcln(41)
+		print_statement_with_depth(dat4, depth)
+		return
+		:str_stmt_for
+			string for (
+			byte 0
+		:str_for_sep
+			byte 59
+			byte 32
+			byte 0
+	:print_stmt_switch
+		puts(.str_stmt_switch)
+		print_expression(dat1)
+		putcln(41)
+		print_statement_with_depth(dat2, depth)
+		return
+		:str_stmt_switch
+			string switch (
 			byte 0
 	:print_stmt_do
 		puts(.str_stmt_do)
@@ -773,6 +923,19 @@ function print_statement_with_depth
 		:str_stmt_do
 			string do
 			byte 10
+			byte 0
+	:print_stmt_if
+		puts(.str_stmt_if)
+		print_expression(dat1)
+		putcln(41)
+		print_statement_with_depth(dat2, depth)
+		if dat3 == 0 goto return_0
+		print_indents(depth)
+		putsln(.str_else)
+		print_statement_with_depth(dat3, depth)
+		return
+		:str_stmt_if
+			string if (
 			byte 0
 	:print_stmt_break
 		puts(.str_stmt_break)
@@ -2183,6 +2346,7 @@ function parse_expression
 	if c == EXPRESSION_GT goto type_int
 	if c == EXPRESSION_COMMA goto type_binary_right
 	if c == EXPRESSION_EQ goto type_binary_left
+	if c == EXPRESSION_ASSIGN goto type_binary_left
 	if c == EXPRESSION_ASSIGN_ADD goto type_binary_left
 	if c == EXPRESSION_ASSIGN_SUB goto type_binary_left
 	if c == EXPRESSION_ASSIGN_MUL goto type_binary_left

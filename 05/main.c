@@ -9,6 +9,13 @@ int f(void) {
 		break;
 		continue;
 	}while(0);
+	if (0) {
+		if(1) {
+			return g;
+		}else;
+	} else if (5 == 6){
+		return 6 * g;
+	}
 	lbl1:break;;goto blah;
 	case -1-3:
 	continue;a:break;return;return 6+3<<sizeof(int);
@@ -17,6 +24,13 @@ int f(void) {
 	return g;
 	static int x = 0x12345;
 	return  x;
+	switch(g<<17){
+	case 88: break;
+	case 99: int x = 3;
+	}
+	int i;
+	for(i=0;i < 100; i ++);
+	for(;;);
 }
 
 int h(void) {
