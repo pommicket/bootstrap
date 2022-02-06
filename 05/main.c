@@ -5,6 +5,10 @@ int f(void) {
 		while (g+100==1234){
 		}
 	}
+	do {
+		break;
+		continue;
+	}while(0);
 	lbl1:break;;goto blah;
 	case -1-3:
 	continue;a:break;return;return 6+3<<sizeof(int);

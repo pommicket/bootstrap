@@ -349,6 +349,7 @@ function parse_statement
 	if c == KEYWORD_STATIC goto stmt_static_declaration
 	if c == KEYWORD_EXTERN goto stmt_extern_declaration
 	if c == KEYWORD_WHILE goto stmt_while
+	if c == KEYWORD_DO goto stmt_do
 	
 	b = token_is_type(token)
 	if b != 0 goto stmt_local_declaration
@@ -379,14 +380,13 @@ function parse_statement
 		token = p + 16
 		out += 8
 		
-		; put the while statement 1 block_depth deeper
+		; put the body statement 1 block_depth deeper
 		p = statement_datas
 		p += block_depth < 3
 		block_depth += 1
 		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
 		*8out = *8p
 		out += 24
-		c = *8p
 		parse_statement(&token, p) ; the body
 		block_depth -= 1
 		
@@ -395,6 +395,50 @@ function parse_statement
 			token_error(token, .str_while_no_lparen)
 		:str_while_no_lparen
 			string No ( after while.
+			byte 0
+	:stmt_do
+		write_statement_header(out, STATEMENT_DO, token)
+		out += 8
+		token += 16
+		
+		; put the body statement 1 block_depth deeper
+		p = statement_datas
+		p += block_depth < 3
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
+		*8out = *8p
+		out += 8
+		parse_statement(&token, p) ; the body
+		block_depth -= 1
+		
+		if *1token != KEYWORD_WHILE goto do_no_while
+		token += 16
+		if *1token != SYMBOL_LPAREN goto do_no_lparen
+		p = token_matching_rparen(token)
+		token += 16
+		*8out = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		token = p + 16
+		if *1token != SYMBOL_SEMICOLON goto do_no_semicolon
+		token += 16
+		
+		out += 24
+		goto parse_statement_ret
+		
+		:do_no_while
+			token_error(token, .str_do_no_while)
+		:str_do_no_while
+			string No while after do body.
+			byte 0
+		:do_no_lparen
+			token_error(token, .str_do_no_lparen)
+		:str_do_no_lparen
+			string No ( after do ... while
+			byte 0
+		:do_no_semicolon	
+			token_error(token, .str_do_no_semicolon)
+		:str_do_no_semicolon
+			string No semicolon after do ... while (...)
 			byte 0
 	:stmt_local_declaration
 		local l_base_type
@@ -689,6 +733,7 @@ function print_statement_with_depth
 	if c == STATEMENT_LABEL goto print_stmt_label
 	if c == STATEMENT_CASE goto print_stmt_case
 	if c == STATEMENT_WHILE goto print_stmt_while
+	if c == STATEMENT_DO goto print_stmt_do
 	if c == STATEMENT_LOCAL_DECLARATION goto print_stmt_local_decl
 	
 	die(.pristmtNI)
@@ -715,6 +760,19 @@ function print_statement_with_depth
 		return
 		:str_stmt_while
 			string while (
+			byte 0
+	:print_stmt_do
+		puts(.str_stmt_do)
+		print_statement_with_depth(dat1, depth)
+		print_indents(depth)
+		puts(.str_stmt_while)
+		print_expression(dat2)
+		putc(41)
+		putcln(59)
+		return
+		:str_stmt_do
+			string do
+			byte 10
 			byte 0
 	:print_stmt_break
 		puts(.str_stmt_break)
