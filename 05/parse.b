@@ -348,6 +348,7 @@ function parse_statement
 	if c == KEYWORD_CASE goto stmt_case
 	if c == KEYWORD_STATIC goto stmt_static_declaration
 	if c == KEYWORD_EXTERN goto stmt_extern_declaration
+	if c == KEYWORD_WHILE goto stmt_while
 	
 	b = token_is_type(token)
 	if b != 0 goto stmt_local_declaration
@@ -366,6 +367,35 @@ function parse_statement
 		; @NONSTANDARD
 		string Local extern declarations are not supported.
 		byte 0
+	:stmt_while
+		write_statement_header(out, STATEMENT_WHILE, token)		
+		token += 16
+		if *1token != SYMBOL_LPAREN goto while_no_lparen
+		p = token_matching_rparen(token)
+		token += 16
+		out += 8
+		*8out = expressions_end
+		expressions_end = parse_expression(token, p, expressions_end)
+		token = p + 16
+		out += 8
+		
+		; put the while statement 1 block_depth deeper
+		p = statement_datas
+		p += block_depth < 3
+		block_depth += 1
+		if block_depth >= BLOCK_DEPTH_LIMIT goto too_much_nesting
+		*8out = *8p
+		out += 24
+		c = *8p
+		parse_statement(&token, p) ; the body
+		block_depth -= 1
+		
+		goto parse_statement_ret
+		:while_no_lparen
+			token_error(token, .str_while_no_lparen)
+		:str_while_no_lparen
+			string No ( after while.
+			byte 0
 	:stmt_local_declaration
 		local l_base_type
 		local l_prefix
@@ -558,6 +588,8 @@ function parse_statement
 			string No semicolon after goto.
 			byte 0
 	:stmt_block
+		local Z
+		Z = out
 		write_statement_header(out, STATEMENT_BLOCK, token)
 		out += 8
 		
@@ -607,6 +639,9 @@ function parse_statement
 			byte 0
 	:stmt_empty
 		; empty statement, e.g. while(something)-> ; <-
+		; we do have to output a statement here because otherwise that kind of thing would be screwed up
+		write_statement_header(out, STATEMENT_NOOP, token)
+		out += 40
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
 
@@ -645,6 +680,7 @@ function print_statement_with_depth
 	dat4 = statement + 32
 	dat4 = *8dat4
 	
+	if c == STATEMENT_NOOP goto print_stmt_noop
 	if c == STATEMENT_BLOCK goto print_stmt_block
 	if c == STATEMENT_CONTINUE goto print_stmt_continue
 	if c == STATEMENT_BREAK goto print_stmt_break
@@ -652,6 +688,7 @@ function print_statement_with_depth
 	if c == STATEMENT_GOTO goto print_stmt_goto
 	if c == STATEMENT_LABEL goto print_stmt_label
 	if c == STATEMENT_CASE goto print_stmt_case
+	if c == STATEMENT_WHILE goto print_stmt_while
 	if c == STATEMENT_LOCAL_DECLARATION goto print_stmt_local_decl
 	
 	die(.pristmtNI)
@@ -666,6 +703,19 @@ function print_statement_with_depth
 		puts(dat1)
 		putcln(':)
 		return
+	:print_stmt_noop
+		putcln(59)
+		return
+	:print_stmt_while
+		puts(.str_stmt_while)
+		putc(40)
+		print_expression(dat1)
+		putcln(41)
+		print_statement_with_depth(dat2, depth)
+		return
+		:str_stmt_while
+			string while (
+			byte 0
 	:print_stmt_break
 		puts(.str_stmt_break)
 		return
@@ -1105,6 +1155,35 @@ function token_skip_to_matching_rsquare
 		string Unmatched [
 		byte 0
 
+; token should be pointing to (, this returns the corresponding )
+function token_matching_rparen
+	argument token
+	local token0
+	local depth
+	token0 = token
+	depth = 0
+	:matching_rparen_loop
+		if *1token == SYMBOL_LPAREN goto matching_rparen_incdepth
+		if *1token == SYMBOL_RPAREN goto matching_rparen_decdepth
+		if *1token == TOKEN_EOF goto matching_rparen_eof
+		:matching_rparen_next
+		token += 16
+		goto matching_rparen_loop
+		:matching_rparen_incdepth
+			depth += 1
+			goto matching_rparen_next
+		:matching_rparen_decdepth
+			depth -= 1
+			if depth == 0 goto matching_rparen_ret
+			goto matching_rparen_next
+	:matching_rparen_ret
+	return token
+	
+	:matching_rparen_eof
+		token_error(token0, .str_matching_rparen_eof)
+	:str_matching_rparen_eof
+		string Unmatched (
+		byte 0
 
 ; *p_token should be on a ); this goes back to the corresponding (
 ;  THERE MUST ACTUALLY BE A MATCHING BRACKET, OTHERWISE THIS WILL DO BAD THINGS

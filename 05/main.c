@@ -1,6 +1,10 @@
 static int g;
 
 int f(void) {
+	while (g+10 == 17){
+		while (g+100==1234){
+		}
+	}
 	lbl1:break;;goto blah;
 	case -1-3:
 	continue;a:break;return;return 6+3<<sizeof(int);

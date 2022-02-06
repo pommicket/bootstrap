@@ -275,6 +275,7 @@
 ;     - STATEMENT_BREAK      - data1,2,3,4 are unused
 ;     - STATEMENT_RETURN     - data1 is a pointer to the expression, or 0 if there is none; data2,3,4 are unused
 ;     - STATEMENT_CASE       - data1 is the value; data2,3,4 are unused
+;     - STATEMENT_NOOP       - data1,2,3,4 are unused
 #define STATEMENT_EXPRESSION 1
 #define STATEMENT_LOCAL_DECLARATION 2
 #define STATEMENT_LABEL 3
@@ -289,6 +290,7 @@
 #define STATEMENT_BREAK 0xc
 #define STATEMENT_RETURN 0xd
 #define STATEMENT_CASE 0xe
+#define STATEMENT_NOOP 0xf
 
 
 :keyword_table
