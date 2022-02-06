@@ -392,25 +392,31 @@ function parse_statement
 			write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
 			out += 8
 			*8out = local_var_next_rbp_offset
-			out += 8
-			*8out = type_sizeof(l_type)
-			out += 24
+			out += 32
 			p = local_variables
 			p += block_depth < 3
 			l_offset = local_var_next_rbp_offset
+			c = ident_list_lookup(*8p, l_name)
+			if c != 0 goto local_redeclaration
 			c = l_offset
 			c |= l_type < 32
 			ident_list_add(*8p, l_name, c)
 			
+			
+			token = l_suffix_end
+			:local_decl_continue
+			; we need to calculate the size of the type here, because of stuff like
+			;    int x[] = {1,2,3};
+			n = type_sizeof(l_type)
+			out -= 24
+			*8out = n
+			out += 24
 			; advance
 			local_var_next_rbp_offset += type_sizeof(l_type)
 			; align
 			local_var_next_rbp_offset += 7
 			local_var_next_rbp_offset >= 3
 			local_var_next_rbp_offset <= 3
-			
-			token = l_suffix_end
-			:local_decl_continue
 			if *1token == SYMBOL_SEMICOLON goto local_decl_loop_end
 			if *1token == SYMBOL_EQ goto local_decl_initializer
 			if *1token != SYMBOL_COMMA goto local_decl_badsuffix
@@ -429,11 +435,23 @@ function parse_statement
 				token = n
 				goto local_decl_continue
 			:local_init_lbrace
-				byte 0xcc ; @TODO
+				rwdata_end_addr += 7
+				rwdata_end_addr >= 3
+				rwdata_end_addr <= 3
+				out -= 8
+				*8out = rwdata_end_addr
+				out += 8
+				parse_constant_initializer(&token, l_type)
+				goto local_decl_continue
 			:local_decl_badsuffix
 				token_error(token, .str_local_decl_badsuffix)
 			:str_local_decl_badsuffix
 				string Expected equals, comma, or semicolon after variable declaration.
+				byte 0
+			:local_redeclaration
+				token_error(token, .str_local_redeclaration)
+			:str_local_redeclaration
+				string Redeclaration of local variable.
 				byte 0
 		:local_decl_loop_end
 		token += 16 ; skip semicolon

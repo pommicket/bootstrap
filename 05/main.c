@@ -15,7 +15,12 @@ int h(void) {
 	int y, r[3], s;
 	char d, e[5], f, g, *p;
 	int z = 3, R=12+459834-g;
-	return g;
+	int x[] = {1,2,3,4,5};
+	struct {
+		char a,b;
+	} P[] = {1,2,3,4,5};
+	static int marker = 0x12345678;
+	return 5;
 }
 
 /* typedef int AA[sizeof x]; */
