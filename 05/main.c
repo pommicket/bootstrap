@@ -1,9 +1,15 @@
 /* static int g; */
 
+int f(int a, float x[], double y, ...) {
+}
+
+float * g() {
+}
+
 int main() {
-	int a = exit;
 	int b[] = {1,2,3};
-	exit(1, 17, a+b);
+	int a = f(1, 17, b, 36, 55.0, 22.3f);
+	float *f = g(17.2, b);
 }
 
 /* int f(int x, int y[3]) { */

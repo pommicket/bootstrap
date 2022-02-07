@@ -53,6 +53,8 @@ global global_variables
 ;  - the first one is a STATEMENT_LOCAL_DECLARATION (with dat2=dat3=dat4=0), which is only there to set rsp properly because of parameters
 ;  - the second one is the function body (a STATEMENT_BLOCK)
 global function_statements
+; ident list mapping function names to function types (TYPE_FUNCTION {...})
+global function_types
 ; statement_datas[0] = pointer to statement data for block-nesting depth 0 (i.e. function bodies)
 ; statement_datas[1] = pointer to statement data for block-nesting depth 1 (blocks inside functions)
 ; statement_datas[2] = pointer to statement data for block-nesting depth 2 (blocks inside blocks inside functions)
@@ -232,8 +234,8 @@ function main
 	enumerators = ident_list_create(4000000)
 	structures = ident_list_create(4000000)
 	global_variables = ident_list_create(400000)
-	function_statements = ident_list_create(400000)
-	
+	function_statements = ident_list_create(800000)
+	function_types = ident_list_create(800000)
 	function_stmt_data = malloc(800000) ; should be at least 40 bytes * max # of functions
 	
 	dat_banned_objmacros = 255

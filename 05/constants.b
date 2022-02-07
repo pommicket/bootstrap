@@ -222,7 +222,7 @@
 ;  array of n t's: TYPE_ARRAY {n as 8 bytes} t
 ;  struct/union: TYPE_STRUCT {8-byte pointer to struct/union data (see structures in main.b)}
 ;     note: incomplete structs/unions are replaced with void.
-;  function: TYPE_FUNCTION {arg1 type} {arg2 type} ... {argn type} 0 {return type}
+;  function: TYPE_FUNCTION {arg1 type} {arg2 type} ... {argn type} 0 {return type} - NB: varargs (...) are ignored
 ; note that enum types are just treated as ints.
 #define TYPE_VOID 1
 #define TYPE_CHAR 3

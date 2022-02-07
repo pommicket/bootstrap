@@ -24,6 +24,20 @@ function token_is_type
 		if b != 0 goto return_1
 		goto return_0
 
+function functype_return_type
+	argument ftype
+	local type
+	local p
+	
+	type = ftype + 1
+	:ftype_rettype_loop
+		p = types + type
+		if *1p == 0 goto ftype_rettype_loop_end
+		type += type_length(type)
+		goto ftype_rettype_loop
+	:ftype_rettype_loop_end
+	return type + 1
+
 ; NB: this takes a pointer to struct data, NOT a type
 ; Returns 1 if it's a union OR a struct with 1 member (we don't distinguish between these in any way)
 function structure_is_union
@@ -201,6 +215,7 @@ function parse_toplevel_declaration
 		out = function_stmt_data + function_stmt_data_bytes_used
 		out0 = out
 		ident_list_add(function_statements, name, out)
+		ident_list_add(function_types, name, type)
 		
 		; deal with function parameters
 		p = type + 1
@@ -1784,6 +1799,7 @@ function parse_type_declarators
 			
 			:ftype_has_parameters
 			:function_type_loop
+				if *1p == SYMBOL_DOTDOTDOT goto ftype_varargs
 				param_base_type = p
 				param_prefix = type_get_base_end(param_base_type)
 				param_prefix_end = type_get_prefix_end(param_prefix)
@@ -1817,6 +1833,11 @@ function parse_type_declarators
 				if *1p != SYMBOL_COMMA goto parse_typedecls_bad_type
 				p += 16
 				goto function_type_loop
+				:ftype_varargs
+					; ignore varargs
+					p += 16
+					if *1p != SYMBOL_RPAREN goto stuff_after_ftype_varargs
+					goto function_type_loop_end
 			:function_type_loop_end
 			if param_names_out == 0 goto ftype_skip_zpno
 			*1param_names_out = 0
@@ -1833,6 +1854,11 @@ function parse_type_declarators
 				token_error(param_suffix, .str_no_param_name)
 			:str_no_param_name
 				string Function parameter has no name.
+				byte 0
+			:stuff_after_ftype_varargs
+				token_error(p, .str_stuff_after_ftype_varargs)
+			:str_stuff_after_ftype_varargs
+				string Stuff after ... (varargs) in function type.
 				byte 0
 		:parse_type_remove_parentheses
 			; interestingly:
@@ -2551,12 +2577,37 @@ function parse_expression
 		bad_types_to_operator(tokens, *4a, *4b)
 	
 	:parse_call
-		*4type = TYPE_INT ; @TODO: proper typing
+		local arg_type
+		local param_type
+		; type call
+		b = types + *4a
+		if *1b == TYPE_FUNCTION goto type_call_cont
+		if *1b != TYPE_POINTER goto calling_nonfunction
+		b += 1 ; handle calling function pointer
+		if *1b != TYPE_FUNCTION goto calling_nonfunction
+		:type_call_cont
+		b -= types
+		*4type = functype_return_type(b)
+		param_type = b + 1
+		
 		:call_args_loop
 			if *1p == SYMBOL_RPAREN goto call_args_loop_end
 			n = token_next_semicolon_comma_rbracket(p)
-			print_tokens(p, n)
+			arg_type = out + 4
 			out = parse_expression(p, n, out)
+			b = types + param_type
+			if *1b == 0 goto arg_is_varargs ; reached the end of arguments (so presumably this function has varargs)
+			; set argument type to parameter type. this is necessary because:
+			;  float f(float t) { return 2*t; } 
+			;  float g(int x) { return f(x); } <- x passed as a float
+			*4arg_type = param_type
+			param_type += type_length(param_type)
+			goto call_arg_type_cont
+			:arg_is_varargs
+			type_promote_float_to_double(*4arg_type)
+			type_decay_array_to_pointer(*4arg_type)
+			:call_arg_type_cont
+			
 			p = n
 			if *1p == SYMBOL_RPAREN goto call_args_loop_end
 			if *1p != SYMBOL_COMMA goto bad_call
@@ -2565,9 +2616,16 @@ function parse_expression
 		:call_args_loop_end
 		p += 16
 		if p != tokens_end goto stuff_after_call
+		
+		
 		*8out = 0
 		out += 8
 		return out
+		:calling_nonfunction
+			token_error(p, .str_calling_nonfunction)
+		:str_calling_nonfunction
+			string Calling non-function.
+			byte 0
 		:bad_call
 			token_error(p, .str_bad_call)
 		:str_bad_call
@@ -2882,13 +2940,21 @@ function parse_expression
 		:not_global
 		
 		; it must be a function
+		c = ident_list_lookup(function_types, a)
+		if c == 0 goto undeclared_function
 		*1out = EXPRESSION_FUNCTION
 		out += 4
-		*4out = TYPE_POINTER_TO_VOID
+		*4out = c
 		out += 4
 		*8out = a
 		out += 8
 		return out
+		:undeclared_function
+			; @NONSTANDARD: C89 allows calling functions without declaring them
+			token_error(in, .str_undeclared_function)
+		:str_undeclared_function
+			string Undeclared function.
+			byte 0
 		
 		:found_local_variable
 			; it's a local variable
@@ -3009,6 +3075,17 @@ function type_decay_array_to_pointer
 	src = type + 9 ; skip TYPE_ARRAY and size
 	dest = type + 1 ; skip TYPE_POINTER
 	type_copy_ids(dest, src)
+	return
+
+; change type to `double` if it's `float`
+; in C, float arguments have to be passed as double for varargs
+;  there is also a rule that char/short/int are passed as ints, but we don't need to worry about it since we're passing everything as >=8 bytes.
+function type_promote_float_to_double
+	argument type
+	local p
+	p = types + type
+	if *1p != TYPE_FLOAT goto return_0
+	*1p = TYPE_DOUBLE
 	return
 
 function type_sizeof
