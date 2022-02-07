@@ -435,6 +435,25 @@ function pptoken_skip
 	*8p_in = in + 1
 	return
 
+; reverse one pptoken
+; don't call this on the first pptoken in the file
+function pptoken_reverse
+	argument p_in
+	argument p_line_number
+	local in
+	in = *8p_in
+	in -= 2
+	:pptoken_rev_loop
+		if *1in == 0 goto pptoken_rev_loop_end
+		in -= 1
+		goto pptoken_rev_loop
+	:pptoken_rev_loop_end
+	in += 1
+	*8p_in = in
+	if *1in != 10 goto return_0
+	*8p_line_number -= 1
+	return
+
 ; skip any space tokens here
 function pptoken_skip_spaces
 	argument p_in
@@ -445,6 +464,42 @@ function pptoken_skip_spaces
 		pptoken_skip(&in)
 		goto pptoken_skip_spaces_loop
 	:pptoken_skip_spaces_loop_end
+	*8p_in = in
+	return
+
+; skip any whitespace tokens here
+function pptoken_skip_whitespace
+	argument p_in
+	argument p_line_number
+	local in
+	in = *8p_in
+	:skip_whitespace_loop
+		if *1in == 10 goto skip_whitespace_incline
+		if *1in != 32 goto skip_whitespace_loop_end
+		pptoken_skip(&in)
+		goto skip_whitespace_loop
+		:skip_whitespace_incline
+			*8p_line_number += 1
+			pptoken_skip(&in)
+			goto skip_whitespace_loop
+	:skip_whitespace_loop_end
+	*8p_in = in
+	return
+
+; go backwards before any spaces and newlines here
+; don't do this for spaces at the start of the file
+function pptoken_reverse_whitespace
+	argument p_in
+	argument p_line_number
+	local in
+	in = *8p_in
+	:reverse_whitespace_loop
+		if *1in == 10 goto reverse_whitespace
+		if *1in != 32 goto reverse_whitespace_loop_end
+		:reverse_whitespace
+		pptoken_reverse(&in, p_line_number)
+		goto reverse_whitespace_loop
+	:reverse_whitespace_loop_end
 	*8p_in = in
 	return
 
@@ -1233,6 +1288,7 @@ function macro_replacement
 		pptoken_skip(&in) ; skip macro name
 		pptoken_skip_spaces(&in)
 		pptoken_skip(&in) ; skip opening bracket
+		pptoken_skip_whitespace(&in, p_line_number)
 		
 		local arguments
 		local fmacro_out
@@ -1245,17 +1301,19 @@ function macro_replacement
 		p = arguments
 		if *1in == ') goto fmacro_no_args
 		:fmacro_arg_loop
+			pptoken_skip_whitespace(&in, p_line_number)
 			b = fmacro_arg_end(filename, p_line_number, in)
 			b -= in
+			; putnln(b)
 			memcpy(p, in, b) ; copy the argument to its proper place
 			p += b
 			in += b ; skip argument
+			pptoken_skip_whitespace(&in, p_line_number)
 			c = *1in
 			in += 2 ; skip , or )
 			*1p = 255
 			p += 1
 			if c == ') goto fmacro_arg_loop_end
-			pptoken_skip_spaces(&in)
 			goto fmacro_arg_loop
 		:fmacro_no_args
 			in += 2 ; skip )
@@ -1474,6 +1532,9 @@ function fmacro_arg_end
 			pptoken_skip(&in)
 			goto fmacro_arg_end_loop
 	:fmacro_arg_end_loop_end
+	pptoken_reverse(&in, p_line_number)
+	pptoken_reverse_whitespace(&in, p_line_number)
+	pptoken_skip(&in)
 	
 	return in
 	
