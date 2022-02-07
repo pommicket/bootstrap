@@ -144,6 +144,7 @@
 ;    ushort (padding)
 ;    uint type
 ; immediately following the header in memory are the arguments of the expression
+;    - for functions, a pointer to the name of the function (we don't know where it is yet)
 ;    - for local variables, the 64-bit rbp offset (number to be subtracted from rbp)
 ;    - for global variables, the 64-bit runtime address
 ;    - for constant ints, the 64-bit integral value
@@ -157,6 +158,7 @@
 ;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
 ; File/line number are not stored in expressions.
 ; Note that string literals are stored as constant integers (you can check the type to know what it is)
+#define EXPRESSION_FUNCTION 198
 #define EXPRESSION_LOCAL_VARIABLE 199
 #define EXPRESSION_GLOBAL_VARIABLE 200
 #define EXPRESSION_CONSTANT_INT 201
@@ -241,8 +243,9 @@
 ; reading the first 16 bits of type data as a word will give this if the type refers to a function pointer.
 #define TYPE2_FUNCTION_POINTER 0x100d
 
-; types willl be initialized (in main) so that this refers to the type char*
+; types willl be initialized (in main) so that these will refer to the proper types
 #define TYPE_POINTER_TO_CHAR 20
+#define TYPE_POINTER_TO_VOID 22
 
 ; STATEMENTS
 ; In C, note that `if', `while', etc. always have a single statement as their body:

@@ -654,10 +654,10 @@ function parse_statement
 				token += 16
 				if *1token == SYMBOL_LBRACE goto local_init_lbrace
 				n = token_next_semicolon_or_comma_not_in_brackets(token)
-				out += 16
+				out += 24
 				p = expressions_end
 				*8out = p
-				out -= 16
+				out -= 24
 				expressions_end = parse_expression(token, n, p)
 				p += 4
 				type_decay_array_to_pointer(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
@@ -1764,16 +1764,17 @@ function parse_type_declarators
 			types_bytes_used += 1
 			
 			p = suffix + 16
-			if *1p != KEYWORD_VOID goto ftype_has_parameters
 			if *1p == SYMBOL_RPAREN goto ftype_no_parameters ; e.g. int f() { return 17; }
+			if *1p != KEYWORD_VOID goto ftype_has_parameters
 			n = p + 16
+			suffix += 16
 			if *1n != SYMBOL_RPAREN goto ftype_has_parameters
 			:ftype_no_parameters
 			; special handling of function type with no parameters
 			out = types + types_bytes_used
 			*1out = 0
 			types_bytes_used += 1
-			suffix += 48
+			suffix += 32
 			goto type_declarators_loop
 			
 			
@@ -2402,7 +2403,6 @@ function parse_expression
 			goto expr_find_operator_loop
 	:expr_find_operator_loop_end
 	
-	
 	if best == 0 goto unrecognized_expression
 	
 	n = best - tokens
@@ -2423,6 +2423,7 @@ function parse_expression
 	a = out + 4 ; type of first operand
 	out = parse_expression(tokens, best, out) ; first operand
 	p = best + 16
+	if c == EXPRESSION_CALL goto parse_call
 	b = out + 4 ; type of second operand
 	if c != EXPRESSION_SUBSCRIPT goto binary_not_subscript
 	tokens_end -= 16
@@ -2545,7 +2546,9 @@ function parse_expression
 	:expr_binary_bad_types
 		bad_types_to_operator(tokens, *4a, *4b)
 	
-	
+	:parse_call
+		byte 0xcc ; @TODO
+		
 	:parse_expr_unary
 		if c == KEYWORD_SIZEOF goto parse_sizeof
 		*1out = unary_op_to_expression_type(c)
@@ -2849,11 +2852,15 @@ function parse_expression
 			return out
 		:not_global
 		
-		in -= 16
-		token_error(in, .str_undeclared_variable)
-		:str_undeclared_variable
-			string Undeclared variable.
-			byte 0
+		; it must be a function
+		*1out = EXPRESSION_FUNCTION
+		out += 4
+		*4out = TYPE_POINTER_TO_VOID
+		out += 4
+		*8out = a
+		out += 8
+		return out
+		
 		:found_local_variable
 			; it's a local variable
 			*1out = EXPRESSION_LOCAL_VARIABLE
@@ -3716,6 +3723,8 @@ function operator_right_associative
 	byte EXPRESSION_DOT
 	byte SYMBOL_LSQUARE
 	byte EXPRESSION_SUBSCRIPT
+	byte SYMBOL_LPAREN
+	byte EXPRESSION_CALL
 	byte 0
 	byte 0
 
@@ -3791,6 +3800,7 @@ function print_expression
 	:print_expr_skip_type
 	c = *1expression
 	
+	if c == EXPRESSION_FUNCTION goto print_expr_function
 	if c == EXPRESSION_LOCAL_VARIABLE goto print_local_variable
 	if c == EXPRESSION_GLOBAL_VARIABLE goto print_global_variable
 	if c == EXPRESSION_CONSTANT_INT goto print_expr_int
@@ -3832,6 +3842,11 @@ function print_expression
 	:str_local_prefix
 		string [rbp-
 		byte 0
+	:print_expr_function
+		expression += 8
+		puts(*8expression)
+		expression += 8
+		return expression
 	:print_global_variable
 		puts(.str_global_at)
 		expression += 8

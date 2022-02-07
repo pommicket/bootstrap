@@ -1,11 +1,18 @@
-static int g;
+/* static int g; */
 
-int f(int x, int y[3]) {
-	int z = 17 +x;
-	int g[]={1,2,3,4,5};
-	int h;
-	return *(g + x + z);
+int main() {
+	int a = exit;
+	int b[] = {1,2,3};
+	exit(1);
 }
+
+/* int f(int x, int y[3]) { */
+/* 	int z = 17 +x; */
+/* 	int g[]={1,2,3,4,5}; */
+/* 	int h; */
+/* 	funciton(h,g,z); */
+/* 	return *(g + x + z); */
+/* } */
 
 /* typedef int AA[sizeof x]; */
 

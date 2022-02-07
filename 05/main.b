@@ -99,6 +99,11 @@ function types_init
 	p += 1
 	*1p = TYPE_CHAR
 	p += 1
+	p = _types + TYPE_POINTER_TO_VOID
+	*1p = TYPE_POINTER
+	p += 1
+	*1p = TYPE_VOID
+	p += 1
 	
 	*8ptypes_bytes_used = p - types
 	return 
