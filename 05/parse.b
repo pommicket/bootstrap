@@ -137,8 +137,22 @@ function parse_toplevel_declaration
 			rwdata_end_addr <= 3
 			
 			token = suffix_end
-			if *1token == SYMBOL_LBRACE goto parse_function_definition
-			if is_extern != 0 goto parse_tl_decl_cont  ; ignore external variable declarations
+			p = types + type
+			if *1p == TYPE_FUNCTION goto parse_function_declaration
+			
+			; ignore external variable declarations
+			;  @NONSTANDARD: this means we don't handle
+			;     extern int X;
+			;     int main() { printf("%d\n", X); }
+			;     int X;
+			; correctly. There is no (good) way for us to handle this properly without two passes.
+			; Consider:
+			;      extern int X[];  /* how many bytes to allocate? */
+			;      int Y = 123;           /* where do we put this? */
+			;      int main() { printf("%d\n", Y); }
+			;      int X[] = {1, 2, 3, 4}; /* 16 bytes (but it's too late) */
+			if is_extern != 0 goto parse_tl_decl_cont
+			
 			; deal with the initializer if there is one
 			if *1token == SYMBOL_SEMICOLON goto parse_tld_no_initializer
 			if *1token == SYMBOL_COMMA goto parse_tld_no_initializer
@@ -159,7 +173,7 @@ function parse_toplevel_declaration
 		:tl_decl_loop_done
 		token += 16 ; skip semicolon
 		goto parse_tld_ret
-			 				 
+		
 		:tl_decl_no_ident
 			token_error(prefix_end, .str_tl_decl_no_ident)
 		:str_tl_decl_no_ident
@@ -170,9 +184,18 @@ function parse_toplevel_declaration
 		:str_tld_bad_stuff_after_decl
 			string Declarations should be immediately followed by a comma or semicolon.
 			byte 0
+	:parse_function_declaration
+		b = ident_list_lookup(function_types, name)
+		if b != 0 goto function_decl_have_type ; e.g. function declared then defined
+		ident_list_add(function_types, name, type)
+		:function_decl_have_type
+		if *1token == SYMBOL_LBRACE goto parse_function_definition
+		if *1token == SYMBOL_SEMICOLON goto parse_tl_decl_cont
+		token_error(token, .str_bad_fdecl_suffix)
+		:str_bad_fdecl_suffix
+			string Expected semicolon or { after function declaration.
+			byte 0
 	:parse_tld_no_initializer
-		p = types + type
-		if *1p == TYPE_FUNCTION goto parse_tl_decl_cont ; ignore function declarations -- we do two passes anyways
 		b = ident_list_lookup(static_vars, name)
 		if b != 0 goto global_redefinition
 		c = type < 32
@@ -215,7 +238,6 @@ function parse_toplevel_declaration
 		out = function_stmt_data + function_stmt_data_bytes_used
 		out0 = out
 		ident_list_add(function_statements, name, out)
-		ident_list_add(function_types, name, type)
 		
 		; deal with function parameters
 		p = type + 1
@@ -237,24 +259,18 @@ function parse_toplevel_declaration
 			name += 1
 			goto fn_params_loop
 		:fn_params_loop_end
-		
-		write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
-		out += 8
-		*8out = local_var_rbp_offset
-		out += 32
-		
+		; NOTE: it's the caller's responsibility to properly set rsp to accomodate all the arguments.
+		;       it needs to be this way because of varargs functions (the function doesn't know how many arguments there are).
 		parse_statement(&token, &out)
-		if block_depth != 0 goto stmtdepth_internal_err
+		if block_depth != 0 goto blockdepth_internal_err
 		function_stmt_data_bytes_used = out - function_stmt_data
-		print_statement(out0)
-		out0 += 40
 		print_statement(out0)
 		goto parse_tld_ret
 		
-		:stmtdepth_internal_err
-			token_error(token, .str_stmtdepth_internal_err)
-		:str_stmtdepth_internal_err
-			string Internal compiler error: parse_stmt_depth is not 0 after parsing function body.
+		:blockdepth_internal_err
+			token_error(token, .str_blockdepth_internal_err)
+		:str_blockdepth_internal_err
+			string Internal compiler error: block_depth is not 0 after parsing function body.
 			byte 0
 		:lbrace_after_declaration
 			token_error(token, .str_lbrace_after_declaration)
@@ -2941,7 +2957,7 @@ function parse_expression
 		
 		; it must be a function
 		c = ident_list_lookup(function_types, a)
-		if c == 0 goto undeclared_function
+		if c == 0 goto undeclared_variable
 		*1out = EXPRESSION_FUNCTION
 		out += 4
 		*4out = c
@@ -2949,11 +2965,11 @@ function parse_expression
 		*8out = a
 		out += 8
 		return out
-		:undeclared_function
+		:undeclared_variable
 			; @NONSTANDARD: C89 allows calling functions without declaring them
-			token_error(in, .str_undeclared_function)
-		:str_undeclared_function
-			string Undeclared function.
+			token_error(in, .str_undeclared_variable)
+		:str_undeclared_variable
+			string Undeclared variable.
 			byte 0
 		
 		:found_local_variable

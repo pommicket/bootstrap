@@ -1,17 +1,24 @@
 /* static int g; */
 
+int G;
+
 int f(int a, float x[], double y, ...) {
 }
 
-float * g() {
-}
+float * g(void);
 
 int main() {
 	int b[] = {1,2,3};
-	int a = f(1, 17, b, 36, 55.0, 22.3f);
+	int a = f(G, 17, b, 36, 55.0, 22.3f);
 	float *f = g(17.2, b);
+	int *y;
+	y = b;
 }
 
+float *g () {
+	float j;
+	return &j;
+}
 /* int f(int x, int y[3]) { */
 /* 	int z = 17 +x; */
 /* 	int g[]={1,2,3,4,5}; */

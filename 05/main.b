@@ -49,9 +49,7 @@ global output_file_data
 ; ident list of global variables. each one is stored as
 ;  (type << 32) | address
 global global_variables
-; ident list of functions. each entry is a pointer two statements
-;  - the first one is a STATEMENT_LOCAL_DECLARATION (with dat2=dat3=dat4=0), which is only there to set rsp properly because of parameters
-;  - the second one is the function body (a STATEMENT_BLOCK)
+; ident list of functions. each entry is a pointer to a statement (specifically, a STATEMENT_BLOCK)
 global function_statements
 ; ident list mapping function names to function types (TYPE_FUNCTION {...})
 global function_types
