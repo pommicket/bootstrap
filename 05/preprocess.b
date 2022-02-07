@@ -618,10 +618,10 @@ function translation_phase_4
 		pptoken_skip_spaces(&in)
 		macro_name = in
 		pptoken_skip(&in)
-		pptoken_skip_spaces(&in)
 		c = *1in
 		if c == '( goto function_macro_definition
 			; it's an object-like macro, e.g. #define X 47
+			pptoken_skip_spaces(&in)
 			
 			b = look_up_object_macro(macro_name)
 			if b != 0 goto macro_redefinition
