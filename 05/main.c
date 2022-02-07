@@ -3,7 +3,7 @@
 int main() {
 	int a = exit;
 	int b[] = {1,2,3};
-	exit(1);
+	exit(1, 17, a+b);
 }
 
 /* int f(int x, int y[3]) { */

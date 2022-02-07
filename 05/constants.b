@@ -140,7 +140,7 @@
 
 ; the format of expression headers is:
 ;    uchar kind  (one of the constants below)
-;    uchar info
+;    uchar (padding)
 ;    ushort (padding)
 ;    uint type
 ; immediately following the header in memory are the arguments of the expression
@@ -155,7 +155,7 @@
 ;        - for the operators . and ->, the first argument is the expression on the left-hand side, and the second argument is a 64-bit offset.
 ;                  we could use a 32-bit offset but that would cause things to be unaligned.
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
-;    - for function calls, the function, followed by each of the arguments to the function — info indicates the number of arguments
+;    - for function calls, the function, followed by each of the arguments to the function, followed by 8 bytes of zeros
 ; File/line number are not stored in expressions.
 ; Note that string literals are stored as constant integers (you can check the type to know what it is)
 #define EXPRESSION_FUNCTION 198

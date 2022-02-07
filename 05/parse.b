@@ -653,7 +653,7 @@ function parse_statement
 			:local_decl_initializer
 				token += 16
 				if *1token == SYMBOL_LBRACE goto local_init_lbrace
-				n = token_next_semicolon_or_comma_not_in_brackets(token)
+				n = token_next_semicolon_comma_rbracket(token)
 				out += 24
 				p = expressions_end
 				*8out = p
@@ -1512,8 +1512,9 @@ function token_next_semicolon_not_in_brackets
 			byte 0 
 
 
-; return the next semicolon or comma not in parentheses, square brackets, or braces. 
-function token_next_semicolon_or_comma_not_in_brackets
+; return the next semicolon or comma not in parentheses, square brackets, or braces;
+;   or the next unmatched right bracket (of any type) 
+function token_next_semicolon_comma_rbracket
 	argument token0
 	
 	local token
@@ -1542,13 +1543,16 @@ function token_next_semicolon_or_comma_not_in_brackets
 			goto next_semicomma_loop
 		:next_semicomma_decdepth
 			depth -= 1
+			if depth < 0 goto next_semicomma_loop_end_dectoken
 			goto next_semicomma_loop
+	:next_semicomma_loop_end_dectoken
+	token -= 16
 	:next_semicomma_loop_end
 	return token
 	:next_semicomma_eof
 		token_error(token0, .str_next_semicomma_eof)
 		:str_next_semicomma_eof
-			string End of file found while searching for semicolon or comma.
+			string End of file found while searching for semicolon/comma/closing bracket.
 			byte 0 
 
 
@@ -2547,8 +2551,33 @@ function parse_expression
 		bad_types_to_operator(tokens, *4a, *4b)
 	
 	:parse_call
-		byte 0xcc ; @TODO
-		
+		*4type = TYPE_INT ; @TODO: proper typing
+		:call_args_loop
+			if *1p == SYMBOL_RPAREN goto call_args_loop_end
+			n = token_next_semicolon_comma_rbracket(p)
+			print_tokens(p, n)
+			out = parse_expression(p, n, out)
+			p = n
+			if *1p == SYMBOL_RPAREN goto call_args_loop_end
+			if *1p != SYMBOL_COMMA goto bad_call
+			p += 16
+			goto call_args_loop
+		:call_args_loop_end
+		p += 16
+		if p != tokens_end goto stuff_after_call
+		*8out = 0
+		out += 8
+		return out
+		:bad_call
+			token_error(p, .str_bad_call)
+		:str_bad_call
+			string Bad function call.
+			byte 0
+		:stuff_after_call
+			token_error(p, .str_stuff_after_call)
+		:str_stuff_after_call
+			string Unexpected stuff after function call.
+			byte 0
 	:parse_expr_unary
 		if c == KEYWORD_SIZEOF goto parse_sizeof
 		*1out = unary_op_to_expression_type(c)
@@ -3818,6 +3847,7 @@ function print_expression
 	if c == EXPRESSION_BITWISE_NOT goto print_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto print_logical_not
 	if c == EXPRESSION_CAST goto print_cast
+	if c == EXPRESSION_CALL goto print_call
 
 	b = binop_expression_type_to_symbol(c)
 	if b != 0 goto print_expr_binop
@@ -3967,6 +3997,21 @@ function print_expression
 		putc('!)
 		expression += 8
 		expression = print_expression(expression)
+		putc(41)
+		return expression
+	:print_call
+		putc(40)
+		expression += 8
+		expression = print_expression(expression) ; function name
+		putc(40)
+		:print_call_loop
+			if *1expression == 0 goto print_call_loop_end
+			expression = print_expression(expression)
+			putc(44)
+			goto print_call_loop
+		:print_call_loop_end
+		putc(41)
+		expression += 8
 		putc(41)
 		return expression
 
