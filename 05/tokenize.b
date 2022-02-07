@@ -527,8 +527,8 @@ function read_c_char
 	:escape_sequence_return
 	*8p_in = in
 	return c
-		
-		
+
+
 function read_number_suffix
 	argument file
 	argument line_number
@@ -541,13 +541,17 @@ function read_number_suffix
 	suffix = 0
 	if c == 0 goto number_suffix_return
 	if c == 'u goto number_suffix_u
+	if c == 'U goto number_suffix_u
 	if c == 'l goto number_suffix_l
+	if c == 'L goto number_suffix_l
 	if c == 'f goto number_suffix_f
+	if c == 'F goto number_suffix_f
 	goto bad_number_suffix
 	:number_suffix_u
 		s += 1
 		c = *1s
 		if c == 'l goto number_suffix_ul
+		if c == 'L goto number_suffix_ul
 		if c != 0 goto bad_number_suffix
 		suffix = NUMBER_SUFFIX_U
 		goto number_suffix_return
@@ -555,6 +559,7 @@ function read_number_suffix
 		s += 1
 		c = *1s
 		if c == 'u goto number_suffix_ul
+		if c == 'U goto number_suffix_ul
 		if c != 0 goto bad_number_suffix
 		suffix = NUMBER_SUFFIX_L
 		goto number_suffix_return
