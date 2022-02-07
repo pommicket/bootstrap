@@ -470,6 +470,8 @@ function translation_phase_4
 	local in
 	local out
 	local p
+	local q
+	local n
 	local c
 	local b
 	local macro_name
@@ -836,7 +838,9 @@ function translation_phase_4
 	:pp_directive_if
 		local if_pptokens
 		local if_tokens
+		local if_tokens_end
 		local if_expr
+		local def_name
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
 		
@@ -846,7 +850,7 @@ function translation_phase_4
 		
 		p = if_pptokens
 		macro_replacement_to_terminator(filename, line_number, &in, &p, 10)
-		tokenize(if_pptokens, if_tokens, filename, line_number)
+		if_tokens_end = tokenize(if_pptokens, if_tokens, filename, line_number)
 		; replace all identifiers with 0
 		p = if_tokens
 		:pp_if_idents0_loop
@@ -855,19 +859,78 @@ function translation_phase_4
 			p += 16
 			goto pp_if_idents0_loop
 			:pp_if_replace_ident
+				p += 8
+				b = str_equals(*8p, .str_defined)
+				p -= 8
+				if b != 0 goto pp_replace_defined
 				*1p = TOKEN_CONSTANT_INT
 				p += 8
 				*8p = 0
 				p += 8
 				goto pp_if_idents0_loop
+				:pp_replace_defined
+					; handle, e.g. #if defined(SOMETHING)
+					
+					; @NONSTANDARD?? it seems unclear in the standard whether this is legal:
+					;   #define X defined
+					; GCC and clang both accept it without warnings
+					
+					p += 16
+					if *1p != SYMBOL_LPAREN goto pp_defined_nolparen
+					p += 16
+					if *1p != TOKEN_IDENTIFIER goto pp_bad_defined
+					p += 8
+					def_name = *8p
+					p += 8
+					if *1p != SYMBOL_RPAREN goto pp_bad_defined
+					q = p + 16
+					p -= 32
+					n = if_tokens_end - q
+					memcpy(p, q, n) ; shift everything over because 0 is less tokens than defined(X)
+					p -= 16
+					goto pp_defined_lparen_cont
+					:pp_defined_nolparen
+					if *1p != TOKEN_IDENTIFIER goto pp_bad_defined
+					p += 8
+					def_name = *8p
+					p -= 8
+					q = p + 16
+					n = if_tokens_end - q
+					memcpy(p, q, n) ; shift everything over because 0 is less tokens than defined X
+					p -= 16
+					:pp_defined_lparen_cont					
+					
+					*1p = TOKEN_CONSTANT_INT
+					p += 8
+					b = look_up_object_macro(def_name)
+					if b != 0 goto pp_defined_1
+					b = look_up_function_macro(def_name)
+					if b != 0 goto pp_defined_1
+					; not defined
+					*8p = 0
+					goto pp_defined_cont
+					:pp_defined_1
+					; defined
+					*8p = 1
+					:pp_defined_cont
+					p += 8
+					goto pp_if_idents0_loop
+					
 		:pp_if_idents0_done
+		;print_tokens(if_tokens, p)
 		parse_expression(if_tokens, p, if_expr)
-		evaluate_constant_expression(if_expr, &b)
+		;print_expression(if_expr)
+		evaluate_constant_expression(p, if_expr, &b)
 		if b == 0 goto pp_directive_if0
 			goto pp_if_done
 		:pp_directive_if0		
 			preprocessor_skip_if(filename, &line_number, &in, &out)
 			goto pp_if_done
+		:pp_bad_defined
+			token_error(p, .str_pp_bad_defined)
+		:str_pp_bad_defined
+			string Bad use of defined() in macro.
+			byte 0
 		:pp_if_done
 		free(if_pptokens)
 		goto process_pptoken

@@ -771,3 +771,6 @@
 :str_case
 	string case
 	byte 0
+:str_defined
+	string defined
+	byte 0
