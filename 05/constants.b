@@ -11,7 +11,8 @@
 #define EXECUTABLE_SIZE 0x1000000
 
 ; "* 15 nesting levels of compound statements, iteration control structures, and selection control structures" C89 § 2.2.4.1 
-#define BLOCK_DEPTH_LIMIT 16
+; we need a little more because people don't always Standard code
+#define BLOCK_DEPTH_LIMIT 32
 
 ; C OPERATOR PRECEDENCE
 ;   lowest
@@ -278,6 +279,7 @@
 ;     - STATEMENT_BREAK      - data1,2,3,4 are unused
 ;     - STATEMENT_RETURN     - data1 is a pointer to the expression, or 0 if there is none; data2,3,4 are unused
 ;     - STATEMENT_CASE       - data1 is the value; data2,3,4 are unused
+;     - STATEMENT_DEFAULT    - data1,2,3,4 are unused
 ;     - STATEMENT_NOOP       - data1,2,3,4 are unused
 #define STATEMENT_EXPRESSION 1
 #define STATEMENT_LOCAL_DECLARATION 2
@@ -293,7 +295,8 @@
 #define STATEMENT_BREAK 0xc
 #define STATEMENT_RETURN 0xd
 #define STATEMENT_CASE 0xe
-#define STATEMENT_NOOP 0xf
+#define STATEMENT_DEFAULT 0xf
+#define STATEMENT_NOOP 0x10
 
 
 :keyword_table
@@ -705,6 +708,9 @@
 :str_endif
 	string endif
 	byte 0
+:str_defined
+	string defined
+	byte 0
 :str___FILE__
 	string __FILE__
 	byte 0
@@ -771,6 +777,6 @@
 :str_case
 	string case
 	byte 0
-:str_defined
-	string defined
+:str_default
+	string default
 	byte 0

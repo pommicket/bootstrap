@@ -261,7 +261,7 @@ function tokenize
 					goto string_literal_char_loop					
 				:string_literal_char_loop_end
 				pptoken_skip(&in) ; skip closing "
-				pptoken_skip_spaces(&in)
+				pptoken_skip_whitespace(&in, &line_number)
 				if *1in == '" goto string_literal_loop ; string concatenation, e.g. "Hello, " "world!"
 			*1p = 0 ; null terminator
 			p += 1
@@ -560,12 +560,16 @@ function read_number_suffix
 		c = *1s
 		if c == 'u goto number_suffix_ul
 		if c == 'U goto number_suffix_ul
+		if c == 'l goto number_suffix_l  ; handle ll suffix (even though it's C99)
+		if c == 'L goto number_suffix_l
 		if c != 0 goto bad_number_suffix
 		suffix = NUMBER_SUFFIX_L
 		goto number_suffix_return
 	:number_suffix_ul
 		s += 1
 		c = *1s
+		if c == 'l goto number_suffix_l  ; handle ll suffix (even though it's C99)
+		if c == 'L goto number_suffix_l
 		if c != 0 goto bad_number_suffix
 		suffix = NUMBER_SUFFIX_UL
 		goto number_suffix_return

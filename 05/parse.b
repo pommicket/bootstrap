@@ -382,23 +382,6 @@ function parse_statement
 	out = *8p_out
 	token = *8p_token
 	
-	:stmt_label_loop
-		if *1token != TOKEN_IDENTIFIER goto stmt_label_loop_end
-		; if second token in statement is a colon, this must be a label
-		p = token + 16
-		if *1p == SYMBOL_COLON goto stmt_label
-		goto stmt_label_loop_end
-		
-		:stmt_label
-			write_statement_header(out, STATEMENT_LABEL, token)
-			out += 8
-			token += 8
-			*8out = *8token ; copy label name
-			out += 32
-			token += 24 ; skip ident name, and colon
-			goto stmt_label_loop
-	:stmt_label_loop_end
-	
 	c = *1token
 	if c == SYMBOL_SEMICOLON goto stmt_empty
 	if c == SYMBOL_LBRACE goto stmt_block
@@ -407,6 +390,7 @@ function parse_statement
 	if c == KEYWORD_RETURN goto stmt_return
 	if c == KEYWORD_GOTO goto stmt_goto
 	if c == KEYWORD_CASE goto stmt_case
+	if c == KEYWORD_DEFAULT goto stmt_default
 	if c == KEYWORD_STATIC goto stmt_static_declaration
 	if c == KEYWORD_EXTERN goto stmt_extern_declaration
 	if c == KEYWORD_WHILE goto stmt_while
@@ -414,6 +398,12 @@ function parse_statement
 	if c == KEYWORD_FOR goto stmt_for
 	if c == KEYWORD_SWITCH goto stmt_switch
 	if c == KEYWORD_IF goto stmt_if
+	
+	if *1token != TOKEN_IDENTIFIER goto stmt_not_label
+	; if second token in statement is a colon, this must be a label
+	p = token + 16
+	if *1p == SYMBOL_COLON goto stmt_label
+	:stmt_not_label
 	
 	b = token_is_type(token)
 	if b != 0 goto stmt_local_declaration
@@ -438,6 +428,14 @@ function parse_statement
 		; @NONSTANDARD
 		string Local extern declarations are not supported.
 		byte 0
+	:stmt_label
+		write_statement_header(out, STATEMENT_LABEL, token)
+		out += 8
+		token += 8
+		*8out = *8token ; copy label name
+		out += 32
+		token += 24 ; skip ident name, and colon
+		goto parse_statement_ret
 	:stmt_switch
 		write_statement_header(out, STATEMENT_SWITCH, token)		
 		token += 16
@@ -780,6 +778,19 @@ function parse_statement
 			token_error(token, .str_case_no_colon)
 		:str_case_no_colon
 			string No : after case.
+			byte 0
+	:stmt_default
+		write_statement_header(out, STATEMENT_DEFAULT, token)
+		token += 16
+		out += 40
+		if *1token != SYMBOL_COLON goto default_no_colon
+		token += 16
+		goto parse_statement_ret
+		:default_no_colon
+			token_error(token, .str_default_no_colon)
+		:str_default_no_colon
+			string No : after default.
+			byte 0
 	:stmt_return
 		write_statement_header(out, STATEMENT_RETURN, token)
 		out += 8
@@ -916,6 +927,7 @@ function print_statement_with_depth
 	if c == STATEMENT_GOTO goto print_stmt_goto
 	if c == STATEMENT_LABEL goto print_stmt_label
 	if c == STATEMENT_CASE goto print_stmt_case
+	if c == STATEMENT_DEFAULT goto print_stmt_default
 	if c == STATEMENT_WHILE goto print_stmt_while
 	if c == STATEMENT_DO goto print_stmt_do
 	if c == STATEMENT_IF goto print_stmt_if
@@ -1089,7 +1101,10 @@ function print_statement_with_depth
 		putn_signed(dat1)
 		putcln(':)
 		return
-		
+	:print_stmt_default
+		puts(.str_default)
+		putcln(':)
+		return
 ; parse a global variable's initializer
 ; e.g.    int x[5] = {1+8, 2, 3, 4, 5};
 ; advances *p_token to the token right after the initializer
@@ -2399,21 +2414,17 @@ function parse_expression
 	
 	; look for the operator with the lowest precedence not in brackets
 	depth = 0 ; paren/square bracket depth
-	first_token = 1
 	p = tokens
 	best = 0
 	best_precedence = 1000
-	goto expr_find_operator_loop_first
 	:expr_find_operator_loop
-		first_token = 0
-		:expr_find_operator_loop_first
 		if p >= tokens_end goto expr_find_operator_loop_end
 		n = p
 		c = *1p
 		p += 16
 		if depth > 0 goto expr_findop_not_new_best
 		if depth < 0 goto expr_too_many_closing_brackets
-		a = operator_precedence(n, first_token)
+		a = operator_precedence(n, tokens)
 		n = a
 		if a == 0xe0 goto select_leftmost ; ensure that the leftmost unary operator is processed first
 		b = operator_right_associative(c)
@@ -2668,8 +2679,8 @@ function parse_expression
 		if c == EXPRESSION_LOGICAL_NOT goto unary_type_logical_not
 		if c == EXPRESSION_ADDRESS_OF goto unary_address_of
 		if c == EXPRESSION_DEREFERENCE goto unary_dereference
-		if c == EXPRESSION_PRE_INCREMENT goto unary_type_arithmetic_nopromote
-		if c == EXPRESSION_PRE_DECREMENT goto unary_type_arithmetic_nopromote
+		if c == EXPRESSION_PRE_INCREMENT goto unary_type_scalar_nopromote
+		if c == EXPRESSION_PRE_DECREMENT goto unary_type_scalar_nopromote
 		fputs(2, .str_unop_this_shouldnt_happen)
 		exit(1)
 		:str_unop_this_shouldnt_happen
@@ -2730,8 +2741,8 @@ function parse_expression
 		if *1p > TYPE_DOUBLE goto unary_bad_type
 		*4type = type_promotion(*4a)
 		return out
-	:unary_type_arithmetic_nopromote
-		if *1p > TYPE_DOUBLE goto unary_bad_type
+	:unary_type_scalar_nopromote
+		if *1p > TYPE_POINTER goto unary_bad_type
 		*4type = *4a
 		return out
 	:unary_bad_type
@@ -2863,13 +2874,17 @@ function parse_expression
 		; okay, q now points to the :
 		*1out = EXPRESSION_CONDITIONAL
 		out += 8
+		a = out + 4
 		out = parse_expression(tokens, best, out)
+		type_decay_array_to_pointer(*4a)
 		a = out + 4 ; type of left branch of conditional
 		best += 16
 		out = parse_expression(best, p, out)
+		type_decay_array_to_pointer(*4a)
 		b = out + 4 ; type of right branch of conditional
 		p += 16
 		out = parse_expression(p, tokens_end, out)
+		type_decay_array_to_pointer(*4b)
 		p = types + *4a
 		if *1p == TYPE_STRUCT goto parse_cond_ltype
 		if *1p == TYPE_VOID goto parse_cond_ltype
@@ -3630,17 +3645,21 @@ function type_promotion
 ; return precedence of given operator token, or 0xffff if not an operator
 function operator_precedence
 	argument token
-	argument is_first
+	argument first_token
+	local p_op
 	local op
 	local b
 	
-	if is_first != 0 goto operator_precedence_unary
+	if token == first_token goto operator_precedence_unary
 	
 	; if an operator is preceded by another, it must be a unary operator, e.g.
-	;   in 5 + *x, * is a unary operator
-	op = token - 16
-	op = *1op
+	;   in `5 + *x`, * is a unary operator
+	p_op = token - 16
+	:figure_out_arity
+	op = *1p_op
 	if op == SYMBOL_RPAREN goto figre_out_rparen_arity
+	if op == SYMBOL_PLUS_PLUS goto figure_out_bimodal_arity
+	if op == SYMBOL_MINUS_MINUS goto figure_out_bimodal_arity
 	op = is_operator(op)
 	
 	; if an operator is immediately followed by another (including lparen), the second must be 
@@ -3718,6 +3737,14 @@ function operator_precedence
 	b = token_is_type(token)
 	if b == 0 goto return_0xffff
 	goto return_0xe0 ; it's a cast
+	
+	:figure_out_bimodal_arity
+	; ++ and -- can act either as unary or binary operators.
+	if p_op == first_token goto operator_precedence_unary ; e.g. ++*x
+	; reverse one further to figure out which it is.
+	p_op -= 16
+	goto figure_out_arity
+	
 	
 	:figre_out_rparen_arity
 	; given that the token before this one is a right-parenthesis, figure out if
@@ -3941,6 +3968,7 @@ function print_expression
 	if c == EXPRESSION_LOGICAL_NOT goto print_logical_not
 	if c == EXPRESSION_CAST goto print_cast
 	if c == EXPRESSION_CALL goto print_call
+	if c == EXPRESSION_CONDITIONAL goto print_conditional
 
 	b = binop_expression_type_to_symbol(c)
 	if b != 0 goto print_expr_binop
@@ -3998,6 +4026,20 @@ function print_expression
 		b = get_keyword_str(b)
 		puts(b)
 		expression = print_expression(expression) ; 2nd operand
+		putc(41)
+		return expression
+	:print_conditional
+		putc(40)
+		expression += 8
+		expression = print_expression(expression)
+		putc(32)
+		putc('?)
+		putc(32)
+		expression = print_expression(expression)
+		putc(32)
+		putc(':)
+		putc(32)
+		expression = print_expression(expression)
 		putc(41)
 		return expression
 	:print_expr_dot

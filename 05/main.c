@@ -1,11 +1,4 @@
-#define funciton( h,  \
- i,  j ) h##ello * 2 * i##ello * j##ello
-int hello = 7;
+#include "tests/parse_stb_sprintf.h"
+/* @TODO: why are line numbers off by 1? */
 int main() {
-	int x = funciton(
-	h,
-	h,
-	h
-	);
-	int y = funciton(h,h,h);
 }
