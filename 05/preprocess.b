@@ -550,6 +550,7 @@ function translation_phase_4
 	
 	:phase4_line
 		line_number += 1
+		:phase4_line_noinc
 		c = *1in
 		if c == 0 goto phase4_end
 		if c == '# goto pp_directive ; NOTE: ## cannot appear at the start of a line
@@ -869,7 +870,7 @@ function translation_phase_4
 		p = look_up_function_macro(macro_name)
 		if p != 0 goto process_pptoken ; macro is defined; keep processing
 		preprocessor_skip_if(filename, &line_number, &in, &out)
-		goto process_pptoken
+		goto phase4_line_noinc
 	:pp_directive_ifndef
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
@@ -884,12 +885,12 @@ function translation_phase_4
 		goto process_pptoken ; macro not defined; keep processing
 		:ifndef_skip
 		preprocessor_skip_if(filename, &line_number, &in, &out)
-		goto process_pptoken
+		goto phase4_line_noinc
 	:pp_directive_else
 		; assume we got here from an if, so skip this
 		pptoken_skip_to_newline(&in)
 		preprocessor_skip_if(filename, &line_number, &in, &out)
-		goto process_pptoken
+		goto phase4_line_noinc
 	:pp_directive_endif
 		; assume we got here from an if/elif/else, just ignore it.
 		pptoken_skip(&in)
@@ -982,7 +983,7 @@ function translation_phase_4
 		evaluate_constant_expression(p, if_expr, &b)
 		if b == 0 goto pp_directive_if0
 			goto pp_if_done
-		:pp_directive_if0		
+		:pp_directive_if0
 			preprocessor_skip_if(filename, &line_number, &in, &out)
 			goto pp_if_done
 		:pp_bad_defined
@@ -992,7 +993,7 @@ function translation_phase_4
 			byte 0
 		:pp_if_done
 		free(if_pptokens)
-		goto process_pptoken
+		goto phase4_line_noinc
 	:unrecognized_directive
 		compile_error(filename, line_number, .str_unrecognized_directive)
 	:str_unrecognized_directive
@@ -1040,7 +1041,7 @@ function translation_phase_4
 	
 
 ; skip body of #if / #elif / #else. This will advance *p_in to:
-;      - right before the next unmatched #elif, replacing it with a #if
+;      - right at the next unmatched #elif, replacing it with a #if
 ;   OR - right after the next #else
 ;   OR - right after the next #endif
 ; whichever comes first
@@ -1104,8 +1105,7 @@ function preprocessor_skip_if
 			*1in = 'i
 			in += 1
 			*1in = 'f
-			in -= 5
-			*1in = 10 ; we need a newline so the #elif actually gets handled
+			in -= 3
 			goto preprocessor_skip_if_loop_end
 		:skip_if_inc_depth
 			if_depth += 1
