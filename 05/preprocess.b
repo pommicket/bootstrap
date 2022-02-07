@@ -660,6 +660,10 @@ function translation_phase_4
 			pptoken_skip(&in) ; skip opening parenthesis
 			pptoken_skip_spaces(&in)
 			param_name = param_names
+			
+			; macros with no arguments are legal for some reason
+			if *1in == ') goto macro_params_loop_end
+			
 			:macro_params_loop
 				c = *1in
 				if c == 10 goto phase4_missing_closing_bracket
@@ -1229,7 +1233,6 @@ function macro_replacement
 		pptoken_skip(&in) ; skip macro name
 		pptoken_skip_spaces(&in)
 		pptoken_skip(&in) ; skip opening bracket
-		if *1in == ') goto empty_fmacro_invocation
 		
 		local arguments
 		local fmacro_out
@@ -1240,6 +1243,7 @@ function macro_replacement
 		
 		; store the arguments (separated by 255-characters)
 		p = arguments
+		if *1in == ') goto fmacro_no_args
 		:fmacro_arg_loop
 			b = fmacro_arg_end(filename, p_line_number, in)
 			b -= in
@@ -1253,6 +1257,9 @@ function macro_replacement
 			if c == ') goto fmacro_arg_loop_end
 			pptoken_skip_spaces(&in)
 			goto fmacro_arg_loop
+		:fmacro_no_args
+			in += 2 ; skip )
+			; (fallthrough)
 		:fmacro_arg_loop_end
 		*1p = 255 ; use an additional 255-character to mark the end (note: macro arguments may not be empty)
 		
@@ -1369,12 +1376,6 @@ function macro_replacement
 		*1old_banned_objmacros_end = 255
 		*1old_banned_fmacros_end = 255
 		return
-	
-	:empty_fmacro_invocation
-		compile_error(filename, *8p_line_number, .str_empty_fmacro_invocation)
-	:str_empty_fmacro_invocation
-		string No arguments provided to function-like macro.
-		byte 0
 	
 	:handle___FILE__
 		pptoken_skip(&in)
