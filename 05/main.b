@@ -72,6 +72,8 @@ global expressions_end
 ; current rbp offset (where rsp is)
 global local_var_rbp_offset
 global function_param_names
+; set to 1 by parse_type_declarators if at least one function parameter has no name.
+global function_param_has_no_name
 
 #include util.b
 #include idents.b

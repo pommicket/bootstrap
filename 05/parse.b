@@ -240,6 +240,7 @@ function parse_toplevel_declaration
 		byte 0
 	:parse_function_definition
 		if block_depth != 0 goto nested_function
+		if function_param_has_no_name != 0 goto function_no_param_name
 		p = types + type
 		if *1p != TYPE_FUNCTION goto lbrace_after_declaration
 		
@@ -280,6 +281,11 @@ function parse_toplevel_declaration
 		print_statement(out0)
 		goto parse_tld_ret
 		
+		:function_no_param_name
+			token_error(base_type, .str_function_no_param_name)
+		:str_function_no_param_name
+			string Function definition with unnamed parameters.
+			byte 0
 		:blockdepth_internal_err
 			token_error(token, .str_blockdepth_internal_err)
 		:str_blockdepth_internal_err
@@ -660,6 +666,17 @@ function parse_statement
 			parse_type_declarators(l_prefix, l_prefix_end, l_suffix, l_suffix_end, 0)
 			parse_base_type(l_base_type)
 			
+			; create pseudo-entry for variable in local variables list.
+			;   this allows for  int *x = malloc(sizeof *x);
+			; unfortunately, it also allows  int x = x;
+			; oh well
+			p = local_variables
+			p += block_depth < 3
+			c = ident_list_lookup(*8p, l_name)
+			if c != 0 goto local_redeclaration
+			c = l_type < 32
+			ident_list_add(*8p, l_name, c)
+			
 			
 			token = l_suffix_end
 			if *1token == SYMBOL_EQ goto local_decl_initializer
@@ -682,11 +699,9 @@ function parse_statement
 			p = local_variables
 			p += block_depth < 3
 			l_offset = local_var_rbp_offset
-			c = ident_list_lookup(*8p, l_name)
-			if c != 0 goto local_redeclaration
 			c = l_offset
 			c |= l_type < 32
-			ident_list_add(*8p, l_name, c)
+			ident_list_set(*8p, l_name, c)
 			
 			if *1token == SYMBOL_SEMICOLON goto local_decl_loop_end
 			if *1token != SYMBOL_COMMA goto local_decl_badsuffix
@@ -989,7 +1004,7 @@ function print_statement_with_depth
 		print_expression(dat2)
 		:print_for_noexpr2
 		puts(.str_for_sep)
-		if dat2 == 0 goto print_for_noexpr3
+		if dat3 == 0 goto print_for_noexpr3
 		print_expression(dat3)
 		:print_for_noexpr3
 		putcln(41)
@@ -1415,7 +1430,7 @@ function parse_constant_initializer
 	:floating_initializer_other_than_0
 		token_error(token, .str_floating_initializer_other_than_0)
 	:str_floating_initializer_other_than_0
-		string Only 0 is supported as a floating-point initializer.
+		string Only 0 is supported as a constant floating-point initializer.
 		byte 0
 ; *p_token should be pointing to a {, this will advance it to point to the matching }
 function token_skip_to_matching_rbrace
@@ -1825,6 +1840,13 @@ function parse_type_declarators
 			local param_suffix_end
 			local d
 			
+			if param_names_out == 0 goto skip_ftype_reset
+			; this gets set to 1 if at least one parameter has no name.
+			; we don't just error here, because we need to support declarations like:
+			;   int f(int, int);
+			function_param_has_no_name = 0
+			:skip_ftype_reset
+			
 			out = types + types_bytes_used
 			*1out = TYPE_FUNCTION
 			types_bytes_used += 1
@@ -1898,10 +1920,8 @@ function parse_type_declarators
 			suffix = p + 16
 			goto type_declarators_loop
 			:no_param_name
-				token_error(param_suffix, .str_no_param_name)
-			:str_no_param_name
-				string Function parameter has no name.
-				byte 0
+				function_param_has_no_name = 1
+				goto functype_had_ident
 			:stuff_after_ftype_varargs
 				token_error(p, .str_stuff_after_ftype_varargs)
 			:str_stuff_after_ftype_varargs
@@ -2080,18 +2100,21 @@ function parse_base_type
 		c = ident_list_lookup(structures, struct_name)
 		if *1p == SYMBOL_LBRACE goto base_type_struct_definition
 		
-		if c == 0 goto base_type_incomplete_struct
-			; e.g. struct Foo x;  where struct Foo has been defined
+		if c == 0 goto base_type_new_incomplete_struct
+		:base_type_named_struct
+			; e.g. struct Foo x;
 			*1out = TYPE_STRUCT
 			out += 1
 			*8out = c
 			out += 8
 			goto base_type_done
-		:base_type_incomplete_struct
-			; e.g. struct Foo *x;  where struct Foo hasn't been defined
-			*1out = TYPE_VOID
-			out += 1
-			goto base_type_done
+		:base_type_new_incomplete_struct
+			; create an ident list for the incomplete struct, with nothing in it yet
+			struct = ident_list_create(8000)
+			; add it to the table
+			ident_list_add(structures, struct_name, struct)
+			c = struct
+			goto base_type_named_struct
 		:base_type_struct_definition
 			;  @NONSTANDARD: we don't handle bit-fields.
 			local struct_location
@@ -2107,8 +2130,18 @@ function parse_base_type
 			
 			struct_location = token_get_location(p)
 			
-			if c != 0 goto struct_maybe_redefinition
-			struct = ident_list_create(8000) ; note: maximum "* 127 members in a single structure or union" C89 § 2.2.4.1
+			if c == 0 goto completely_new_struct
+			if *1c != 0 goto struct_maybe_redefinition
+				; ok we're filling in an incomplete struct
+				struct = c
+				goto struct_definition_fill_in
+			
+			:completely_new_struct
+				; a completely new struct; hasn't been used as an incomplete struct
+				struct = ident_list_create(8000) ; note: maximum "* 127 members in a single structure or union" C89 § 2.2.4.1
+				ident_list_add(structures, struct_name, struct)
+			
+			:struct_definition_fill_in
 			*1out = TYPE_STRUCT
 			out += 1
 			*8out = struct
@@ -2120,7 +2153,6 @@ function parse_base_type
 			offset = 0
 			
 			if *1struct_name == 0 goto struct_unnamed
-			ident_list_add(structures, struct_name, struct)
 			ident_list_add(structure_locations, struct_name, struct_location)
 			:struct_unnamed
 			
@@ -2865,6 +2897,7 @@ function parse_expression
 		if *1a != TYPE_STRUCT goto member_non_struct
 		a += 1
 		a = *8a ; pointer to struct data
+		if *1a == 0 goto use_of_incomplete_struct
 		p += 8
 		c = ident_list_lookup(a, *8p)
 		if c == 0 goto member_not_in_struct
@@ -2874,6 +2907,11 @@ function parse_expression
 		p += 8
 		if p != tokens_end goto bad_expression ; e.g. foo->bar hello
 		return out
+		:use_of_incomplete_struct
+			token_error(p, .str_use_of_incomplete_struct)
+		:str_use_of_incomplete_struct
+			string Use of incomplete struct.
+			byte 0
 		:arrow_non_pointer
 			token_error(p, .str_arrow_non_pointer)
 		:str_arrow_non_pointer
@@ -2885,6 +2923,7 @@ function parse_expression
 			string Trying to access member of something other than a (complete) structure/union.
 			byte 0
 		:member_not_in_struct
+			p -= 8
 			token_error(p, .str_member_not_in_struct)
 		:str_member_not_in_struct
 			string Trying to access non-existent member of structure or union.

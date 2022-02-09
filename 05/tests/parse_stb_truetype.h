@@ -1634,7 +1634,7 @@ static int stbtt__GetGlyphShapeTT(const stbtt_fontinfo *info, int glyph_index, s
          stbtt_uint16 flags, gidx;
          int comp_num_verts = 0, i;
          stbtt_vertex *comp_verts = 0, *tmp = 0;
-         float mtx[6] = {1,0,0,1,0,0}, m, n;
+         float mtx[6] = {0,0,0,0,0,0}, m, n;
 
          flags = ttSHORT(comp); comp+=2;
          gidx = ttSHORT(comp); comp+=2;
@@ -4282,7 +4282,7 @@ static int equal(float *a, float *b)
 static int stbtt__compute_crossings_x(float x, float y, int nverts, stbtt_vertex *verts)
 {
    int i;
-   float orig[2], ray[2] = { 1, 0 };
+   float orig[2], ray[2] = { 0, 0 };
    float y_frac;
    int winding = 0;
 
@@ -4497,7 +4497,7 @@ STBTT_DEF unsigned char * stbtt_GetGlyphSDF(const stbtt_fontinfo *info, float sc
                      float ax = x1-x0, ay = y1-y0;
                      float bx = x0 - 2*x1 + x2, by = y0 - 2*y1 + y2;
                      float mx = x0 - sx, my = y0 - sy;
-                     float res[3] = {0.f,0.f,0.f};
+                     float res[3] = {0,0,0};
                      float px,py,t,it,dist2;
                      float a_inv = precompute[i];
                      if (a_inv == 0.0) { 

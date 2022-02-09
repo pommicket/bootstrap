@@ -244,7 +244,7 @@
 ; reading the first 16 bits of type data as a word will give this if the type refers to a function pointer.
 #define TYPE2_FUNCTION_POINTER 0x100d
 
-; types willl be initialized (in main) so that these will refer to the proper types
+; types will be initialized (in main) so that these will refer to the proper types
 #define TYPE_POINTER_TO_CHAR 20
 #define TYPE_POINTER_TO_VOID 22
 

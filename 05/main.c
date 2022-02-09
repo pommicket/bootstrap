@@ -1,4 +1,4 @@
-/* #include "tests/parse_stb_truetype.h" */
+#include "tests/parse_stb_truetype.h"
 
 /*
 ; @NONSTANDARD:

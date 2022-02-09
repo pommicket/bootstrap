@@ -85,6 +85,34 @@ function ident_list_lookup
 	list -= 8 ; backtrack to value
 	return *8list ; UNALIGNED
 
+; return a pointer to the value associated with ident, or 0 if none is
+function ident_list_lookup_pointer
+	argument list
+	argument ident
+	local b
+	:ilist_lookup_pointer_loop
+		if *1list == 0 goto return_0
+		b = str_equals(list, ident)
+		list = memchr(list, 0)
+		list += 9 ; skip null byte and value
+		if b == 0 goto ilist_lookup_pointer_loop
+	list -= 8 ; backtrack to value
+	return list
+
+; if list contains ident, change its value to `value`. otherwise, add ident with the given value.
+function ident_list_set
+	argument list
+	argument ident
+	argument value
+	local p
+	p = ident_list_lookup_pointer(list, ident)
+	if p == 0 goto ident_list_set_add
+	*8p = value
+	return
+	:ident_list_set_add
+	ident_list_add(list, ident, value)
+	return
+
 ; if identifier in list, sets *pvalue to its value (if pvalue is not null) and returns 1
 ; otherwise, returns 0
 function ident_list_lookup_check
