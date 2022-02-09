@@ -175,7 +175,20 @@ function parse_toplevel_declaration
 		goto parse_tld_ret
 		
 		:tl_decl_no_ident
-			token_error(prefix_end, .str_tl_decl_no_ident)
+			; this might actually be okay, e.g.
+			; struct Something { int x, y; }
+			if *1base_type == KEYWORD_STRUCT goto tldni_basetype_ok
+			if *1base_type == KEYWORD_UNION goto tldni_basetype_ok
+			if *1base_type == KEYWORD_ENUM goto tldni_basetype_ok
+			goto tldni_bad
+			:tldni_basetype_ok
+			if prefix != prefix_end goto tldni_bad ; e.g. struct Something {...} *;
+			if *1prefix_end != SYMBOL_SEMICOLON goto tldni_bad ; you can't do struct Something { ...}, struct SomethingElse {...};
+			parse_base_type(base_type) ; this will properly define the struct/union/enum and any enumerators
+			token = prefix_end
+			goto tl_decl_loop_done
+			:tldni_bad
+				token_error(prefix_end, .str_tl_decl_no_ident)
 		:str_tl_decl_no_ident
 			string No identifier in top-level declaration.
 			byte 0
@@ -413,7 +426,9 @@ function parse_statement
 	out += 8
 	p = token_next_semicolon_not_in_brackets(token)
 	*8out = expressions_end
+	b = expressions_end + 4 ; type of expression
 	expressions_end = parse_expression(token, p, expressions_end)
+	type_decay_array_to_pointer_in_place(*4b)
 	out += 32
 	token = p + 16
 	goto parse_statement_ret
@@ -689,7 +704,7 @@ function parse_statement
 				out -= 24
 				expressions_end = parse_expression(token, n, p)
 				p += 4
-				type_decay_array_to_pointer(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
+				type_decay_array_to_pointer_in_place(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
 				token = n
 				goto local_decl_continue
 			:local_init_lbrace
@@ -711,14 +726,15 @@ function parse_statement
 			:str_local_redeclaration
 				string Redeclaration of local variable.
 				byte 0
+			:local_decl_no_ident						
+				:local_decl_no_ident_bad
+					token_error(token, .str_local_decl_no_ident)
+				:str_local_decl_no_ident
+					string No identifier in declaration.
+					byte 0
 		:local_decl_loop_end
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
-		:local_decl_no_ident
-			token_error(token, .str_local_decl_no_ident)
-		:str_local_decl_no_ident
-			string No identifier in declaration.
-			byte 0
 	:stmt_static_declaration
 		p = block_static_variables
 		p += block_depth < 3
@@ -2344,6 +2360,13 @@ function type_copy_ids
 	memcpy(dest, src, n)
 	return n
 
+function type_create_copy
+	argument type
+	local copy
+	copy = types_bytes_used
+	types_bytes_used += type_copy_ids(types_bytes_used, type)
+	return copy
+	
 function type_create_pointer
 	argument type
 	local id
@@ -2479,15 +2502,17 @@ function parse_expression
 	if c == EXPRESSION_ARROW goto parse_expr_member
 	a = out + 4 ; type of first operand
 	out = parse_expression(tokens, best, out) ; first operand
+	a = *4a
 	p = best + 16
 	if c == EXPRESSION_CALL goto parse_call
-	b = out + 4 ; type of second operand
 	if c != EXPRESSION_SUBSCRIPT goto binary_not_subscript
 	tokens_end -= 16
 	if *1tokens_end != SYMBOL_RSQUARE goto unrecognized_expression
 	:binary_not_subscript
 	
+	b = out + 4 ; type of second operand
 	out = parse_expression(p, tokens_end, out) ; second operand
+	b = *4b
 	
 	if c == EXPRESSION_LSHIFT goto type_shift
 	if c == EXPRESSION_RSHIFT goto type_shift
@@ -2530,68 +2555,72 @@ function parse_expression
 		byte 0	
 	
 	:type_plus
-		type_decay_array_to_pointer(*4a)
-		type_decay_array_to_pointer(*4b)
-		p = types + *4a
+		type_decay_array_to_pointer_in_place(a)
+		type_decay_array_to_pointer_in_place(b)
+		p = types + a
 		if *1p == TYPE_POINTER goto type_binary_left ; pointer plus integer
-		p = types + *4b
+		p = types + b
 		if *1p == TYPE_POINTER goto type_binary_right ; integer plus pointer
 		goto type_binary_usual
 	:type_minus
-		type_decay_array_to_pointer(*4a)
-		type_decay_array_to_pointer(*4b)
-		p = types + *4a
+		type_decay_array_to_pointer_in_place(a)
+		type_decay_array_to_pointer_in_place(b)
+		p = types + a
 		if *1p == TYPE_POINTER goto type_minus_left_ptr
 		goto type_binary_usual
 		:type_minus_left_ptr
-		p = types + *4b
+		p = types + b
 		if *1p == TYPE_POINTER goto type_long ; pointer difference
 		goto type_binary_left ; pointer minus integer
 	:type_subscript
-		type_decay_array_to_pointer(*4a)
-		p = types + *4a
+		type_decay_array_to_pointer_in_place(a)
+		p = types + b
+		if *1p > TYPE_UNSIGNED_LONG goto subscript_non_integer
+		p = types + a
 		if *1p == TYPE_POINTER goto type_subscript_pointer
-		if *1p == TYPE_ARRAY goto type_subscript_array
 		goto subscript_bad_type
 		:type_subscript_pointer
-			*4type = *4a + 1
-			return out
-		:type_subscript_array
-			*4type = *4a + 9
+			b = a + 1
+			*4type = type_create_copy(b)
 			return out
 		:subscript_bad_type
 			token_error(tokens, .str_subscript_bad_type)
 		:str_subscript_bad_type
 			string Subscript of non-pointer type.
 			byte 0
+		:subscript_non_integer
+			token_error(tokens, .str_subscript_non_integer)
+		:str_subscript_non_integer
+			string Subscript index is not an integer.
+			byte 0
 	; apply the "usual conversions"
 	:type_binary_usual
-		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		*4type = expr_binary_type_usual_conversions(tokens, a, b)
 		return out
 	; like type_binary_usual, but the operands must be integers
 	:type_binary_usual_integer
-		*4type = expr_binary_type_usual_conversions(tokens, *4a, *4b)
+		*4type = expr_binary_type_usual_conversions(tokens, a, b)
 		p = types + *4type
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
 		return out
 	:type_binary_left_integer
-		p = types + *4a
+		p = types + a
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
-		p = types + *4b
+		p = types + b
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
 		goto type_binary_left
 	:type_binary_left
-		*4type = *4a
+		*4type = a
 		return out
 	:type_binary_right
-		*4type = *4b
+		*4type = b
 		return out
 	:type_shift
-		p = types + *4a
+		p = types + a
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
-		p = types + *4b
+		p = types + b
 		if *1p >= TYPE_FLOAT goto expr_binary_bad_types
-		*4type = type_promotion(*4a)
+		*4type = type_promotion(a)
 		return out
 	; the type here is just int
 	:type_int
@@ -2601,13 +2630,13 @@ function parse_expression
 		*4type = TYPE_LONG
 		return out
 	:expr_binary_bad_types
-		bad_types_to_operator(tokens, *4a, *4b)
+		bad_types_to_operator(tokens, a, b)
 	
 	:parse_call
 		local arg_type
 		local param_type
 		; type call
-		b = types + *4a
+		b = types + a
 		if *1b == TYPE_FUNCTION goto type_call_cont
 		if *1b != TYPE_POINTER goto calling_nonfunction
 		b += 1 ; handle calling function pointer
@@ -2632,7 +2661,7 @@ function parse_expression
 			goto call_arg_type_cont
 			:arg_is_varargs
 			type_promote_float_to_double(*4arg_type)
-			type_decay_array_to_pointer(*4arg_type)
+			type_decay_array_to_pointer_in_place(*4arg_type)
 			:call_arg_type_cont
 			
 			p = n
@@ -2672,7 +2701,7 @@ function parse_expression
 		a = out + 4 ; type of operand
 		p = tokens + 16
 		out = parse_expression(p, tokens_end, out)
-		p = types + *4a
+		a = *4a
 		if c == EXPRESSION_BITWISE_NOT goto unary_type_integral
 		if c == EXPRESSION_UNARY_PLUS goto unary_type_promote
 		if c == EXPRESSION_UNARY_MINUS goto unary_type_promote
@@ -2718,37 +2747,43 @@ function parse_expression
 			string Bad cast.
 			byte 0		
 	:unary_address_of
-		*4type = type_create_pointer(*4a)
+		*4type = type_create_pointer(a)
 		return out
 	:unary_dereference
-		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer_in_place(a)
+		p = types + a
 		if *2p == TYPE2_FUNCTION_POINTER goto type_deref_fpointer
 		if *1p != TYPE_POINTER goto unary_bad_type
-		*4type = *4a + 1
+		b = a + 1
+		*4type = type_create_copy(b)
 		return out
 		:type_deref_fpointer
-		*4type = *4a
+		*4type = a
 		return out
 	:unary_type_logical_not
-		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer_in_place(a)
+		p = types + a
 		if *1p > TYPE_POINTER goto unary_bad_type
 		*4type = TYPE_INT
 		return out
 	:unary_type_integral
+		p = types + a
 		if *1p >= TYPE_FLOAT goto unary_bad_type
 		goto unary_type_promote
 	:unary_type_promote
+		p = types + a
 		if *1p > TYPE_DOUBLE goto unary_bad_type
-		*4type = type_promotion(*4a)
+		*4type = type_promotion(a)
 		return out
 	:unary_type_scalar_nopromote
+		p = types + a
 		if *1p > TYPE_POINTER goto unary_bad_type
-		*4type = *4a
+		*4type = a
 		return out
 	:unary_bad_type
 		fprint_token_location(1, tokens)
 		puts(.str_unary_bad_type)
-		print_type(*4a)
+		print_type(a)
 		putc(10)
 		exit(1)
 	:str_unary_bad_type
@@ -2876,15 +2911,15 @@ function parse_expression
 		out += 8
 		a = out + 4
 		out = parse_expression(tokens, best, out)
-		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer_in_place(*4a)
 		a = out + 4 ; type of left branch of conditional
 		best += 16
 		out = parse_expression(best, p, out)
-		type_decay_array_to_pointer(*4a)
+		type_decay_array_to_pointer_in_place(*4a)
 		b = out + 4 ; type of right branch of conditional
 		p += 16
 		out = parse_expression(p, tokens_end, out)
-		type_decay_array_to_pointer(*4b)
+		type_decay_array_to_pointer_in_place(*4b)
 		p = types + *4a
 		if *1p == TYPE_STRUCT goto parse_cond_ltype
 		if *1p == TYPE_VOID goto parse_cond_ltype
@@ -3095,7 +3130,7 @@ function parse_expression
 ;   e.g.
 ;    char s[] = "hello";
 ;    char *t = s + 3; /* s "decays" into a pointer */
-function type_decay_array_to_pointer
+function type_decay_array_to_pointer_in_place
 	argument type
 	local dest
 	local src
@@ -3107,6 +3142,7 @@ function type_decay_array_to_pointer
 	dest = type + 1 ; skip TYPE_POINTER
 	type_copy_ids(dest, src)
 	return
+	
 
 ; change type to `double` if it's `float`
 ; in C, float arguments have to be passed as double for varargs
@@ -4174,10 +4210,13 @@ function print_type
 	if c == TYPE_STRUCT goto print_type_struct
 	if c == TYPE_FUNCTION goto print_type_function
 	fputs(2, .str_bad_print_type)
+	putnln(type)
+	putnln(c)
+	putnln(types_bytes_used)
 	exit(1)
 	:str_bad_print_type
-		string Bad type passed to print_type.
-		byte 10
+		string Bad type passed to print_type:
+		byte 32
 		byte 0
 	:print_type_void
 		return puts(.str_void)

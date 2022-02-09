@@ -869,7 +869,7 @@ function translation_phase_4
 		if p != 0 goto process_pptoken ; macro is defined; keep processing
 		p = look_up_function_macro(macro_name)
 		if p != 0 goto process_pptoken ; macro is defined; keep processing
-		preprocessor_skip_if(filename, &line_number, &in, &out)
+		preprocessor_skip_if(filename, &line_number, &in, &out, 0)
 		goto phase4_line_noinc
 	:pp_directive_ifndef
 		pptoken_skip(&in)
@@ -884,12 +884,13 @@ function translation_phase_4
 		if p != 0 goto ifndef_skip ; macro is defined; skip
 		goto process_pptoken ; macro not defined; keep processing
 		:ifndef_skip
-		preprocessor_skip_if(filename, &line_number, &in, &out)
+		preprocessor_skip_if(filename, &line_number, &in, &out, 0)
 		goto phase4_line_noinc
 	:pp_directive_else
 		; assume we got here from an if, so skip this
 		pptoken_skip_to_newline(&in)
-		preprocessor_skip_if(filename, &line_number, &in, &out)
+		; this might actually be an elif, so skip all the way to #endif.
+		preprocessor_skip_if(filename, &line_number, &in, &out, 1)
 		goto phase4_line_noinc
 	:pp_directive_endif
 		; assume we got here from an if/elif/else, just ignore it.
@@ -979,12 +980,13 @@ function translation_phase_4
 		:pp_if_idents0_done
 		;print_tokens(if_tokens, p)
 		parse_expression(if_tokens, p, if_expr)
-		;print_expression(if_expr)
+		print_expression(if_expr)
+		putc(10)
 		evaluate_constant_expression(p, if_expr, &b)
 		if b == 0 goto pp_directive_if0
 			goto pp_if_done
 		:pp_directive_if0
-			preprocessor_skip_if(filename, &line_number, &in, &out)
+			preprocessor_skip_if(filename, &line_number, &in, &out, 0)
 			goto pp_if_done
 		:pp_bad_defined
 			token_error(p, .str_pp_bad_defined)
@@ -1041,9 +1043,9 @@ function translation_phase_4
 	
 
 ; skip body of #if / #elif / #else. This will advance *p_in to:
-;      - right at the next unmatched #elif, replacing it with a #if
-;   OR - right after the next #else
-;   OR - right after the next #endif
+;                       - right after the next #endif
+;   OR if to_endif == 0 - right at the next unmatched #elif, replacing it with a #if
+;   OR if to_endif == 0 - right after the next #else
 ; whichever comes first
 ; @NONSTANDARD: this doesn't properly handle #endif's, etc. which appear in a different file from their corresponding #if's.
 ; NOTE: p_out is needed for newlines
@@ -1052,6 +1054,7 @@ function preprocessor_skip_if
 	argument p_line_number
 	argument p_in
 	argument p_out
+	argument to_endif
 	local in
 	local out
 	local p
@@ -1097,6 +1100,7 @@ function preprocessor_skip_if
 			goto preprocessor_skip_if_loop ; some unimportant directive
 		:skip_if_elif
 			if if_depth > 0 goto preprocessor_skip_if_loop
+			if to_endif != 0 goto preprocessor_skip_if_loop
 			; replace #elif with #if (kinda sketchy)
 			*1in = '#
 			in += 1
@@ -1112,9 +1116,12 @@ function preprocessor_skip_if
 			goto preprocessor_skip_if_loop
 		:skip_if_endif
 			if_depth -= 1
-			; (fallthrough)
+			pptoken_skip(&in) ; skip endif
+			if prev_if_depth > 0 goto preprocessor_skip_if_loop
+			goto preprocessor_skip_if_loop_end
 		:skip_if_else
-			pptoken_skip(&in) ; skip endif/else
+			pptoken_skip(&in) ; skip else
+			if to_endif != 0 goto preprocessor_skip_if_loop
 			if prev_if_depth > 0 goto preprocessor_skip_if_loop
 			goto preprocessor_skip_if_loop_end
 	:preprocessor_skip_if_loop_end

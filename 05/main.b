@@ -1,10 +1,3 @@
-; @TODO: if we have,
-;   1  extern int blah;
-;   2  ...
-;   n  int blah;
-; give `blah` an address on line 1, then ignore declaration on line n
-
-
 ; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
 byte 0x48
 byte 0x81
@@ -289,8 +282,15 @@ function main
 	close(output_fd)
 	
 	ident_list_printx64(global_variables)
+	puts(.str_types_bytes_used)
+	putnln(types_bytes_used)
 	
 	exit(0)
+	
+:str_types_bytes_used
+	string types_bytes_used:
+	byte 32
+	byte 0
 
 :mmap_output_fd_failed
 	fputs(2, .str_mmap_output_fd_failed)
