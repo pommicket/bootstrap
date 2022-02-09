@@ -980,8 +980,8 @@ function translation_phase_4
 		:pp_if_idents0_done
 		;print_tokens(if_tokens, p)
 		parse_expression(if_tokens, p, if_expr)
-		print_expression(if_expr)
-		putc(10)
+		;print_expression(if_expr)
+		;putc(10)
 		evaluate_constant_expression(p, if_expr, &b)
 		if b == 0 goto pp_directive_if0
 			goto pp_if_done

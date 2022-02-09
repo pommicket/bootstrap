@@ -34,6 +34,12 @@ global enumerators
 ;    for unions, offset will always be 0.
 global structures
 global structures_bytes_used
+; ident map of "locations" (see token_get_location) where structs are defined
+; this is used in a horrible way to avoid getting struct redefinition errors from
+;   struct A { int x; } a,b;
+; it's not foolproof -- you could have   struct A {int x;} a; struct A {float x;} b;   on one line
+;   but that seems extremely unlikely to happen
+global structure_locations
 ; file offset/runtime address to write next piece of read-only data; initialized in main
 global rodata_end_addr
 ; file offset/runtime address to write next piece of read-write data; initialized in main
@@ -223,7 +229,8 @@ function main
 	
 	typedefs = ident_list_create(100000)
 	enumerators = ident_list_create(4000000)
-	structures = ident_list_create(4000000)
+	structures = ident_list_create(2000000)
+	structure_locations = ident_list_create(2000000)
 	global_variables = ident_list_create(400000)
 	function_statements = ident_list_create(800000)
 	function_types = ident_list_create(800000)

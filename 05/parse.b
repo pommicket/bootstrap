@@ -2094,7 +2094,7 @@ function parse_base_type
 			goto base_type_done
 		:base_type_struct_definition
 			;  @NONSTANDARD: we don't handle bit-fields.
-			
+			local struct_location
 			local member_base_type
 			local member_prefix
 			local member_prefix_end
@@ -2105,7 +2105,9 @@ function parse_base_type
 			local member_align
 			local member_size
 			
-			if c != 0 goto struct_redefinition
+			struct_location = token_get_location(p)
+			
+			if c != 0 goto struct_maybe_redefinition
 			struct = ident_list_create(8000) ; note: maximum "* 127 members in a single structure or union" C89 § 2.2.4.1
 			*1out = TYPE_STRUCT
 			out += 1
@@ -2119,6 +2121,7 @@ function parse_base_type
 			
 			if *1struct_name == 0 goto struct_unnamed
 			ident_list_add(structures, struct_name, struct)
+			ident_list_add(structure_locations, struct_name, struct_location)
 			:struct_unnamed
 			
 			:struct_defn_loop
@@ -2174,6 +2177,16 @@ function parse_base_type
 				goto struct_defn_loop
 			:struct_defn_loop_end
 			out = types + types_bytes_used
+			goto base_type_done
+		:struct_maybe_redefinition
+			local other_location
+			other_location = ident_list_lookup(structure_locations, struct_name)
+			if other_location != struct_location goto struct_redefinition ; actual struct redefinition
+			; we don't want lines like this to cause problems:   struct A { int x,y; } a,b;
+			*1out = TYPE_STRUCT
+			out += 1
+			*8out = c
+			out += 8
 			goto base_type_done
 		:struct_redefinition
 			token_error(p, .str_struct_redefinition)

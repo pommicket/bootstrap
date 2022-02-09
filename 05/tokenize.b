@@ -95,7 +95,11 @@ function get_keyword_str
 	:str_no_such_keyword_id
 		string @BAD_KEYWORD_ID
 		byte 0
-	
+
+; returns a unique number associated with the line `token` appears on.
+function token_get_location
+	argument token
+	return *8token > 16 ; right shift by 16 to remove type,info, and extract 6 bytes of file,line
 
 ; turn pptokens into tokens, written to out.
 ; This corresponds to translation phases 5-6 and the first half of 7
