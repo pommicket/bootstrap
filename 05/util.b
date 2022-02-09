@@ -322,7 +322,7 @@ function memccpy
 	memccpy_advance(&dest, &src, terminator)
 	return dest
 
-; like C, but returns 0
+; like C, but doesn't return anything
 ;   also, you can copy overlapping regions as long as dest < src.
 function memcpy
 	argument dest
@@ -339,6 +339,18 @@ function memcpy
 		q += 1
 		n -= 1
 		goto memcpy_loop
+
+; like C, but doesn't return anything
+function memset
+	argument dest
+	argument c
+	argument n
+	:memset_loop
+		if n == 0 goto return_0
+		*1dest = c
+		dest += 1
+		n -= 1
+		goto memset_loop
 
 function strlen
 	argument s

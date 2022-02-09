@@ -797,6 +797,7 @@ function translation_phase_4
 		global 1000 dat_directive_include_text
 		local inc_filename
 		temp_out = &dat_directive_include_text
+		memset(temp_out, 0, 1000)
 		inc_filename = malloc(4000)
 		pptoken_skip(&in)
 		macro_replacement_to_terminator(filename, &line_number, &in, &temp_out, 10)
