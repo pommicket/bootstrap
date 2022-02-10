@@ -783,3 +783,6 @@
 :str_default
 	string default
 	byte 0
+:str_main
+	string main
+	byte 0

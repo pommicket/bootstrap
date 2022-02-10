@@ -239,21 +239,31 @@ function parse_toplevel_declaration
 		string Functions should not have initializers.
 		byte 0
 	:parse_function_definition
+		local ret_type
+		local param_offset
+		
 		if block_depth != 0 goto nested_function
 		if function_param_has_no_name != 0 goto function_no_param_name
 		p = types + type
 		if *1p != TYPE_FUNCTION goto lbrace_after_declaration
 		
+		ret_type = functype_return_type(type)
+		
 		global function_stmt_data ; initialized in main
 		global function_stmt_data_bytes_used
-		
-		local_var_rbp_offset = 0
-				
+						
 		out = function_stmt_data + function_stmt_data_bytes_used
 		out0 = out
 		ident_list_add(function_statements, name, out)
 		
 		; deal with function parameters
+		; function parameters go above return value on the stack
+		n = type_sizeof(ret_type)
+		n += 7
+		n >= 3
+		n <= 3
+		param_offset = n + 16  ; + 16 for old rbp and return address
+		
 		p = type + 1
 		name = function_param_names
 		list = local_variables
@@ -261,18 +271,21 @@ function parse_toplevel_declaration
 		list = *8list
 		:fn_params_loop
 			if *1name == 0 goto fn_params_loop_end
-			local_var_rbp_offset += type_sizeof(p)
-			local_var_rbp_offset += 7
-			local_var_rbp_offset >= 3
-			local_var_rbp_offset <= 3
 			c = p < 32
-			c |= local_var_rbp_offset
+			c |= param_offset
 			ident_list_add(list, name, c)
+			param_offset += type_sizeof(p)
+			param_offset += 7
+			param_offset >= 3
+			param_offset <= 3
 			p += type_length(p)
 			name = memchr(name, 0)
 			name += 1
 			goto fn_params_loop
 		:fn_params_loop_end
+		
+		local_var_rbp_offset = 0
+		
 		; NOTE: it's the caller's responsibility to properly set rsp to accomodate all the arguments.
 		;       it needs to be this way because of varargs functions (the function doesn't know how many arguments there are).
 		parse_statement(&token, &out)
@@ -698,8 +711,9 @@ function parse_statement
 			out += 24
 			p = local_variables
 			p += block_depth < 3
-			l_offset = local_var_rbp_offset
-			c = l_offset
+			; local variables are stored below rbp
+			l_offset = 0 - local_var_rbp_offset
+			c = l_offset & 0xffffffff
 			c |= l_type < 32
 			ident_list_set(*8p, l_name, c)
 			
@@ -3080,7 +3094,8 @@ function parse_expression
 			out += 4
 			*4out = c > 32 ; extract type
 			out += 4
-			*8out = c & 0xffffffff ; extract rbp offset
+			c &= 0xffffffff
+			*8out = sign_extend_32_to_64(c) ; extract rbp offset
 			out += 8
 			return out
 	:expression_integer
@@ -4074,12 +4089,12 @@ function print_expression
 	:print_local_variable
 		puts(.str_local_prefix)
 		expression += 8
-		putn(*8expression)
+		putn_with_sign(*8expression)
 		putc('])
 		expression += 8
 		return expression
 	:str_local_prefix
-		string [rbp-
+		string [rbp
 		byte 0
 	:print_expr_function
 		expression += 8

@@ -1,7 +1,18 @@
 ; CALLING CONVENTION:
-;  arguments are pushed onto the stack by the caller, from right to left
-;  caller must also reserve space on stack for return value
-;  so the function puts the return value at [rbp+8]  (+8 for stored return address)
+;  Here is the process for calling a function:
+;     - the caller pushes the arguments on to the stack, from right to left
+;     - the caller subtracts sizeof(return type) from rsp
+;     - the caller calls the function
+;     - the caller stores away the return value
+;     - the caller adds (sizeof(return type) + sizeof arg0 + ... + sizeof argn) to rsp
+; STACK LAYOUT:
+;    arg n
+;    ...
+;    arg 0
+;    return value   [rbp+16]
+;    return address [rbp+8]
+;    old rbp        [rbp]
+;    local variables
 
 
 
@@ -191,5 +202,19 @@ function generate_code
 	codegen_second_pass = 1
 	generate_functions()
 	; generate code at the entry point of the executable
+	local main_addr
+	main_addr = ident_list_lookup(functions_addresses, .str_main)
+	if main_addr == 0 goto no_main_function
+	
+	; on entry, we will have:
+	;   argc = *rsp
+	;   argv = rsp + 8
+	
+	
 	; @TODO
 	return
+	:no_main_function
+	die(.str_no_main_function)
+	:str_no_main_function
+		string Error: No main function.
+		byte 0

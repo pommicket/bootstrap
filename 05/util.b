@@ -1,3 +1,11 @@
+function sign_extend_32_to_64
+	argument n
+	local c
+	c = n > 31
+	n |= c * 0xffffffff00000000
+	return n
+
+
 ; multiply two 64-bit signed numbers to a 128-bit number
 function full_multiply_signed
 	argument a
@@ -456,11 +464,23 @@ function fputn_signed
 	argument fd
 	argument n
 	if n < 0 goto fputn_negative
-	
-	fputn(fd, n)
-	return
-	
+		fputn(fd, n)
+		return
 	:fputn_negative
+		fputc(fd, '-)
+		n = 0 - n
+		fputn(fd, n)
+		return
+
+; like fputn_signed, but include the sign even if it's zero or positive		
+function fputn_with_sign
+	argument fd
+	argument n
+	if n < 0 goto fputn_with_sign_negative
+		fputc(fd, '+)
+		fputn(fd, n)
+		return
+	:fputn_with_sign_negative
 		fputc(fd, '-)
 		n = 0 - n
 		fputn(fd, n)
@@ -527,6 +547,11 @@ function putn_signed
 	fputn_signed(1, n)
 	return
 
+function putn_with_sign
+	argument n
+	fputn_with_sign(1, n)
+	return
+
 function putnln
 	argument n
 	fputn(1, n)
@@ -539,6 +564,11 @@ function putnln_signed
 	fputc(1, 10)
 	return
 
+function putnln_with_sign
+	argument n
+	fputn_with_sign(1, n)
+	fputc(1, 10)
+	return
 
 function fputc
 	argument fd

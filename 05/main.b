@@ -64,7 +64,7 @@ global statement_datas_ends
 ;  block_static_variables[1] = static variables inside this block inside this function
 ;  etc.
 global block_static_variables
-; ident lists of (type << 32) | rbp offset; one per block depth
+; ident lists of (type << 32) | rbp offset; one per block depth   -- note that rbp offset may be negative!
 global local_variables
 global block_depth
 global expressions
