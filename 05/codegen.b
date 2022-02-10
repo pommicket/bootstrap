@@ -1,10 +1,10 @@
 ; CALLING CONVENTION:
 ;  Here is the process for calling a function:
 ;     - the caller pushes the arguments on to the stack, from right to left
-;     - the caller subtracts sizeof(return type) from rsp
+;     - the caller subtracts sizeof(return type) from rsp, rounded up to the nearest 8 bytes
 ;     - the caller calls the function
 ;     - the caller stores away the return value
-;     - the caller adds (sizeof(return type) + sizeof arg0 + ... + sizeof argn) to rsp
+;     - the caller adds (sizeof(return type) + sizeof arg0 + ... + sizeof argn) to rsp  - where each sizeof is rounded up to the nearest 8 bytes
 ; STACK LAYOUT:
 ;    arg n
 ;    ...
@@ -117,6 +117,45 @@ function emit_ret
 	code_output += 1
 	return
 
+function emit_mov_qword_rsp_plus_imm32_rax
+	argument imm32
+	; 48 89 84 24 IMM32
+	*4code_output = 0x24848948
+	code_output += 4
+	*4code_output = imm32
+	code_output += 4
+	return
+
+function emit_mov_rax_qword_rsp_plus_imm32
+	argument imm32
+	; 48 8b 84 24 IMM32
+	*4code_output = 0x24848b48
+	code_output += 4
+	*4code_output = imm32
+	code_output += 4
+	return
+
+function emit_mov_rax_imm64
+	argument imm64
+	; 48 b8 IMM64
+	*2code_output = 0xb848
+	code_output += 2
+	*8code_output = imm64
+	code_output += 8
+	return
+
+function emit_call_rax
+	; ff d0
+	*2code_output = 0xd0ff
+	code_output += 2
+	return
+
+function emit_syscall
+	; 0f 05
+	*2code_output = 0x050f
+	code_output += 2
+	return
+
 ; make sure you put the return value in the proper place before calling this
 function generate_return
 	emit_mov_reg(REG_RSP, REG_RBP)
@@ -193,7 +232,63 @@ function generate_functions
 		byte 32
 		byte 0
 
+; emit ELF header and code.
 function generate_code
+	
+	code_output = output_file_data
+	emit_qword(0x00010102464c457f) ; elf identifier, 64-bit little endian, ELF version 1
+	emit_qword(0) ; reserved
+	emit_word(2) ; executable file
+	emit_word(0x3e) ; architecture x86-64
+	emit_dword(1) ; ELF version 1
+	emit_qword(ENTRY_ADDR) ; entry point
+	emit_qword(0x40) ; program header table offset
+	emit_qword(0) ; section header table offset
+	emit_dword(0) ; flags
+	emit_word(0x40) ; size of header
+	emit_word(0x38) ; size of program header
+	emit_word(3) ; # of program headers = 3 (code, rwdata, rodata)
+	emit_word(0) ; size of section header
+	emit_word(0) ; # of section headers
+	emit_word(0) ; index of .shstrtab
+
+	; from /usr/include/elf.h:
+	;#define PF_X		(1 << 0)	/* Segment is executable */
+	;#define PF_W		(1 << 1)	/* Segment is writable */
+	;#define PF_R		(1 << 2)	/* Segment is readable */
+	
+	; program header 1 (code)
+	emit_dword(1) ; loadable segment
+	emit_dword(1) ; execute only
+	emit_qword(ENTRY_ADDR) ; offset in file
+	emit_qword(ENTRY_ADDR) ; virtual address
+	emit_qword(0) ; physical address
+	emit_qword(TOTAL_CODE_SIZE) ; size in executable file
+	emit_qword(TOTAL_CODE_SIZE) ; size when loaded into memory
+	emit_qword(4096) ; alignment
+	
+	; program header 2 (rodata)
+	emit_dword(1) ; loadable segment
+	emit_dword(4) ; read only
+	emit_qword(RODATA_ADDR) ; offset in file
+	emit_qword(RODATA_ADDR) ; virtual address
+	emit_qword(0) ; physical address
+	emit_qword(RODATA_SIZE) ; size in executable file
+	emit_qword(RODATA_SIZE) ; size when loaded into memory
+	emit_qword(4096) ; alignment
+	
+	; program header 3 (rwdata)
+	emit_dword(1) ; loadable segment
+	emit_dword(6) ; read/write
+	emit_qword(RWDATA_ADDR) ; offset in file
+	emit_qword(RWDATA_ADDR) ; virtual address
+	emit_qword(0) ; physical address
+	emit_qword(RWDATA_SIZE) ; size in executable file
+	emit_qword(RWDATA_SIZE) ; size when loaded into memory
+	emit_qword(4096) ; alignment
+	
+	
+	
 	local p_func
 	code_output = output_file_data + FUNCTIONS_ADDR
 	codegen_second_pass = 0
@@ -209,9 +304,32 @@ function generate_code
 	; on entry, we will have:
 	;   argc = *rsp
 	;   argv = rsp + 8
-	
-	
-	; @TODO
+	code_output = output_file_data + ENTRY_ADDR
+	; add rsp, 8
+	emit_add_rsp_imm32(8)
+	; mov rax, rsp  (set rax to argv)
+	emit_mov_reg(REG_RAX, REG_RSP)
+	; sub rsp, 32  (undo add rsp, 8 from before and add space for argv, argc, return value)
+	emit_sub_rsp_imm32(32)
+	; mov [rsp+16], rax  (put argv in the right place)
+	emit_mov_qword_rsp_plus_imm32_rax(16)
+	; mov rax, [rsp+24]  (set rax to argc)
+	emit_mov_rax_qword_rsp_plus_imm32(24)
+	; mov [rsp+8], rax   (put argc in the right place)
+	emit_mov_qword_rsp_plus_imm32_rax(8)
+	; mov rax, main
+	emit_mov_rax_imm64(main_addr)
+	; call rax
+	emit_call_rax()
+	; mov rax, [rsp]
+	emit_mov_rax_qword_rsp_plus_imm32(0)
+	; mov rdi, rax
+	emit_mov_reg(REG_RDI, REG_RAX)
+	; mov rax, 0x3c (SYS_exit)
+	emit_mov_rax_imm64(0x3c)
+	; syscall
+	emit_syscall()
+		
 	return
 	:no_main_function
 	die(.str_no_main_function)

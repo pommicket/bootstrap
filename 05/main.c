@@ -13,8 +13,6 @@ struct A { struct B *blah; }
 struct B { struct A *blah; }
 */
 
-int main(int argc, char **Argv) {
-	int i,j;
-	Argv+argc+i;
-	j;
+int main(int argc, char **argv) {
+	argv+argc;
 }
