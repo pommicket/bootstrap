@@ -105,6 +105,9 @@ In the table below, `IMM64` means a 64-bit *immediate* (a constant number).
 `rdx:rax` refers to the 128-bit number you get by combining `rdx` and `rax`.
 
 ```
+ax  bx  cx  dx  sp  bp  si  di
+0   3   1   2   4   5   6   7
+
 ┌──────────────────────┬───────────────────┬────────────────────────────────────────┐
 │ Instruction          │ Encoding          │ Description                            │
 ├──────────────────────┼───────────────────┼────────────────────────────────────────┤

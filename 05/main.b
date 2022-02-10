@@ -81,6 +81,7 @@ global function_param_has_no_name
 #include preprocess.b
 #include tokenize.b
 #include parse.b
+#include codegen.b
 
 function types_init
 	argument _types
@@ -235,6 +236,8 @@ function main
 	structure_locations = ident_list_create(2000000)
 	global_variables = ident_list_create(400000)
 	function_statements = ident_list_create(800000)
+	functions_addresses = ident_list_create(800000)
+	functions_labels = ident_list_create(800000)
 	function_types = ident_list_create(800000)
 	function_stmt_data = malloc(800000) ; should be at least 40 bytes * max # of functions
 	
@@ -285,6 +288,7 @@ function main
 	; NOTE: do NOT free pptokens; identifiers still reference them.
 	
 	parse_tokens(tokens)
+	generate_code()
 	
 	p = output_file_data + RODATA_ADDR
 	munmap(output_file_data, RWDATA_END)

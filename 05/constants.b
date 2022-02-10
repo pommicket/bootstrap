@@ -1,10 +1,13 @@
 ; this is the format of the executables we produce:
-;   elf header        4MB  addresses 0x000000-0x400000 (no, it won't actually take up that much space)
-;   code              4MB  addresses 0x400000-0x7fffff
+;   elf header        2MB  addresses 0x000000-0x200000 (no, it won't actually take up that much space)
+;   entry point       2MB  addresses 0x200000-0x3fffff this is where we put the code to call main(), etc. (again, it won't actually take up that much space)
+;   code (functions)  4MB  addresses 0x400000-0x7fffff
 ;   read-only data    4MB  addresses 0x800000-0xbfffff
 ;   read-write data   4MB  addresses 0xc00000-0xffffff
 ; note that file offsets and runtime addresses are the same.
 ; you should be able to change these constants without breaking anything:
+#define ENTRY_ADDR 0x200000
+#define FUNCTIONS_ADDR 0x400000
 #define RODATA_ADDR 0x800000
 #define RWDATA_ADDR 0xc00000
 #define RWDATA_END 0x1000000
