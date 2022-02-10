@@ -5,6 +5,11 @@ function sign_extend_32_to_64
 	n |= c * 0xffffffff00000000
 	return n
 
+; round up to nearest multiple of 8
+function round_up_to_8
+	argument n
+	n += 7
+	return n & 0xfffffffffffffff8
 
 ; multiply two 64-bit signed numbers to a 128-bit number
 function full_multiply_signed

@@ -150,9 +150,38 @@ function emit_call_rax
 	code_output += 2
 	return
 
+function emit_push_rax
+	; 50
+	*1code_output = 0x50
+	code_output += 1
+	return
+
 function emit_syscall
 	; 0f 05
 	*2code_output = 0x050f
+	code_output += 2
+	return
+
+function emit_lea_rax_rbp_plus_imm32
+	; 48 8d 85 IMM32
+	argument imm32
+	*2code_output = 0x8d48
+	code_output += 2
+	*1code_output = 0x85
+	code_output += 1
+	*4code_output = imm32
+	code_output += 4
+	return
+
+function emit_rep_movsb
+	; f3 a4
+	*2code_output = 0xa4f3
+	code_output += 2
+	return
+
+function emit_movsq
+	; 48 a5
+	*2code_output = 0xa548
 	code_output += 2
 	return
 
@@ -164,11 +193,92 @@ function generate_return
 	emit_ret()
 	return
 
-function generate_statement
-	argument statement
-	; @TODO
+; returns pointer to end of expression
+function generate_push_expression
+	argument expr
+	local c
+	c = *1expr
+	if c == EXPRESSION_CONSTANT_INT goto generate_push_int
+	
+	die(.str_genpushexprNI)
+	:str_genpushexprNI
+		string generate_push_expression not implemented.
+		byte 0
+	:generate_push_int
+		expr += 8
+		emit_mov_rax_imm64(*8expr)
+		emit_push_rax()
+		expr += 8
+		return expr
+
+; copy sizeof(type) bytes, rounded up to the nearest 8, from rsi to rdi
+function generate_copy_rsi_to_rdi_qwords
+	argument type
+	local n
+	n = type_sizeof(type)
+	n = round_up_to_8(n)
+	if n == 8 goto rsi2rdi_qwords_simple
+	; this is a struct or something, use  rep movsb
+	emit_mov_rax_imm64(n)
+	emit_mov_reg(REG_RCX, REG_RAX)
+	emit_rep_movsb()
+	return
+	
+	:rsi2rdi_qwords_simple
+	; copy 8 bytes from rsi to rdi
+	; this is a little "optimization" over rep movsb with rcx = 8, mainly it just makes debugging easier (otherwise you'd need 8 `stepi`s in gdb to skip over the instruction)
+	emit_movsq()
 	return
 
+function generate_statement
+	argument statement
+	local dat1
+	local dat2
+	local dat3
+	local dat4
+	local n
+	local p
+	local c
+	
+	dat1 = statement + 8
+	dat1 = *8dat1
+	dat2 = statement + 16
+	dat2 = *8dat2
+	dat3 = statement + 24
+	dat3 = *8dat3
+	dat4 = statement + 32
+	dat4 = *8dat4
+	
+	c = *1statement
+	
+	if c == STATEMENT_BLOCK goto gen_block
+	if c == STATEMENT_RETURN goto gen_return
+	; @TODO
+	die(.str_genstmtNI)
+	:str_genstmtNI
+		string generate_statement not implemented.
+		byte 0
+	:gen_block
+		:gen_block_loop
+			if *1dat1 == 0 goto gen_block_loop_end
+			generate_statement(dat1)
+			dat1 += 40
+			goto gen_block_loop
+		:gen_block_loop_end
+		return
+	:gen_return
+		if dat1 == 0 goto gen_return_noexpr
+		generate_push_expression(dat1)
+		; copy sizeof(return expression) rounded up to 8 bytes from [rsp] to [rbp+16]
+		emit_mov_reg(REG_RSI, REG_RSP)
+		emit_lea_rax_rbp_plus_imm32(16)
+		emit_mov_reg(REG_RDI, REG_RAX)
+		p = dat1 + 4
+		generate_copy_rsi_to_rdi_qwords(*4p)
+		
+		:gen_return_noexpr
+		generate_return()
+		return
 function generate_function
 	argument function_name
 	argument function_statement
@@ -185,7 +295,7 @@ function generate_function
 	; prologue
 	emit_sub_rsp_imm32(8)
 	emit_mov_qword_rsp_rbp()
-	emit_mov_reg(REG_RBP, REG_RSP)	
+	emit_mov_reg(REG_RBP, REG_RSP)
 	
 	generate_statement(function_statement)
 	
@@ -216,7 +326,7 @@ function generate_functions
 		:genfs_cont
 		p = memchr(function_name, 0)
 		p += 1
-		generate_function(function_name, p)
+		generate_function(function_name, *8p)
 		function_name = p + 8
 		goto genfunctions_loop
 	:genfunctions_loop_end

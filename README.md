@@ -127,7 +127,7 @@ ax  bx  cx  dx  sp  bp  si  di
 │ mov [rbx], ax        │ 66 89 03          │ store ax as 2 bytes at address rbx     │
 │ mov ax, [rbx]        │ 66 8b 03          │ load 2 bytes from address rbx into eax │
 │ mov [rbx], al        │ 88 03             │ store al as 1 byte at address rbx      │
-│ mov al, [rbx]        │ 8a 03             │ load 1 byte from addrress rbx into al  │
+│ mov al, [rbx]        │ 8a 03             │ load 1 byte from address rbx into al   │
 │ mov rax, [rbp+IMM32] │ 48 8b 85 IMM32    │ load 8 bytes from address rbp+IMM32    │
 │                      │                   │ into rax (note: IMM32 may be negative) │
 │ mov rax, [rsp+IMM32] │ 48 8b 84 24 IMM32 │ load 8 bytes from address rsp+IMM32    │
@@ -138,6 +138,9 @@ ax  bx  cx  dx  sp  bp  si  di
 │ mov rbp, [rsp]       │ 48 8b 2c 24       │ load 8 bytes from rsp into rbp         │
 │ lea rax, [rbp+IMM32] │ 48 8d 85 IMM32    │ set rax to rbp+IMM32                   │
 │ lea rsp, [rbp+IMM32] │ 48 8d a5 IMM32    │ set rsp to rbp+IMM32                   │
+| movsq                | 48 a5             | copy 8 bytes from rsi to rdi           |
+| rep movsb            | f3 a4             | copy rcx bytes from rsi to rdi         |
+│ push rax             │ 50                │ push rax onto the stack                │
 │ neg rax              │ 48 f7 d8          │ set rax to -rax                        │
 │ add rax, rbx         │ 48 01 d8          │ add rbx to rax                         │
 │ sub rax, rbx         │ 48 29 d8          │ subtract rbx from rax                  │
