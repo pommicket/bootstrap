@@ -112,6 +112,7 @@ ax  bx  cx  dx  sp  bp  si  di
 │ Instruction          │ Encoding          │ Description                            │
 ├──────────────────────┼───────────────────┼────────────────────────────────────────┤
 │ mov rax, IMM64       │ 48 b8 IMM64       │ set rax to the 64-bit value IMM64      │
+│ mov rbx, IMM64       │ 48 bb IMM64       │ set rbx to the 64-bit value IMM64      │
 │ xor eax, eax         │ 31 c0             │ set rax to 0 (shorter than mov rax, 0) │
 │ xor edx, edx         │ 31 d2             │ set rdx to 0                           │
 │ mov RDEST, RSRC      │ 48 89 (DEST|SRC<<3|0xc0) │ set register DEST to current    │
@@ -184,11 +185,14 @@ ax  bx  cx  dx  sp  bp  si  di
 | movq rax, xmm0       | 66 48 0f 7e c0    | set rax to xmm0                        |
 | movq xmm0, rax       | 66 48 0f 6e c0    | set xmm0 to rax                        |
 | movq xmm1, rax       | 66 48 0f 6e c8    | set xmm1 to rax                        |
+| movq xmm1, xmm0      | f3 0f 7e c8       | set xmm1 to xmm0                       |
 | cvtss2sd xmm0, xmm0  | f3 0f 5a c0       | convert xmm0 from float to double      |
 | cvtsd2ss xmm0, xmm0  | f2 0f 5a c0       | convert xmm0 from double to float      |
 | cvttsd2si rax, xmm0  | f2 48 0f 2c c0    | convert double in xmm0 to int in rax   |
 | cvtsi2sd xmm0, rax   | f2 48 0f 2a c0    | convert int in rax to double in xmm0   |
 | comisd xmm0, xmm1    | 66 0f 2f c1       | compare xmm0 and xmm1                  |
+| addsd xmm0, xmm1     | f2 0f 58 c1       | add xmm1 to xmm0                       |
+| subsd xmm0, xmm1     | f2 0f 5c c1       | subtract xmm1 from xmm0                |
 │ call rax             │ ff d0             │ call the function at address rax       │
 │ ret                  │ c3                │ return from function                   │
 │ syscall              │ 0f 05             │ execute a system call                  │

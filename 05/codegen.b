@@ -90,7 +90,16 @@ function emit_mov_rax_imm64
 	:rax_imm64_0
 	emit_zero_rax()
 	return
-	
+
+function emit_mov_rbx_imm64
+	; 48 bb IMM64
+	argument imm64
+	*2code_output = 0xbb48
+	code_output += 2
+	*8code_output = imm64
+	code_output += 8
+	return
+
 function emit_zero_rax
 	; 31 c0
 	*2code_output = 0xc031
@@ -265,6 +274,12 @@ function emit_movq_xmm1_rax
 	code_output += 1
 	return
 
+function emit_movq_xmm1_xmm0
+	; f3 0f 7e c8
+	*4code_output = 0xc87e0ff3
+	code_output += 4
+	return
+
 function emit_cvtss2sd_xmm0_xmm0
 	; f3 0f 5a c0
 	*4code_output = 0xc05a0ff3
@@ -293,6 +308,15 @@ function emit_cvtsi2sd_xmm0_rax
 	code_output += 1
 	return
 
+function emit_addsd_xmm0_xmm1
+	*4code_output = 0xc1580ff2
+	code_output += 4
+	return
+
+function emit_subsd_xmm0_xmm1
+	*4code_output = 0xc15c0ff2
+	code_output += 4
+	return
 
 function emit_neg_rax
 	; 48 f7 d8
@@ -308,6 +332,60 @@ function emit_not_rax
 	code_output += 2
 	*1code_output = 0xd0
 	code_output += 1
+	return
+
+function emit_add_rax_rbx
+	; 48 01 d8
+	*2code_output = 0x0148
+	code_output += 2
+	*1code_output = 0xd8
+	code_output += 1
+	return
+
+function emit_sub_rax_rbx
+	; 48 29 d8
+	*2code_output = 0x2948
+	code_output += 2
+	*1code_output = 0xd8
+	code_output += 1
+	return
+
+function emit_imul_rbx
+	; 48 f7 eb
+	*2code_output = 0xf748
+	code_output += 2
+	*1code_output = 0xeb
+	code_output += 1
+	return
+
+function emit_idiv_rbx
+	; 48 f7 fb
+	*2code_output = 0xf748
+	code_output += 2
+	*1code_output = 0xfb
+	code_output += 1
+	return
+
+function emit_mul_rbx
+	; 48 f7 e3
+	*2code_output = 0xf748
+	code_output += 2
+	*1code_output = 0xe3
+	code_output += 1
+	return
+
+function emit_div_rbx
+	; 48 f7 f3
+	*2code_output = 0xf748
+	code_output += 2
+	*1code_output = 0xf3
+	code_output += 1
+	return
+
+function emit_cqo
+	; 48 99
+	*2code_output = 0x9948
+	code_output += 2
 	return
 
 function emit_xor_rax_rbx
@@ -655,13 +733,31 @@ function generate_push_expression_casted
 	expr = generate_push_expression(statement, expr)
 	generate_cast_top_of_stack(statement, from_type, to_type)
 	return expr
+
+; if type is a pointer type, returns the size of the underlying type
+; otherwise, returns 1
+;   this is so that (int *)p + 5 adds 20 to p, instead of 5
+function scale_rax_for_addition_with
+	argument type
+	local p
+	p = types + type
+	if *1p != TYPE_POINTER goto return_0
 	
+	local n
+	p = type + 1
+	n = type_sizeof(p)
+	; now scale rax by n
+	emit_mov_rbx_imm64(n)
+	emit_mul_rbx()
+	return
+
 ; `statement` is used for errors
 ; returns pointer to end of expression
 function generate_push_expression
 	argument statement
 	argument expr
 	local c
+	local d
 	local p
 	local type
 	type = expr + 4
@@ -675,6 +771,7 @@ function generate_push_expression
 	if c == EXPRESSION_UNARY_MINUS goto generate_unary_minus
 	if c == EXPRESSION_BITWISE_NOT goto generate_unary_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto generate_unary_logical_not
+	if c == EXPRESSION_ADD goto generate_add
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -716,6 +813,54 @@ function generate_push_expression
 		emit_mov_qword_rsp_rax()  ; mov [rsp], rax
 		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 		return expr
+	:generate_add
+		expr += 8
+		c = expr + 4 ; type of 1st operand
+		expr = generate_push_expression_casted(statement, expr, type)
+		d = expr + 4 ; type of 2nd operand
+		expr = generate_push_expression_casted(statement, expr, type)
+		p = types + type
+		if *1p == TYPE_FLOAT goto generate_add_floats
+		if *1p == TYPE_DOUBLE goto generate_add_doubles
+		c = *4c
+		d = *4d
+		
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+		scale_rax_for_addition_with(d) ; in case this is a pointer addition
+		emit_mov_reg(REG_RSI, REG_RAX) ; store away 2nd operand in rsi
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]    (second operand)
+		scale_rax_for_addition_with(c) ; in case this is a pointer addition
+		emit_mov_reg(REG_RBX, REG_RSI) ; put 1st operand in rbx
+		emit_add_rax_rbx()
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		return expr
+		
+		:generate_add_floats
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return expr
+			
+		:generate_add_doubles
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm1_rax()                 ; movq xmm1, rax
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return expr
+		
 	:generate_unary_logical_not
 		expr += 8
 		p = expr + 4

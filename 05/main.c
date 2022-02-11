@@ -1,3 +1,3 @@
 long main(int argc, char **argv) {
-	return !1e-100;
+	return -(3.5+2.5);
 }
