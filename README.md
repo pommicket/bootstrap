@@ -181,14 +181,14 @@ ax  bx  cx  dx  sp  bp  si  di
 │ ja IMM32             │ 0f 87 IMM32       │ jump if "above" (like jg but unsigned) │
 │ jbe IMM32            │ 0f 86 IMM32       │ jump if below or equal to              │
 │ jae IMM32            │ 0f 83 IMM32       │ jump if above or equal to              │
-│ movss xmm0, [rax]    │ f3 0f 10 00       │ load the float at *rax into xmm0       │
-│ movsd xmm0, [rax]    │ f2 0f 10 00       │ load the double at *rax into xmm0      │
-│ movss [rax], xmm0    │ f3 0f 11 00       │ store the float in xmm0 at *rax        │
-│ movsd [rax], xmm0    │ f2 0f 11 00       │ store the double in xmm0 at *rax       │
+| movq rax, xmm0       | 66 48 0f 7e c0    | set rax to xmm0                        |
+| movq xmm0, rax       | 66 48 0f 6e c0    | set xmm0 to rax                        |
+| movq xmm1, rax       | 66 48 0f 6e c8    | set xmm1 to rax                        |
 | cvtss2sd xmm0, xmm0  | f3 0f 5a c0       | convert xmm0 from float to double      |
 | cvtsd2ss xmm0, xmm0  | f2 0f 5a c0       | convert xmm0 from double to float      |
 | cvttsd2si rax, xmm0  | f2 48 0f 2c c0    | convert double in xmm0 to int in rax   |
 | cvtsi2sd xmm0, rax   | f2 48 0f 2a c0    | convert int in rax to double in xmm0   |
+| comisd xmm0, xmm1    | 66 0f 2f c1       | compare xmm0 and xmm1                  |
 │ call rax             │ ff d0             │ call the function at address rax       │
 │ ret                  │ c3                │ return from function                   │
 │ syscall              │ 0f 05             │ execute a system call                  │
