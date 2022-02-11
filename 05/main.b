@@ -108,27 +108,31 @@ function types_init
 	p += 1
 	
 	*8ptypes_bytes_used = p - types
-	return 
-
-function fprint_token_location
-	argument fd
-	argument token
-	token += 2
-	fprint_filename(fd, *2token)
-	token += 2
-	fputc(fd, ':)
-	fputn(fd, *4token)
 	return
 
+function print_token_location
+	argument token
+	token += 2
+	print_filename(*2token)
+	token += 2
+	putc(':)
+	putn(*4token)
+	return
+
+function print_statement_location
+	argument statement
+	; statements & tokens have the same format for locations!
+	print_token_location(statement)
+	return
+	
 ; accepts EITHER file index OR pointer to filename
-function fprint_filename
-	argument fd
+function print_filename
 	argument file
 	if file ] 65535 goto print_filename_string
 	file = file_get(file)
 	; (fallthrough)
 	:print_filename_string
-	fputs(2, file)
+	puts(file)
 	return
 
 ; accepts EITHER file index OR pointer to filename
@@ -136,12 +140,12 @@ function compile_error
 	argument file
 	argument line
 	argument message
-	fprint_filename(2, file)
-	fputc(2, ':)
-	fputn(2, line)
-	fputs(2, .str_error_prefix)
-	fputs(2, message)
-	fputc(2, 10)
+	print_filename(file)
+	putc(':)
+	putn(line)
+	puts(.str_error_prefix)
+	puts(message)
+	putc(10)
 	exit(1)
 
 function token_error
@@ -161,12 +165,12 @@ function compile_warning
 	argument file
 	argument line
 	argument message
-	fprint_filename(2, file)
-	fputc(2, ':)
-	fputn(2, line)
-	fputs(2, .str_warning_prefix)
-	fputs(2, message)
-	fputc(2, 10)
+	print_filename(file)
+	putc(':)
+	putn(line)
+	puts(.str_warning_prefix)
+	puts(message)
+	putc(10)
 	return
 	
 :str_error_prefix
@@ -306,7 +310,7 @@ function main
 	byte 0
 
 :mmap_output_fd_failed
-	fputs(2, .str_mmap_output_fd_failed)
+	puts(.str_mmap_output_fd_failed)
 	exit(1)
 :str_mmap_output_fd_failed
 	string Couldn't mmap output file.
@@ -314,7 +318,7 @@ function main
 	byte 0
 
 :usage_error
-	fputs(2, .str_usage_error)
+	puts(.str_usage_error)
 	exit(1)
 
 :str_usage_error

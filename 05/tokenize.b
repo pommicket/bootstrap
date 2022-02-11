@@ -15,7 +15,7 @@ function file_get
 	:file_got
 	return p
 	:file_uhoh
-	fputs(2, .str_bad_file_index)
+	puts(.str_bad_file_index)
 	exit(1)
 	:str_bad_file_index
 		string Bad file index. This shouldn't happen.
@@ -609,7 +609,7 @@ function print_tokens
 		if *1p == TOKEN_STRING_LITERAL goto print_token_string_literal
 		if *1p == TOKEN_IDENTIFIER goto print_token_identifier
 		if *1p == TOKEN_EOF goto print_token_eof
-		fputs(2, .str_print_bad_token)
+		puts(.str_print_bad_token)
 		exit(1)
 		:print_token_keyword
 			s = get_keyword_str(*1p)

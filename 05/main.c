@@ -14,5 +14,5 @@ struct B { struct A *blah; }
 */
 
 int main(int argc, char **argv) {
-	return 42;
+	return (float)(long)"hello";
 }

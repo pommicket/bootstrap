@@ -21,6 +21,7 @@ global codegen_second_pass ; = 0 on first global pass, 1 on second global pass
 global functions_addresses ; ident list of addresses
 global functions_labels ; ident list of ident lists of label addresses
 global curr_function_labels ; ident list of labels for current function (written to in 1st pass, read from in 2nd pass)
+global curr_function_return_type
 
 #define REG_RAX 0
 #define REG_RBX 3
@@ -76,7 +77,72 @@ function emit_mov_reg
 	*1code_output = n
 	code_output += 1
 	return
-	
+
+function emit_mov_rax_imm64
+	argument imm64
+	; 48 b8 IMM64
+	*2code_output = 0xb848
+	code_output += 2
+	*8code_output = imm64
+	code_output += 8
+	return
+
+function emit_movsx_rax_al
+	; 48 0f be c0
+	*4code_output = 0xc0be0f48
+	code_output += 4
+	return
+
+function emit_movsx_rax_ax
+	; 48 0f bf c0
+	*4code_output = 0xc0bf0f48
+	code_output += 4
+	return
+
+function emit_movsx_rax_eax
+	; 48 63 c0
+	*2code_output = 0x6348
+	code_output += 2
+	*1code_output = 0xc0
+	code_output += 1
+	return
+
+function emit_movzx_rax_al
+	; 48 0f b6 c0
+	*4code_output = 0xc0b60f48
+	code_output += 4
+	return
+
+function emit_movzx_rax_ax
+	; 48 0f b7 c0
+	*4code_output = 0xc0b70f48
+	code_output += 4
+	return
+
+function emit_mov_eax_eax
+	; 89 c0
+	*2code_output = 0xc089
+	code_output += 2
+	return
+
+function emit_mov_qword_rsp_plus_imm32_rax
+	argument imm32
+	; 48 89 84 24 IMM32
+	*4code_output = 0x24848948
+	code_output += 4
+	*4code_output = imm32
+	code_output += 4
+	return
+
+function emit_mov_rax_qword_rsp_plus_imm32
+	argument imm32
+	; 48 8b 84 24 IMM32
+	*4code_output = 0x24848b48
+	code_output += 4
+	*4code_output = imm32
+	code_output += 4
+	return
+
 
 function emit_sub_rsp_imm32
 	argument imm32
@@ -115,33 +181,6 @@ function emit_add_rsp_imm32
 function emit_ret
 	*1code_output = 0xc3
 	code_output += 1
-	return
-
-function emit_mov_qword_rsp_plus_imm32_rax
-	argument imm32
-	; 48 89 84 24 IMM32
-	*4code_output = 0x24848948
-	code_output += 4
-	*4code_output = imm32
-	code_output += 4
-	return
-
-function emit_mov_rax_qword_rsp_plus_imm32
-	argument imm32
-	; 48 8b 84 24 IMM32
-	*4code_output = 0x24848b48
-	code_output += 4
-	*4code_output = imm32
-	code_output += 4
-	return
-
-function emit_mov_rax_imm64
-	argument imm64
-	; 48 b8 IMM64
-	*2code_output = 0xb848
-	code_output += 2
-	*8code_output = imm64
-	code_output += 8
 	return
 
 function emit_call_rax
@@ -185,6 +224,59 @@ function emit_movsq
 	code_output += 2
 	return
 
+function emit_movss_xmm0_dword_rax
+	; f3 0f 10 00
+	*4code_output = 0x00100ff3
+	code_output += 4
+	return
+
+function emit_movsd_xmm0_qword_rax
+	; f2 0f 10 00
+	*4code_output = 0x00100ff2
+	code_output += 4
+	return
+
+function emit_movss_dword_rax_xmm0
+	; f3 0f 11 00
+	*4code_output = 0x00110ff3
+	code_output += 4
+	return
+
+function emit_movsd_qword_rax_xmm0
+	; f2 0f 11 00
+	*4code_output = 0x00110ff2
+	code_output += 4
+	return
+
+function emit_cvtss2sd_xmm0_xmm0
+	; f3 0f 5a c0
+	*4code_output = 0xc05a0ff3
+	code_output += 4
+	return
+
+function emit_cvtsd2ss_xmm0_xmm0
+	; f2 0f 5a c0
+	*4code_output = 0xc05a0ff2
+	code_output += 4
+	return
+
+function emit_cvttsd2si_rax_xmm0
+	; f2 48 0f 2c c0
+	*4code_output = 0x2c0f48f2
+	code_output += 4
+	*1code_output = 0xc0
+	code_output += 1
+	return
+
+function emit_cvtsi2sd_xmm0_rax
+	; f2 48 0f 2a c0
+	*4code_output = 0x2a0f48f2
+	code_output += 4
+	*1code_output = 0xc0
+	code_output += 1
+	return
+
+
 ; make sure you put the return value in the proper place before calling this
 function generate_return
 	emit_mov_reg(REG_RSP, REG_RBP)
@@ -192,24 +284,6 @@ function generate_return
 	emit_add_rsp_imm32(8)
 	emit_ret()
 	return
-
-; returns pointer to end of expression
-function generate_push_expression
-	argument expr
-	local c
-	c = *1expr
-	if c == EXPRESSION_CONSTANT_INT goto generate_push_int
-	
-	die(.str_genpushexprNI)
-	:str_genpushexprNI
-		string generate_push_expression not implemented.
-		byte 0
-	:generate_push_int
-		expr += 8
-		emit_mov_rax_imm64(*8expr)
-		emit_push_rax()
-		expr += 8
-		return expr
 
 ; copy sizeof(type) bytes, rounded up to the nearest 8, from rsi to rdi
 function generate_copy_rsi_to_rdi_qwords
@@ -229,6 +303,225 @@ function generate_copy_rsi_to_rdi_qwords
 	; this is a little "optimization" over rep movsb with rcx = 8, mainly it just makes debugging easier (otherwise you'd need 8 `stepi`s in gdb to skip over the instruction)
 	emit_movsq()
 	return
+
+; cast whatever was just pushed onto the stack from from_type to to_type
+; `statement` is used for errors
+function generate_cast_top_of_stack
+	argument statement
+	argument from_type
+	argument to_type
+	local from
+	local to
+	local c
+	local d
+	
+	from = types + from_type
+	to = types + to_type
+	
+	if *1to == TYPE_VOID goto return_0 ; cast to void my ass
+	if *1from == TYPE_VOID goto bad_gen_cast ; cast from void to something - that's bad
+	if *1from == TYPE_ARRAY goto bad_gen_cast ; cast array (this probably won't ever happen because of decaying)
+	if *1to == TYPE_ARRAY goto bad_gen_cast ; cast to array
+	if *1from == TYPE_FUNCTION goto bad_gen_cast ; shouldn't happen
+	if *1to == TYPE_FUNCTION goto bad_gen_cast ; shouldn't happen
+	if *1to == TYPE_STRUCT goto gen_cast_to_struct
+	if *1from == TYPE_STRUCT goto bad_gen_cast ; cast from struct to something else
+	if *1to < TYPE_FLOAT goto gen_cast_to_integer
+	if *1to == TYPE_POINTER goto gen_cast_to_integer ; pointers are basically integers
+	
+	; cast to float/double
+	if *1from == TYPE_POINTER goto bad_gen_cast ; pointer to float/double
+	if *1to == *1from goto return_0
+	if *1from == TYPE_DOUBLE goto gen_cast_double_to_float
+	if *1from == TYPE_FLOAT goto gen_cast_float_to_double
+	; int to float/double
+	if *1to == TYPE_FLOAT goto gen_cast_int_to_float
+	if *1to == TYPE_DOUBLE goto gen_cast_int_to_double
+	
+	goto bad_gen_cast ; in theory we shouldn't get here
+	
+	:gen_cast_to_integer
+		if *1from == *1to goto return_0 ; casting from type to same type
+		if *1from == TYPE_POINTER goto return_0 ; no need to do anything
+		; cast float/double to integer
+		if *1from == TYPE_FLOAT goto gen_cast_float_to_int
+		if *1from == TYPE_DOUBLE goto gen_cast_double_to_int
+		
+		c = type_sizeof(*1from)
+		d = type_sizeof(*1to)
+		if d > c goto return_0 ; casting to bigger type, so we're good
+		if c == 8 goto return_0 ; casting from unsigned/signed long to unsigned/signed long, we're good
+		
+		; mov rax, [rsp]
+		emit_mov_rax_qword_rsp_plus_imm32(0)
+		
+		; now sign/zero extend the lower part of rax to the whole of rax		
+		if *1to == TYPE_CHAR goto gen_cast_integer_to_signed_char
+		if *1to == TYPE_UNSIGNED_CHAR goto gen_cast_integer_to_unsigned_char
+		if *1to == TYPE_SHORT goto gen_cast_integer_to_signed_short
+		if *1to == TYPE_UNSIGNED_SHORT goto gen_cast_integer_to_unsigned_short
+		if *1to == TYPE_INT goto gen_cast_integer_to_signed_int
+		if *1to == TYPE_UNSIGNED_INT goto gen_cast_integer_to_unsigned_int
+		
+		goto bad_gen_cast ; in theory we shouldn't get here
+		
+		:int2int_cast_cont
+		; mov [rsp], rax
+		emit_mov_qword_rsp_plus_imm32_rax(0)
+		return
+		
+		:gen_cast_integer_to_signed_char
+			emit_movsx_rax_al()
+			goto int2int_cast_cont
+		:gen_cast_integer_to_unsigned_char
+			emit_movzx_rax_al()
+			goto int2int_cast_cont
+		:gen_cast_integer_to_signed_short
+			emit_movsx_rax_ax()
+			goto int2int_cast_cont
+		:gen_cast_integer_to_unsigned_short
+			emit_movzx_rax_ax()
+			goto int2int_cast_cont
+		:gen_cast_integer_to_signed_int
+			emit_movsx_rax_eax()
+			goto int2int_cast_cont
+		:gen_cast_integer_to_unsigned_int
+			emit_mov_eax_eax()
+			goto int2int_cast_cont
+	:gen_cast_to_struct
+		; this is necessary because we add an implicit cast for return values
+		; so if we didn't have this, we wouldn't be able to return structs.
+		if *1from != TYPE_STRUCT goto bad_gen_cast
+		from += 1
+		to += 1
+		if *8from != *8to goto bad_gen_cast
+		return ; no casting needed; these are the same type
+	:gen_cast_double_to_float
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movsd xmm0, [rax]
+		emit_movsd_xmm0_qword_rax()
+		; cvtsd2ss xmm0, xmm0
+		emit_cvtsd2ss_xmm0_xmm0()
+		; movsd [rax], xmm0
+		emit_movsd_qword_rax_xmm0()
+		return
+	:gen_cast_float_to_double
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movss xmm0, [rax]
+		emit_movss_xmm0_dword_rax()
+		; cvtss2sd xmm0, xmm0
+		emit_cvtss2sd_xmm0_xmm0()
+		; movss [rax], xmm0
+		emit_movss_dword_rax_xmm0()
+		return
+	:gen_cast_int_to_float
+		; to reduce # of instructions, we first convert int to double, then double to float
+		; mov rax, [rsp]
+		emit_mov_rax_qword_rsp_plus_imm32(0)
+		; cvtsi2sd xmm0, rax
+		emit_cvtsi2sd_xmm0_rax()
+		; cvtsd2ss xmm0, xmm0
+		emit_cvtsd2ss_xmm0_xmm0()
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movss [rax], xmm0
+		emit_movss_dword_rax_xmm0()
+		; it shouldn't matter that there's junk at [rsp+4]
+		return
+	:gen_cast_int_to_double
+		; mov rax, [rsp]
+		emit_mov_rax_qword_rsp_plus_imm32(0)
+		; cvtsi2sd xmm0, rax
+		emit_cvtsi2sd_xmm0_rax()
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movsd [rax], xmm0
+		emit_movsd_qword_rax_xmm0()
+		return
+	:gen_cast_float_to_int
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movss xmm0, [rax]
+		emit_movss_xmm0_dword_rax()
+		; convert float to double, then double to int
+		; cvtss2sd xmm0, xmm0
+		emit_cvtss2sd_xmm0_xmm0()
+		; cvttsd2si rax, xmm0
+		emit_cvttsd2si_rax_xmm0()
+		; mov [rsp], rax
+		emit_mov_qword_rsp_plus_imm32_rax(0)
+		return
+	:gen_cast_double_to_int
+		; mov rax, rsp
+		emit_mov_reg(REG_RAX, REG_RSP)
+		; movsd xmm0, [rax]
+		emit_movsd_xmm0_qword_rax()
+		; cvttsd2si rax, xmm0
+		emit_cvttsd2si_rax_xmm0()
+		; mov [rsp], rax
+		emit_mov_qword_rsp_plus_imm32_rax(0)
+		return
+	
+	:bad_gen_cast
+		print_statement_location(statement)
+		puts(.str_bad_gen_cast1)
+		print_type(from_type)
+		puts(.str_bad_gen_cast2)
+		print_type(to_type)
+		putc(10)
+		exit(1)
+	:str_bad_gen_cast1
+		string : Error: Cannot convert type
+		byte 32
+		byte 0
+	:str_bad_gen_cast2
+		string  to type
+		byte 32
+		byte 0
+; `statement` is used for errors
+; returns pointer to end of expression
+function generate_push_expression
+	argument statement
+	argument expr
+	local b
+	local c
+	local type
+	type = expr + 4
+	type = *4type
+	
+	c = *1expr
+	if c == EXPRESSION_CONSTANT_INT goto generate_push_int
+	if c == EXPRESSION_CONSTANT_FLOAT goto generate_push_float
+	if c == EXPRESSION_CAST goto generate_cast
+	
+	die(.str_genpushexprNI)
+	:str_genpushexprNI
+		string generate_push_expression not implemented.
+		byte 0
+	:generate_cast
+		expr += 4
+		c = *4expr ; cast type
+		expr += 8
+		b = *4expr ; original type
+		expr -= 4
+		expr = generate_push_expression(statement, expr)
+		generate_cast_top_of_stack(statement, b, c)
+		return expr
+	:generate_push_float
+		expr += 8
+		emit_mov_rax_imm64(*8expr)
+		emit_push_rax()
+		generate_cast_top_of_stack(statement, TYPE_DOUBLE, type)
+		expr += 8
+		return expr
+	:generate_push_int
+		expr += 8
+		emit_mov_rax_imm64(*8expr)
+		emit_push_rax()
+		expr += 8
+		return expr
 
 function generate_statement
 	argument statement
@@ -268,21 +561,28 @@ function generate_statement
 		return
 	:gen_return
 		if dat1 == 0 goto gen_return_noexpr
-		generate_push_expression(dat1)
+		generate_push_expression(statement, dat1)
+		p = dat1 + 4 ; pointer to dat1 type
+		generate_cast_top_of_stack(statement, *4p, curr_function_return_type)
 		; copy sizeof(return expression) rounded up to 8 bytes from [rsp] to [rbp+16]
 		emit_mov_reg(REG_RSI, REG_RSP)
 		emit_lea_rax_rbp_plus_imm32(16)
 		emit_mov_reg(REG_RDI, REG_RAX)
-		p = dat1 + 4
 		generate_copy_rsi_to_rdi_qwords(*4p)
 		
 		:gen_return_noexpr
 		generate_return()
 		return
+
 function generate_function
 	argument function_name
 	argument function_statement
+	local function_type
 	local out0
+	
+	function_type = ident_list_lookup(function_types, function_name)
+	
+	curr_function_return_type = functype_return_type(function_type)
 	
 	if codegen_second_pass != 0 goto genf_second_pass
 		curr_function_labels = ident_list_create(4000) ; ~ 200 labels per function should be plenty
@@ -334,8 +634,8 @@ function generate_functions
 	
 	:function_addr_mismatch
 		; address of function on 2nd pass doesn't line up with 1st pass
-		fputs(2, .str_function_addr_mismatch)
-		fputs(2, function_name)
+		puts(.str_function_addr_mismatch)
+		puts(function_name)
 		exit(1)
 	:str_function_addr_mismatch
 		string Function address on first pass doesn't match 2nd pass:

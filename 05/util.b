@@ -137,9 +137,9 @@ function max_signed
 	
 function file_error
 	argument name
-	fputs(2, .str_file_error)
-	fputs(2, name)
-	fputc(2, 10)
+	puts(.str_file_error)
+	puts(name)
+	putc(10)
 	exit(1)
 
 :str_file_error
@@ -149,8 +149,8 @@ function file_error
 
 function die
 	argument message
-	fputs(2, message)
-	fputc(2, 10)
+	puts(message)
+	putc(10)
 	exit(1)
 
 function ftruncate
@@ -162,7 +162,7 @@ function ftruncate
 	return
 	
 :ftruncate_failed
-	fputs(2, .str_ftruncate_failed)
+	puts(.str_ftruncate_failed)
 	exit(1)
 :str_ftruncate_failed
 	string ftruncated failed.
@@ -200,7 +200,7 @@ function malloc
 	return memory + 8
 
 :malloc_failed
-	fputs(2, .str_out_of_memory)
+	puts(.str_out_of_memory)
 	exit(1)
 	
 :str_out_of_memory
@@ -768,7 +768,7 @@ function leftmost_1bit
 	:leftmost1bit_found
 		return i
 	:leftmost1bit_0
-		fputs(2, .str_leftmost1bit_0)
+		puts(.str_leftmost1bit_0)
 		exit(1)
 	:str_leftmost1bit_0
 		string 0 passed to leftmost_1bit.

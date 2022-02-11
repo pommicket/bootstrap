@@ -843,7 +843,9 @@ function parse_statement
 		if *1token == SYMBOL_SEMICOLON goto return_no_expr
 		n = token_next_semicolon_not_in_brackets(token)
 		*8out = expressions_end
+		p = expressions_end + 4 ; type of expression
 		expressions_end = parse_expression(token, n, expressions_end)
+		type_decay_array_to_pointer_in_place(*4p)
 		token = n + 16
 		:return_no_expr
 		out += 32
@@ -2400,7 +2402,7 @@ function type_length
 		type += type_length(type)
 		return type - start
 	:type_length_not_function
-	fputs(2, .str_type_length_bad_type)
+	puts(.str_type_length_bad_type)
 	exit(1)
 	:str_type_length_bad_type
 		string Bad type passed to type_length. This shouldn't happen.
@@ -2606,7 +2608,7 @@ function parse_expression
 	if c == EXPRESSION_DIV goto type_binary_usual
 	if c == EXPRESSION_REMAINDER goto type_binary_usual_integer
 	
-	fputs(2, .str_binop_this_shouldnt_happen)
+	puts(.str_binop_this_shouldnt_happen)
 	exit(1)
 	:str_binop_this_shouldnt_happen
 		string Bad binop symbol (this shouldn't happen).
@@ -2769,7 +2771,7 @@ function parse_expression
 		if c == EXPRESSION_DEREFERENCE goto unary_dereference
 		if c == EXPRESSION_PRE_INCREMENT goto unary_type_scalar_nopromote
 		if c == EXPRESSION_PRE_DECREMENT goto unary_type_scalar_nopromote
-		fputs(2, .str_unop_this_shouldnt_happen)
+		puts(.str_unop_this_shouldnt_happen)
 		exit(1)
 		:str_unop_this_shouldnt_happen
 			string Bad unary symbol (this shouldn't happen).
@@ -2798,7 +2800,9 @@ function parse_expression
 		*4out = a
 		out += 4
 		p += 16
+		a = out + 4 ; pointer to casted expression type
 		out = parse_expression(p, tokens_end, out)
+		type_decay_array_to_pointer_in_place(*4a)
 		return out
 		:bad_cast
 			token_error(tokens, .str_bad_cast)
@@ -2840,7 +2844,7 @@ function parse_expression
 		*4type = a
 		return out
 	:unary_bad_type
-		fprint_token_location(1, tokens)
+		print_token_location(tokens)
 		puts(.str_unary_bad_type)
 		print_type(a)
 		putc(10)
@@ -3244,7 +3248,7 @@ function type_sizeof
 	if c == TYPE_ARRAY goto sizeof_array
 	if c == TYPE_STRUCT goto sizeof_struct
 	
-	fputs(2, .str_sizeof_bad)
+	puts(.str_sizeof_bad)
 	exit(1)
 	:str_sizeof_bad
 		string type_sizeof bad type.
@@ -3309,7 +3313,7 @@ function type_alignof
 	if c == TYPE_ARRAY goto alignof_array
 	if c == TYPE_STRUCT goto alignof_struct
 	
-	fputs(2, .str_alignof_bad)
+	puts(.str_alignof_bad)
 	exit(1)
 	:str_alignof_bad
 		string type_alignof bad type.
@@ -3637,7 +3641,7 @@ function fit_to_type
 	if c == TYPE_LONG goto fit_to_type_long
 	if c == TYPE_UNSIGNED_LONG goto fit_to_type_ulong
 	if c == TYPE_POINTER goto fit_to_type_ulong
-	fputs(2, .str_bad_fit_to_type)
+	puts(.str_bad_fit_to_type)
 	exit(1)
 	:str_bad_fit_to_type
 		string Bad type passed to fit_to_type.
@@ -3726,7 +3730,7 @@ function bad_types_to_operator
 	argument type1
 	argument type2
 	
-	fprint_token_location(1, token)
+	print_token_location(token)
 	puts(.str_bad_types_to_operator)
 	print_type(type1)
 	puts(.str_space_and_space)
@@ -4276,7 +4280,7 @@ function print_type
 	if c == TYPE_ARRAY goto print_type_array
 	if c == TYPE_STRUCT goto print_type_struct
 	if c == TYPE_FUNCTION goto print_type_function
-	fputs(2, .str_bad_print_type)
+	puts(.str_bad_print_type)
 	putnln(type)
 	putnln(c)
 	putnln(types_bytes_used)

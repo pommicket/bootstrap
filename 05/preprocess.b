@@ -603,10 +603,10 @@ function translation_phase_4
 		if b != 0 goto pp_directive_endif
 		goto unrecognized_directive
 	:pp_directive_error
-		fputs(2, filename)
-		fputc(2, ':)
-		fputn(2, line_number)
-		fputs(2, .str_directive_error)
+		puts(filename)
+		putc(':)
+		putn(line_number)
+		puts(.str_directive_error)
 		exit(1)
 	:str_directive_error
 		string : #error
