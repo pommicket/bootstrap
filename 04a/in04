@@ -6,10 +6,9 @@ byte 40
 byte 0
 byte 0
 byte 0
+goto main
 
 global output_fd
-
-goto main
 
 global defines
 global defines_end

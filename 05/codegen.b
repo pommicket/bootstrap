@@ -150,6 +150,62 @@ function emit_mov_eax_eax
 	code_output += 2
 	return
 
+function emit_mov_al_byte_rbx
+	; 8a 03
+	*2code_output = 0x038a
+	code_output += 2
+	return
+
+function emit_mov_byte_rbx_al
+	; 88 03
+	*2code_output = 0x0388
+	code_output += 2
+	return
+
+function emit_mov_ax_word_rbx
+	; 66 8b 03
+	*2code_output = 0x8b66
+	code_output += 2
+	*1code_output = 0x03
+	code_output += 1
+	return
+
+function emit_mov_word_rbx_ax
+	; 66 89 03
+	*2code_output = 0x8966
+	code_output += 2
+	*1code_output = 0x03
+	code_output += 1
+	return
+
+function emit_mov_eax_dword_rbx
+	; 8b 03
+	*2code_output = 0x038b
+	code_output += 2
+	return
+
+function emit_mov_dword_rbx_eax
+	; 89 03
+	*2code_output = 0x0389
+	code_output += 2
+	return
+
+function emit_mov_rax_qword_rbx
+	; 48 8b 03
+	*2code_output = 0x8b48
+	code_output += 2
+	*1code_output = 0x03
+	code_output += 1
+	return
+
+function emit_mov_qword_rbx_rax
+	; 48 89 03
+	*2code_output = 0x8948
+	code_output += 2
+	*1code_output = 0x03
+	code_output += 1
+	return
+
 function emit_mov_qword_rsp_plus_imm32_rax
 	argument imm32
 	; 48 89 84 24 IMM32
@@ -889,6 +945,7 @@ function generate_stack_sub
 function generate_push_expression
 	argument statement
 	argument expr
+	local b
 	local c
 	local d
 	local p
@@ -906,6 +963,7 @@ function generate_push_expression
 	if c == EXPRESSION_LOGICAL_NOT goto generate_unary_logical_not
 	if c == EXPRESSION_ADD goto generate_add
 	if c == EXPRESSION_SUB goto generate_sub
+	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -991,6 +1049,40 @@ function generate_push_expression
 			emit_movq_xmm0_rax()      ; movq xmm0, rax
 			emit_comisd_xmm0_xmm1()   ; comisd xmm0, xmm1
 			goto generate_logical_not_cont
+	:generate_global_variable
+		expr += 8
+		d = *8expr ; address
+		expr += 8
+		b = type_is_array(type)
+		if b != 0 goto global_var_array
+		c = type_sizeof(type)
+		if c > 8 goto global_var_large
+		emit_mov_rbx_imm64(d)    ; mov rbx, (address)
+		emit_mov_rax_qword_rbx() ; mov rax, [rbx]
+		emit_push_rax()          ; push rax
+		p = types + type
+		if *1p < TYPE_LONG goto global_var_needs_cast
+		return expr
+		:global_var_needs_cast
+			; we need to sign extend 8/16/32-bit signed global variables to 64 bits
+			generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+			return expr
+		:global_var_large
+			; @TODO: test this
+			c = round_up_to_8(c)
+			emit_sub_rsp_imm32(c)          ; sub rsp, (size)
+			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
+			emit_mov_rax_imm64(d)          ; mov rax, (address)
+			emit_mov_reg(REG_RSI, REG_RAX) ; mov rsi, rax
+			emit_mov_rax_imm64(c)          ; mov rax, (size)
+			emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
+			emit_rep_movsb()               ; rep movsb
+			return expr
+		:global_var_array
+			; just push the address of the array
+			emit_mov_rax_imm64(d) ; mov rax, (address)
+			emit_push_rax()       ; push rax
+			return expr
 	:generate_float
 		expr += 8
 		emit_mov_rax_imm64(*8expr)

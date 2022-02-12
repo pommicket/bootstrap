@@ -24,6 +24,13 @@ function token_is_type
 		if b != 0 goto return_1
 		goto return_0
 
+function type_is_array
+	argument type
+	local p
+	p = types + type
+	if *1p == TYPE_ARRAY goto return_1
+	return 0
+
 function functype_return_type
 	argument ftype
 	local type
