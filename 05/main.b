@@ -160,6 +160,11 @@ function token_error
 	line = *4p
 	compile_error(file, line, message)
 
+function statement_error
+	argument statement
+	argument message
+	token_error(statement, message) ; tokens & statements have the same location format
+
 ; accepts EITHER file index OR pointer to filename
 function compile_warning
 	argument file

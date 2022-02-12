@@ -106,6 +106,12 @@ function emit_zero_rax
 	code_output += 2
 	return
 	
+function emit_zero_rdx
+	; 31 d2
+	*2code_output = 0xd231
+	code_output += 2
+	return
+	
 function emit_movsx_rax_al
 	; 48 0f be c0
 	*4code_output = 0xc0be0f48
@@ -582,7 +588,7 @@ function generate_cast_top_of_stack
 		c = type_sizeof(*1from)
 		d = type_sizeof(*1to)
 		if d > c goto return_0 ; casting to bigger type, so we're good
-		if d == 8 goto return_0 ; casting from unsigned/signed long to unsigned/signed long, we're good
+		if d == 8 goto return_0 ; casting from unsigned/signed long to unsigned/signed long/pointer, we're good
 		
 		; mov rax, [rsp]
 		emit_mov_rax_qword_rsp()
@@ -729,7 +735,6 @@ function generate_push_expression_casted
 	from_type = expr + 4
 	from_type = *4from_type
 	
-	
 	expr = generate_push_expression(statement, expr)
 	generate_cast_top_of_stack(statement, from_type, to_type)
 	return expr
@@ -750,6 +755,134 @@ function scale_rax_for_addition_with
 	emit_mov_rbx_imm64(n)
 	emit_mul_rbx()
 	return
+
+; pop the top two things off of the stack, and push their sum
+; the things should both have type `out_type` on the stack, but their original types are given by type1,2
+function generate_stack_add
+		argument statement ; for errors (currently unused)
+		argument type1 ; type of 1st operand
+		argument type2 ; type of 2nd operand
+		argument out_type
+		
+		
+		out_type += types
+		if *1out_type == TYPE_FLOAT goto generate_add_floats
+		if *1out_type == TYPE_DOUBLE goto generate_add_doubles
+		
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]   (second operand)
+		scale_rax_for_addition_with(type1) ; in case this is a pointer addition
+		emit_mov_reg(REG_RSI, REG_RAX)       ; mov rsi, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+		scale_rax_for_addition_with(type2) ; in case this is a pointer addition
+		emit_mov_reg(REG_RBX, REG_RSI)       ; mov rbx, rsi
+		emit_add_rax_rbx()                   ; add rax, rbx
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		return
+		
+		:generate_add_floats
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return
+			
+		:generate_add_doubles
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm1_rax()                 ; movq xmm1, rax
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return
+
+; pop the top two things off of the stack, and push their difference
+; the things should both have type `out_type` on the stack, but their original types are given by type1,2
+function generate_stack_sub
+		argument statement ; for errors
+		argument type1 ; type of 1st operand
+		argument type2 ; type of 2nd operand
+		argument out_type
+		local p
+		
+		p = types + out_type
+		if *1p == TYPE_FLOAT goto generate_sub_floats
+		if *1p == TYPE_DOUBLE goto generate_sub_doubles
+		p = types + type2
+		if *1p == TYPE_POINTER goto generate_sub_pointers
+		
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]   (second operand)
+		scale_rax_for_addition_with(type1) ; in case this is a pointer - integer subtraction
+		emit_mov_reg(REG_RSI, REG_RAX)       ; mov rsi, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+		emit_mov_reg(REG_RBX, REG_RSI)       ; mov rbx, rsi
+		emit_sub_rax_rbx()                   ; sub rax, rbx
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		return
+		
+		:generate_sub_pointers
+			; pointer difference - need to divide by object size
+			local sz1
+			local sz2
+			p = types + type1
+			if *1p != TYPE_POINTER goto bad_pointer_diff
+			p = type1 + 1
+			sz1 = type_sizeof(p)
+			p = type2 + 1
+			sz2 = type_sizeof(p)
+			if sz1 != sz2 goto bad_pointer_diff
+			
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]   (second operand)
+			emit_mov_reg(REG_RSI, REG_RAX)       ; mov rsi, rax
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+			emit_mov_reg(REG_RBX, REG_RSI)       ; mov rbx, rsi
+			emit_sub_rax_rbx()                   ; sub rax, rbx
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_rbx_imm64(sz1)              ; mov rbx, (object size)
+			emit_zero_rdx()                      ; xor edx, edx
+			emit_div_rbx()                       ; div rbx
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+			return
+			
+			:bad_pointer_diff
+				statement_error(statement, .str_bad_pointer_diff)
+			:str_bad_pointer_diff
+				string Subtraction of incompatible pointer types.
+				byte 0
+		:generate_sub_floats
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_subsd_xmm0_xmm1()               ; subsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return
+			
+		:generate_sub_doubles
+			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+			emit_movq_xmm1_rax()                 ; movq xmm1, rax
+			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_subsd_xmm0_xmm1()               ; subsd xmm0, xmm1
+			emit_movq_rax_xmm0()                 ; movq rax, xmm0
+			emit_add_rsp_imm32(8)                ; add rsp, 8
+			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+			return
 
 ; `statement` is used for errors
 ; returns pointer to end of expression
@@ -772,6 +905,7 @@ function generate_push_expression
 	if c == EXPRESSION_BITWISE_NOT goto generate_unary_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto generate_unary_logical_not
 	if c == EXPRESSION_ADD goto generate_add
+	if c == EXPRESSION_SUB goto generate_sub
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -819,48 +953,16 @@ function generate_push_expression
 		expr = generate_push_expression_casted(statement, expr, type)
 		d = expr + 4 ; type of 2nd operand
 		expr = generate_push_expression_casted(statement, expr, type)
-		p = types + type
-		if *1p == TYPE_FLOAT goto generate_add_floats
-		if *1p == TYPE_DOUBLE goto generate_add_doubles
-		c = *4c
-		d = *4d
-		
-		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
-		scale_rax_for_addition_with(d) ; in case this is a pointer addition
-		emit_mov_reg(REG_RSI, REG_RAX) ; store away 2nd operand in rsi
-		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]    (second operand)
-		scale_rax_for_addition_with(c) ; in case this is a pointer addition
-		emit_mov_reg(REG_RBX, REG_RSI) ; put 1st operand in rbx
-		emit_add_rax_rbx()
-		emit_add_rsp_imm32(8)                ; add rsp, 8
-		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		generate_stack_add(statement, *4c, *4d, type)
 		return expr
-		
-		:generate_add_floats
-			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
-			emit_movq_xmm0_rax()                 ; movq xmm0, rax
-			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
-			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
-			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
-			emit_movq_xmm0_rax()                 ; movq xmm0, rax
-			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
-			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
-			emit_movq_rax_xmm0()                 ; movq rax, xmm0
-			emit_add_rsp_imm32(8)                ; add rsp, 8
-			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
-			return expr
-			
-		:generate_add_doubles
-			emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
-			emit_movq_xmm1_rax()                 ; movq xmm1, rax
-			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
-			emit_movq_xmm0_rax()                 ; movq xmm0, rax
-			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
-			emit_movq_rax_xmm0()                 ; movq rax, xmm0
-			emit_add_rsp_imm32(8)                ; add rsp, 8
-			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
-			return expr
-		
+	:generate_sub
+		expr += 8
+		c = expr + 4 ; type of 1st operand
+		expr = generate_push_expression_casted(statement, expr, type)
+		d = expr + 4 ; type of 2nd operand
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_sub(statement, *4c, *4d, type)
+		return expr
 	:generate_unary_logical_not
 		expr += 8
 		p = expr + 4

@@ -214,4 +214,5 @@ int main(int argc, char **argv) {
 
 	}
 	fprintf(out, "</p>\n</body>\n</html>\n");
+	return 0;
 }
