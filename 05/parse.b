@@ -704,18 +704,18 @@ function parse_statement
 			; we need to calculate the size of the type here, because of stuff like
 			;    int x[] = {1,2,3};
 			n = type_sizeof(l_type)
-			; advance
-			local_var_rbp_offset += n
-			; align
-			local_var_rbp_offset += 7
-			local_var_rbp_offset >= 3
-			local_var_rbp_offset <= 3
 			write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
 			out += 8
 			*8out = local_var_rbp_offset
 			out += 8
-			*8out = n
+			*8out = l_type
 			out += 24
+			
+			; advance
+			local_var_rbp_offset += n
+			; align
+			local_var_rbp_offset = round_up_to_8(local_var_rbp_offset)
+			
 			p = local_variables
 			p += block_depth < 3
 			; local variables are stored below rbp
@@ -1102,8 +1102,8 @@ function print_statement_with_depth
 	:print_stmt_local_decl
 		puts(.str_local_decl)
 		putn(dat1)
-		puts(.str_local_size)
-		putn(dat2)
+		puts(.str_local_type)
+		print_type(dat2)
 		if dat3 != 0 goto print_stmt_local_initializer
 		if dat4 != 0 goto print_stmt_local_copy_address
 		:stmt_local_decl_finish
@@ -1122,8 +1122,8 @@ function print_statement_with_depth
 	:str_local_decl
 		string local variable at rbp-
 		byte 0
-	:str_local_size
-		string  size
+	:str_local_type
+		string  type
 		byte 32
 		byte 0
 	:str_local_copyfrom

@@ -1,5 +1,7 @@
-static int x = -2;
+static char x = -2;
 
 long main(int argc, char **argv) {
-	return x + 17.3;
+	int y = 38;
+	int z = y + x;
+	return z + x;
 }

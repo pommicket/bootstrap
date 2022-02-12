@@ -300,6 +300,29 @@ function emit_lea_rax_rbp_plus_imm32
 	code_output += 4
 	return
 
+function emit_lea_rsp_rbp_plus_imm32
+	; 48 8d a5 IMM32
+	argument imm32
+	*2code_output = 0x8d48
+	code_output += 2
+	*1code_output = 0xa5
+	code_output += 1
+	*4code_output = imm32
+	code_output += 4
+	return
+
+function emit_mov_rax_qword_rbp_plus_imm32
+	; 48 8b 85 IMM32
+	argument imm32
+	*2code_output = 0x8b48
+	code_output += 2
+	*1code_output = 0x85
+	code_output += 1
+	*4code_output = imm32
+	code_output += 4
+	return
+
+	
 function emit_rep_movsb
 	; f3 a4
 	*2code_output = 0xa4f3
@@ -964,6 +987,7 @@ function generate_push_expression
 	if c == EXPRESSION_ADD goto generate_add
 	if c == EXPRESSION_SUB goto generate_sub
 	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
+	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1083,6 +1107,39 @@ function generate_push_expression
 			emit_mov_rax_imm64(d) ; mov rax, (address)
 			emit_push_rax()       ; push rax
 			return expr
+	:generate_local_variable
+		expr += 8
+		d = *8expr ; rbp offset
+		expr += 8
+		b = type_is_array(type)
+		if b != 0 goto local_var_array
+		c = type_sizeof(type)
+		if c > 8 goto local_var_large
+		emit_mov_rax_qword_rbp_plus_imm32(d) ; mov rax, [rbp+X]
+		emit_push_rax()                      ; push rax
+		p = types + type
+		if *1p < TYPE_LONG goto local_var_needs_cast
+		return expr
+		:local_var_needs_cast
+			generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+			return expr
+		:local_var_large
+			; @TODO: test this
+			c = round_up_to_8(c)
+			emit_sub_rsp_imm32(c)          ; sub rsp, (size)
+			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
+			emit_lea_rax_rbp_plus_imm32(d) ; lea rax, [rbp+X]
+			emit_mov_reg(REG_RSI, REG_RAX) ; mov rsi, rax
+			emit_mov_rax_imm64(c)          ; mov rax, (size)
+			emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
+			emit_rep_movsb()               ; rep movsb
+			return expr
+		:local_var_array
+			; push address of array instead of array
+			emit_lea_rax_rbp_plus_imm32(d) ; lea rax, [rbp+X]
+			emit_push_rax()                ; push rax
+			return expr
+		byte 0xcc
 	:generate_float
 		expr += 8
 		emit_mov_rax_imm64(*8expr)
@@ -1120,6 +1177,7 @@ function generate_statement
 	
 	if c == STATEMENT_BLOCK goto gen_block
 	if c == STATEMENT_RETURN goto gen_return
+	if c == STATEMENT_LOCAL_DECLARATION goto gen_local_decl
 	; @TODO
 	die(.str_genstmtNI)
 	:str_genstmtNI
@@ -1145,7 +1203,28 @@ function generate_statement
 		:gen_return_noexpr
 		generate_return()
 		return
-
+	:gen_local_decl
+		c = type_sizeof(dat2)
+		c = round_up_to_8(c)
+		if dat3 != 0 goto gen_local_decl_initializer
+		; move the stack pointer to the start of the variable
+		dat1 += c
+		dat1 = 0 - dat1
+		emit_lea_rsp_rbp_plus_imm32(dat1)
+		if dat2 != 0 goto gen_local_decl_data_initializer
+		return
+		
+		:gen_local_decl_initializer
+			dat1 = 0 - dat1
+			; move the stack pointer to the end of the variable
+			emit_lea_rsp_rbp_plus_imm32(dat1)
+			; push the expression
+			generate_push_expression_casted(statement, dat3, dat2)
+			return
+		:gen_local_decl_data_initializer
+			byte 0xcc ; @TODO
+			
+		
 function generate_function
 	argument function_name
 	argument function_statement
