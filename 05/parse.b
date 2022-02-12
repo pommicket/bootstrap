@@ -2447,6 +2447,90 @@ function type_create_pointer
 	types_bytes_used += type_copy_ids(p, type)
 	return id
 
+function expression_get_end
+	argument expr
+	local c
+	c = *1expr
+	if c == EXPRESSION_CONSTANT_INT goto exprend_8data
+	if c == EXPRESSION_CONSTANT_FLOAT goto exprend_8data
+	if c == EXPRESSION_LOCAL_VARIABLE goto exprend_8data
+	if c == EXPRESSION_GLOBAL_VARIABLE goto exprend_8data
+	if c == EXPRESSION_FUNCTION goto exprend_8data
+	if c == EXPRESSION_SUBSCRIPT goto exprend_binary
+	if c == EXPRESSION_CALL goto exprend_call
+	if c == EXPRESSION_DOT goto exprend_member
+	if c == EXPRESSION_ARROW goto exprend_member
+	if c == EXPRESSION_POST_INCREMENT goto exprend_unary
+	if c == EXPRESSION_POST_DECREMENT goto exprend_unary
+	if c == EXPRESSION_PRE_INCREMENT goto exprend_unary
+	if c == EXPRESSION_PRE_DECREMENT goto exprend_unary
+	if c == EXPRESSION_ADDRESS_OF goto exprend_unary
+	if c == EXPRESSION_DEREFERENCE goto exprend_unary
+	if c == EXPRESSION_UNARY_PLUS goto exprend_unary
+	if c == EXPRESSION_UNARY_MINUS goto exprend_unary
+	if c == EXPRESSION_BITWISE_NOT goto exprend_unary
+	if c == EXPRESSION_LOGICAL_NOT goto exprend_unary
+	if c == EXPRESSION_CAST goto exprend_unary
+	if c == EXPRESSION_MUL goto exprend_binary
+	if c == EXPRESSION_DIV goto exprend_binary
+	if c == EXPRESSION_REMAINDER goto exprend_binary
+	if c == EXPRESSION_ADD goto exprend_binary
+	if c == EXPRESSION_SUB goto exprend_binary
+	if c == EXPRESSION_LSHIFT goto exprend_binary
+	if c == EXPRESSION_RSHIFT goto exprend_binary
+	if c == EXPRESSION_LT goto exprend_binary
+	if c == EXPRESSION_GT goto exprend_binary
+	if c == EXPRESSION_LEQ goto exprend_binary
+	if c == EXPRESSION_GEQ goto exprend_binary
+	if c == EXPRESSION_EQ goto exprend_binary
+	if c == EXPRESSION_NEQ goto exprend_binary
+	if c == EXPRESSION_BITWISE_AND goto exprend_binary
+	if c == EXPRESSION_BITWISE_XOR goto exprend_binary
+	if c == EXPRESSION_BITWISE_OR goto exprend_binary
+	if c == EXPRESSION_LOGICAL_AND goto exprend_binary
+	if c == EXPRESSION_LOGICAL_OR goto exprend_binary
+	if c == EXPRESSION_CONDITIONAL goto exprend_conditional
+	if c == EXPRESSION_ASSIGN goto exprend_binary
+	if c == EXPRESSION_ASSIGN_ADD goto exprend_binary
+	if c == EXPRESSION_ASSIGN_SUB goto exprend_binary
+	if c == EXPRESSION_ASSIGN_MUL goto exprend_binary
+	if c == EXPRESSION_ASSIGN_DIV goto exprend_binary
+	if c == EXPRESSION_ASSIGN_REMAINDER goto exprend_binary
+	if c == EXPRESSION_ASSIGN_LSHIFT goto exprend_binary
+	if c == EXPRESSION_ASSIGN_RSHIFT goto exprend_binary
+	if c == EXPRESSION_ASSIGN_AND goto exprend_binary
+	if c == EXPRESSION_ASSIGN_XOR goto exprend_binary
+	if c == EXPRESSION_ASSIGN_OR goto exprend_binary
+	if c == EXPRESSION_COMMA goto exprend_binary
+	
+	:exprend_8data
+		return expr + 16
+	:exprend_unary
+		expr += 8
+		return expression_get_end(expr)
+	:exprend_binary
+		expr += 8
+		expr = expression_get_end(expr)
+		return expression_get_end(expr)
+	:exprend_conditional
+		expr += 8
+		expr = expression_get_end(expr)
+		expr = expression_get_end(expr)
+		return expression_get_end(expr)
+	:exprend_call
+		expr += 8
+		expr = expression_get_end(expr)
+		:exprend_call_loop
+			if *1expr == 0 goto exprend_call_loop_end
+			expr = expression_get_end(expr)
+			goto exprend_call_loop
+		:exprend_call_loop_end
+		return expr + 8
+	:exprend_member
+		expr += 8
+		expr = expression_get_end(expr)
+		return expr + 8
+	
 ; returns pointer to end of expression data	
 function parse_expression
 	argument tokens
@@ -3256,6 +3340,9 @@ function type_sizeof
 	if c == TYPE_UNSIGNED_LONG goto return_8
 	if c == TYPE_FLOAT goto return_4
 	if c == TYPE_DOUBLE goto return_8
+	; void has a size of 1 for good reasons:
+	;   - void pointer addition isn't standard, but it makes most sense to treat it the same as char* addition
+	;   - code generation reasons
 	if c == TYPE_VOID goto return_1
 	if c == TYPE_POINTER goto return_8
 	if c == TYPE_FUNCTION goto return_8

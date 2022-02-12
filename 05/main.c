@@ -7,9 +7,12 @@ typedef struct {
 	long q;
 } Structure;
 
+Structure a = {1,2,3,-4};
 
 long main(int argc, char **argv) {
-	Structure s[] = {3, 5, -88,6,9,12,88,33};
-	Structure t = s[0];
-	return t.z;
+	Structure a = {1,2,3,4};
+	int x = 100;
+	a;a;a;a;a;
+	x = x + x, x = x + 2;
+	return x;
 }

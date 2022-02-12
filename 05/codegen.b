@@ -69,6 +69,9 @@ function emit_mov_reg
 	argument src
 	local n
 	
+	if src ] 7 goto bad_reg
+	if dest ] 7 goto bad_reg
+	
 	;48 89 (DEST|SRC<<3|0xc0)
 	*2code_output = 0x8948
 	code_output += 2
@@ -77,6 +80,11 @@ function emit_mov_reg
 	*1code_output = n
 	code_output += 1
 	return
+	:bad_reg
+		die(.str_bad_reg)
+	:str_bad_reg
+		string Internal compiler error: bad register passed to emit_mov_reg.
+		byte 0
 
 function emit_mov_rax_imm64
 	argument imm64
@@ -641,7 +649,7 @@ function generate_cast_top_of_stack
 	from = types + from_type
 	to = types + to_type
 	
-	if *1to == TYPE_VOID goto return_0 ; cast to void my ass
+	if *1to == TYPE_VOID goto gen_cast_to_void
 	if *1from == TYPE_VOID goto bad_gen_cast ; cast from void to something - that's bad
 	if *1from == TYPE_ARRAY goto bad_gen_cast ; cast array (this probably won't ever happen because of decaying)
 	if *1to == TYPE_ARRAY goto bad_gen_cast ; cast to array
@@ -663,6 +671,16 @@ function generate_cast_top_of_stack
 	
 	goto bad_gen_cast ; in theory we shouldn't get here
 	
+	:gen_cast_to_void
+		; we need to handle rsp properly for stuff like:
+		;  SomeLargeStruct s;
+		;  (void)s;
+		c = type_sizeof(from_type)
+		c = round_up_to_8(c)
+		c -= 8
+		if c == 0 goto return_0 ; int to void cast or something; we don't care
+		emit_add_rsp_imm32(c)
+		return
 	:gen_cast_to_integer
 		if *1from == *1to goto return_0 ; casting from type to same type
 		if *1from == TYPE_POINTER goto return_0 ; no need to do anything
@@ -978,8 +996,6 @@ function generate_stack_dereference
 	local c
 	
 	size = type_sizeof(type)
-	emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
-	emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
 	if size == 1 goto gen_deref1
 	if size == 2 goto gen_deref2
 	if size == 4 goto gen_deref4
@@ -1002,18 +1018,79 @@ function generate_stack_dereference
 		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 		return
 	:gen_deref1
-		emit_mov_al_byte_rbx()
+		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+		emit_mov_al_byte_rbx()         ; mov al, [rbx]
 		goto gen_deref_cast
 	:gen_deref2
-		emit_mov_ax_word_rbx()
+		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+		emit_mov_ax_word_rbx()         ; mov ax, [rbx]
 		goto gen_deref_cast
 	:gen_deref4
-		emit_mov_eax_dword_rbx()
+		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+		emit_mov_eax_dword_rbx()       ; mov eax, [rbx]
 		goto gen_deref_cast
 	:gen_deref8
-		emit_mov_rax_qword_rbx()
+		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+		emit_mov_rax_qword_rbx()       ; mov rax, [rbx]
 		goto gen_deref_cast
 
+; pop address off of stack, pop value, set *address to value, then push value
+function generate_stack_assign
+	argument statement
+	argument type
+	local size
+	size = type_sizeof(type)
+	
+	
+	
+	if size == 1 goto gen_assign1
+	if size == 2 goto gen_assign2
+	if size == 4 goto gen_assign4
+	if size == 8 goto gen_assign8
+	
+	emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+	emit_mov_reg(REG_RDI, REG_RAX) ; mov rdi, rax
+	emit_add_rsp_imm32(8)          ; add rsp, 8
+	emit_mov_reg(REG_RSI, REG_RSP) ; mov rsi, rsp
+	emit_mov_rax_imm64(size)       ; mov rax, (size)
+	emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
+	emit_rep_movsb()               ; rep movsb
+	return
+	
+	:gen_assign_ret
+		emit_add_rsp_imm32(8) ; pop address
+		return
+	:gen_assign1
+		emit_mov_rax_qword_rsp()             ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]
+		emit_mov_byte_rbx_al()               ; mov [rbx], al
+		goto gen_assign_ret
+	:gen_assign2
+		emit_mov_rax_qword_rsp()             ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]
+		emit_mov_word_rbx_ax()               ; mov [rbx], ax
+		goto gen_assign_ret
+	:gen_assign4
+		emit_mov_rax_qword_rsp()             ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]
+		emit_mov_dword_rbx_eax()             ; mov [rbx], eax
+		goto gen_assign_ret
+	:gen_assign8
+		emit_mov_rax_qword_rsp()             ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]
+		emit_mov_qword_rbx_rax()             ; mov [rbx], rax
+		goto gen_assign_ret
+	
+	
+	
 ; returns pointer to end of expr
 function generate_push_address_of_expression
 	argument statement ; for errors
@@ -1076,6 +1153,7 @@ function generate_push_address_of_expression
 		expr += 8
 		return expr
 
+
 ; `statement` is used for errors
 ; returns pointer to end of expression
 function generate_push_expression
@@ -1086,6 +1164,7 @@ function generate_push_expression
 	local d
 	local p
 	local type
+	
 	type = expr + 4
 	type = *4type
 	
@@ -1107,6 +1186,7 @@ function generate_push_expression
 	if c == EXPRESSION_DOT goto generate_dot_or_arrow
 	if c == EXPRESSION_ARROW goto generate_dot_or_arrow
 	if c == EXPRESSION_COMMA goto generate_comma
+	if c == EXPRESSION_ASSIGN goto generate_assign
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1152,6 +1232,34 @@ function generate_push_expression
 		expr += 8
 		expr = generate_push_address_of_expression(statement, expr)
 		return expr
+	:generate_assign
+		expr += 8
+		b = type_is_array(type)
+		if b != 0 goto assign_array
+		p = expression_get_end(expr)
+		c = p
+		; it makes things a lot easier if we push the rhs of the assignment first -- also
+		;      *f() = g()
+		;   it might be required to call g first? (something something sequence points)
+		p = generate_push_expression_casted(statement, p, type)
+		d = generate_push_address_of_expression(statement, expr)
+		if c != d goto exprend_wrong
+		expr = p
+		generate_stack_assign(statement, type)
+		return expr
+		:assign_array
+			statement_error(statement, .str_assign_array)
+		:str_assign_array
+			string Assigning to array.
+			byte 0
+	
+	
+	
+		:exprend_wrong
+			die(.str_exprend_wrong)
+		:str_exprend_wrong
+			string Internal compiler error: expression_get_end disagrees with generate_push_expression.
+			byte 0
 	:generate_add
 		expr += 8
 		c = expr + 4 ; type of 1st operand
@@ -1216,7 +1324,6 @@ function generate_push_expression
 			generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 			return expr
 		:global_var_large
-			; @TODO: test this
 			c = round_up_to_8(c)
 			emit_sub_rsp_imm32(c)          ; sub rsp, (size)
 			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
@@ -1272,7 +1379,6 @@ function generate_push_expression
 			generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 			return expr
 		:local_var_large
-			; @TODO: test this
 			c = round_up_to_8(c)
 			emit_sub_rsp_imm32(c)          ; sub rsp, (size)
 			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
@@ -1334,6 +1440,7 @@ function generate_statement
 	if c == STATEMENT_BLOCK goto gen_block
 	if c == STATEMENT_RETURN goto gen_return
 	if c == STATEMENT_LOCAL_DECLARATION goto gen_local_decl
+	if c == STATEMENT_EXPRESSION goto gen_stmt_expr
 	; @TODO
 	die(.str_genstmtNI)
 	:str_genstmtNI
@@ -1385,7 +1492,12 @@ function generate_statement
 			emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
 			emit_rep_movsb()               ; rep movsb
 			return
-			
+	:gen_stmt_expr
+		generate_push_expression_casted(statement, dat1, TYPE_VOID)
+		; since we casted to void, it'll always be 8 bytes on the stack
+		emit_add_rsp_imm32(8)
+		return
+		
 		
 function generate_function
 	argument function_name
