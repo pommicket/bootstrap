@@ -148,6 +148,7 @@ ax  bx  cx  dx  sp  bp  si  di
 | movsq                | 48 a5             | copy 8 bytes from rsi to rdi           |
 | rep movsb            | f3 a4             | copy rcx bytes from rsi to rdi         |
 │ push rax             │ 50                │ push rax onto the stack                │
+│ pop rax              │ 58                │ pop a value off the stack into rax     │
 │ neg rax              │ 48 f7 d8          │ set rax to -rax                        │
 │ add rax, rbx         │ 48 01 d8          │ add rbx to rax                         │
 │ sub rax, rbx         │ 48 29 d8          │ subtract rbx from rax                  │

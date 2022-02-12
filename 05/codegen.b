@@ -283,6 +283,12 @@ function emit_push_rax
 	code_output += 1
 	return
 
+function emit_pop_rax
+	; 58
+	*1code_output = 0x58
+	code_output += 1
+	return
+
 function emit_syscall
 	; 0f 05
 	*2code_output = 0x050f
@@ -967,8 +973,9 @@ function generate_stack_sub
 function generate_stack_dereference
 	argument statement ; for errors
 	argument type
-	
+	local p
 	local size
+	local c
 	
 	size = type_sizeof(type)
 	emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
@@ -978,10 +985,20 @@ function generate_stack_dereference
 	if size == 4 goto gen_deref4
 	if size == 8 goto gen_deref8
 	
-	byte 0xcc ; @TODO
+	emit_pop_rax()                  ; pop rax
+	emit_mov_reg(REG_RSI, REG_RAX)  ; mov rsi, rax
+	c = round_up_to_8(size)
+	emit_sub_rsp_imm32(c)           ; sub rsp, (size)
+	emit_mov_reg(REG_RDI, REG_RSP)  ; mov rdi, rsp
+	emit_mov_rax_imm64(size)        ; mov rax, (size)
+	emit_mov_reg(REG_RCX, REG_RAX)  ; mov rcx, rax
+	emit_rep_movsb()                ; rep movsb
+	return
 	
 	:gen_deref_cast
-		emit_push_rax()
+		emit_mov_qword_rsp_rax()
+		p = types + type
+		if *1p >= TYPE_LONG goto return_0
 		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 		return
 	:gen_deref1
@@ -1087,6 +1104,9 @@ function generate_push_expression
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
 	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
 	if c == EXPRESSION_ADDRESS_OF goto generate_address_of
+	if c == EXPRESSION_DOT goto generate_dot_or_arrow
+	if c == EXPRESSION_ARROW goto generate_dot_or_arrow
+	if c == EXPRESSION_COMMA goto generate_comma
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1227,6 +1247,13 @@ function generate_push_expression
 		generate_stack_add(statement, c, d, c)
 		generate_stack_dereference(statement, type)
 		return expr
+	:generate_dot_or_arrow
+		; @NONSTANDARD: we require that the 1st operand to . be an lvalue
+		;   e.g.   int thing = function_which_returns_struct().x;
+		; is not allowed
+		expr = generate_push_address_of_expression(statement, expr)
+		generate_stack_dereference(statement, type)
+		return expr
 	:generate_local_variable
 		expr += 8
 		d = sign_extend_32_to_64(*4expr) ; rbp offset
@@ -1273,7 +1300,16 @@ function generate_push_expression
 		emit_push_rax()
 		expr += 8
 		return expr
-
+	:generate_comma
+		expr += 8
+		c = expr + 4 ; type of 1st expression
+		c = *4c
+		expr = generate_push_expression(statement, expr)
+		c = type_sizeof(c)
+		c = round_up_to_8(c)
+		emit_add_rsp_imm32(c) ; add rsp, (size of expression value on stack)
+		expr = generate_push_expression(statement, expr)
+		return expr
 function generate_statement
 	argument statement
 	local dat1
