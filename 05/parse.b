@@ -2641,6 +2641,7 @@ function parse_expression
 		if *1p == TYPE_POINTER goto type_long ; pointer difference
 		goto type_binary_left ; pointer minus integer
 	:type_subscript
+		; @NONSTANDARD: technically 1["hello"] is legal. but why
 		type_decay_array_to_pointer_in_place(a)
 		p = types + b
 		if *1p > TYPE_UNSIGNED_LONG goto subscript_non_integer
@@ -3075,10 +3076,13 @@ function parse_expression
 			; it is a global variable
 			*1out = EXPRESSION_GLOBAL_VARIABLE
 			out += 4
-			*4out = c > 32 ; extract type
+			a = c > 32 ; extract type
+			*4out = type_create_copy(a)
 			out += 4
-			*8out = c & 0xffffffff ; extract address
-			out += 8
+			*4out = c & 0xffffffff ; extract address
+			out += 4
+			*4out = type_is_array(a)
+			out += 4
 			return out
 		:not_global
 		
@@ -3103,11 +3107,14 @@ function parse_expression
 			; it's a local variable
 			*1out = EXPRESSION_LOCAL_VARIABLE
 			out += 4
-			*4out = c > 32 ; extract type
+			a = c > 32 ; extract type
+			*4out = type_create_copy(a)
 			out += 4
-			c &= 0xffffffff
-			*8out = sign_extend_32_to_64(c) ; extract rbp offset
-			out += 8
+			c &= 0xffffffff ; extract rbp offset
+			*4out = c
+			out += 4
+			*4out = type_is_array(a)
+			out += 4
 			return out
 	:expression_integer
 		*1out = EXPRESSION_CONSTANT_INT
@@ -4100,7 +4107,8 @@ function print_expression
 	:print_local_variable
 		puts(.str_local_prefix)
 		expression += 8
-		putn_with_sign(*8expression)
+		b = sign_extend_32_to_64(*4expression)
+		putn_with_sign(b)
 		putc('])
 		expression += 8
 		return expression
@@ -4115,7 +4123,7 @@ function print_expression
 	:print_global_variable
 		puts(.str_global_at)
 		expression += 8
-		putx32(*8expression)
+		putx32(*4expression)
 		expression += 8
 		return expression
 	:print_cast

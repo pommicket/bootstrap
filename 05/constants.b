@@ -152,8 +152,8 @@
 ;    uint type
 ; immediately following the header in memory are the arguments of the expression
 ;    - for functions, a pointer to the name of the function (we don't know where it is yet)
-;    - for local variables, the 64-bit rbp offset (number to be subtracted from rbp)
-;    - for global variables, the 64-bit runtime address
+;    - for local variables, the 32-bit rbp offset (number to be subtracted from rbp), followed by a 32-bit number, which is 1 if the variable is an array, and 0 otherwise (we can't just check `type` because that might have been decayed into a pointer) 
+;    - for global variables, the 32-bit runtime address, followed by 32-bit is_array
 ;    - for constant ints, the 64-bit integral value
 ;    - for constant floats, the 64-bit double value (even if expression has type float)
 ;    - for unary operators, the operand

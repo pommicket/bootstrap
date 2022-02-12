@@ -963,6 +963,40 @@ function generate_stack_sub
 			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
 			return
 
+; pop a pointer off of the stack, then push the dereferenced value according to `type`
+function generate_stack_dereference
+	argument statement ; for errors
+	argument type
+	
+	local size
+	
+	size = type_sizeof(type)
+	emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+	emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+	if size == 1 goto gen_deref1
+	if size == 2 goto gen_deref2
+	if size == 4 goto gen_deref4
+	if size == 8 goto gen_deref8
+	
+	byte 0xcc ; @TODO
+	
+	:gen_deref_cast
+		emit_push_rax()
+		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+		return
+	:gen_deref1
+		emit_mov_al_byte_rbx()
+		goto gen_deref_cast
+	:gen_deref2
+		emit_mov_ax_word_rbx()
+		goto gen_deref_cast
+	:gen_deref4
+		emit_mov_eax_dword_rbx()
+		goto gen_deref_cast
+	:gen_deref8
+		emit_mov_rax_qword_rbx()
+		goto gen_deref_cast
+	
 ; `statement` is used for errors
 ; returns pointer to end of expression
 function generate_push_expression
@@ -988,6 +1022,8 @@ function generate_push_expression
 	if c == EXPRESSION_SUB goto generate_sub
 	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
 	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
+	if c == EXPRESSION_DEREFERENCE goto generate_dereference
+	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1075,9 +1111,10 @@ function generate_push_expression
 			goto generate_logical_not_cont
 	:generate_global_variable
 		expr += 8
-		d = *8expr ; address
-		expr += 8
-		b = type_is_array(type)
+		d = *4expr ; address
+		expr += 4
+		b = *4expr ; is array?
+		expr += 4
 		if b != 0 goto global_var_array
 		c = type_sizeof(type)
 		if c > 8 goto global_var_large
@@ -1107,11 +1144,28 @@ function generate_push_expression
 			emit_mov_rax_imm64(d) ; mov rax, (address)
 			emit_push_rax()       ; push rax
 			return expr
+	:generate_dereference
+		expr += 8
+		expr = generate_push_expression(statement, expr)
+		generate_stack_dereference(statement, type)
+		return expr
+	:generate_subscript
+		expr += 8
+		c = expr + 4 ; type 1
+		c = *4c
+		expr = generate_push_expression(statement, expr)
+		d = expr + 4 ; type 2
+		d = *4d
+		expr = generate_push_expression(statement, expr)
+		generate_stack_add(statement, c, d, c)
+		generate_stack_dereference(statement, type)
+		return expr
 	:generate_local_variable
 		expr += 8
-		d = *8expr ; rbp offset
-		expr += 8
-		b = type_is_array(type)
+		d = sign_extend_32_to_64(*4expr) ; rbp offset
+		expr += 4
+		b = *4expr ; is array?
+		expr += 4
 		if b != 0 goto local_var_array
 		c = type_sizeof(type)
 		if c > 8 goto local_var_large
@@ -1139,7 +1193,6 @@ function generate_push_expression
 			emit_lea_rax_rbp_plus_imm32(d) ; lea rax, [rbp+X]
 			emit_push_rax()                ; push rax
 			return expr
-		byte 0xcc
 	:generate_float
 		expr += 8
 		emit_mov_rax_imm64(*8expr)
@@ -1211,7 +1264,7 @@ function generate_statement
 		dat1 += c
 		dat1 = 0 - dat1
 		emit_lea_rsp_rbp_plus_imm32(dat1)
-		if dat2 != 0 goto gen_local_decl_data_initializer
+		if dat4 != 0 goto gen_local_decl_data_initializer
 		return
 		
 		:gen_local_decl_initializer
@@ -1222,7 +1275,13 @@ function generate_statement
 			generate_push_expression_casted(statement, dat3, dat2)
 			return
 		:gen_local_decl_data_initializer
-			byte 0xcc ; @TODO
+			emit_mov_rax_imm64(dat4)       ; mov rax, (data address)
+			emit_mov_reg(REG_RSI, REG_RAX) ; mov rsi, rax
+			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
+			emit_mov_rax_imm64(c)          ; mov rax, (size)
+			emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
+			emit_rep_movsb()               ; rep movsb
+			return
 			
 		
 function generate_function
