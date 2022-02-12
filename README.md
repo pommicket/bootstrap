@@ -194,6 +194,8 @@ ax  bx  cx  dx  sp  bp  si  di
 | comisd xmm0, xmm1    | 66 0f 2f c1       | compare xmm0 and xmm1                  |
 | addsd xmm0, xmm1     | f2 0f 58 c1       | add xmm1 to xmm0                       |
 | subsd xmm0, xmm1     | f2 0f 5c c1       | subtract xmm1 from xmm0                |
+| mulsd xmm0, xmm1     | f2 0f 59 c1       | multiply xmm0 by xmm1                  |
+| divsd xmm0, xmm1     | f2 0f 5e c1       | divide xmm0 by xmm1                    |
 │ call rax             │ ff d0             │ call the function at address rax       │
 │ ret                  │ c3                │ return from function                   │
 │ syscall              │ 0f 05             │ execute a system call                  │

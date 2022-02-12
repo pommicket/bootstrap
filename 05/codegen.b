@@ -417,6 +417,16 @@ function emit_subsd_xmm0_xmm1
 	code_output += 4
 	return
 
+function emit_mulsd_xmm0_xmm1
+	*4code_output = 0xc1590ff2
+	code_output += 4
+	return
+
+function emit_divsd_xmm0_xmm1
+	*4code_output = 0xc15e0ff2
+	code_output += 4
+	return
+
 function emit_neg_rax
 	; 48 f7 d8
 	*2code_output = 0xf748
@@ -881,6 +891,7 @@ function generate_stack_add
 		emit_add_rax_rbx()                   ; add rax, rbx
 		emit_add_rsp_imm32(8)                ; add rsp, 8
 		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, out_type)
 		return
 		
 		:generate_add_floats
@@ -890,6 +901,7 @@ function generate_stack_add
 			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
 			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
 			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
 			emit_addsd_xmm0_xmm1()               ; addsd xmm0, xmm1
 			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
 			emit_movq_rax_xmm0()                 ; movq rax, xmm0
@@ -931,6 +943,7 @@ function generate_stack_sub
 		emit_sub_rax_rbx()                   ; sub rax, rbx
 		emit_add_rsp_imm32(8)                ; add rsp, 8
 		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, out_type)
 		return
 		
 		:generate_sub_pointers
@@ -969,6 +982,7 @@ function generate_stack_sub
 			emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
 			emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
 			emit_movq_xmm0_rax()                 ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
 			emit_subsd_xmm0_xmm1()               ; subsd xmm0, xmm1
 			emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
 			emit_movq_rax_xmm0()                 ; movq rax, xmm0
@@ -986,6 +1000,105 @@ function generate_stack_sub
 			emit_add_rsp_imm32(8)                ; add rsp, 8
 			emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
 			return
+
+; pop the top two things off of the stack, and push their product
+function generate_stack_mul
+	argument statement ; for errors
+	argument type
+	local p
+	p = types + type
+	if *1p == TYPE_FLOAT goto generate_mul_floats
+	if *1p == TYPE_DOUBLE goto generate_mul_doubles
+
+	emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+	emit_mul_rbx()                       ; mul rbx
+	emit_add_rsp_imm32(8)                ; add rsp, 8
+	emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+	
+	:generate_mul_floats
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+		emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+		emit_mulsd_xmm0_xmm1()               ; mulsd xmm0, xmm1
+		emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
+		emit_movq_rax_xmm0()                 ; movq rax, xmm0
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		return
+	
+	:generate_mul_doubles
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+		emit_movq_xmm1_rax()                 ; movq xmm1, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_mulsd_xmm0_xmm1()               ; mulsd xmm0, xmm1
+		emit_movq_rax_xmm0()                 ; movq rax, xmm0
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+		return
+
+; pop the top two things off of the stack, and push their quotient
+function generate_stack_div
+	argument statement ; for errors
+	argument type
+	local p
+	local c
+	p = types + type
+	if *1p == TYPE_FLOAT goto generate_div_floats
+	if *1p == TYPE_DOUBLE goto generate_div_doubles
+
+	emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)       ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]  (first operand)
+	c = *1p & 1
+	if c == 1 goto generate_div_signed
+	:generate_div_unsigned
+		emit_zero_rdx()              ; xor edx, edx
+		emit_div_rbx()               ; div rbx
+		goto generate_div_cont
+	:generate_div_signed
+		emit_cqo()                   ; cqo
+		emit_idiv_rbx()              ; idiv rbx
+		goto generate_div_cont
+	:generate_div_cont
+	emit_add_rsp_imm32(8)                ; add rsp, 8
+	emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+	
+	:generate_div_floats
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+		emit_movq_xmm1_xmm0()                ; movq xmm1, xmm0
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_cvtss2sd_xmm0_xmm0()            ; cvtss2sd xmm0, xmm0
+		emit_divsd_xmm0_xmm1()               ; divsd xmm0, xmm1
+		emit_cvtsd2ss_xmm0_xmm0()            ; cvtsd2ss xmm0, xmm0
+		emit_movq_rax_xmm0()                 ; movq rax, xmm0
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax
+		return
+	
+	:generate_div_doubles
+		emit_mov_rax_qword_rsp_plus_imm32(0) ; mov rax, [rsp] (second operand)
+		emit_movq_xmm1_rax()                 ; movq xmm1, rax
+		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8] (first operand)
+		emit_movq_xmm0_rax()                 ; movq xmm0, rax
+		emit_divsd_xmm0_xmm1()               ; divsd xmm0, xmm1
+		emit_movq_rax_xmm0()                 ; movq rax, xmm0
+		emit_add_rsp_imm32(8)                ; add rsp, 8
+		emit_mov_qword_rsp_rax()             ; mov [rsp], rax			
+		return
 
 ; pop a pointer off of the stack, then push the dereferenced value according to `type`
 function generate_stack_dereference
@@ -1178,6 +1291,8 @@ function generate_push_expression
 	if c == EXPRESSION_LOGICAL_NOT goto generate_unary_logical_not
 	if c == EXPRESSION_ADD goto generate_add
 	if c == EXPRESSION_SUB goto generate_sub
+	if c == EXPRESSION_MUL goto generate_mul
+	if c == EXPRESSION_DIV goto generate_div
 	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
 	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
@@ -1275,6 +1390,18 @@ function generate_push_expression
 		d = expr + 4 ; type of 2nd operand
 		expr = generate_push_expression_casted(statement, expr, type)
 		generate_stack_sub(statement, *4c, *4d, type)
+		return expr
+	:generate_mul
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_mul(statement, type)
+		return expr
+	:generate_div
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_div(statement, type)
 		return expr
 	:generate_unary_logical_not
 		expr += 8
