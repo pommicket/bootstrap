@@ -1,6 +1,15 @@
 static char x = -2;
+
+typedef struct {
+	int x;
+	char y;
+	int z;
+} Structure;
+
+
 long main(int argc, char **argv) {
-	int y[] = {38, 55, -22};
-	int *z = (y+2)[-1];
-	return *z;
+Structure s[] = {3, 5, -88,6,9,12};
+	Structure *ps = s;
+	int *p = &ps->z;
+	return *p;
 }

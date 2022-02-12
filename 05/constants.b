@@ -160,7 +160,6 @@
 ;    - for casts, the operand (type is given by type member)
 ;    - for binary operators, the first operand followed by the second
 ;        - for the operators . and ->, the first argument is the expression on the left-hand side, and the second argument is a 64-bit offset.
-;                  we could use a 32-bit offset but that would cause things to be unaligned.
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function, followed by 8 bytes of zeros
 ; File/line number are not stored in expressions.

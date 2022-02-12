@@ -996,7 +996,69 @@ function generate_stack_dereference
 	:gen_deref8
 		emit_mov_rax_qword_rbx()
 		goto gen_deref_cast
+
+; returns pointer to end of expr
+function generate_push_address_of_expression
+	argument statement ; for errors
+	argument expr
 	
+	local c
+	local d
+	
+	c = *1expr
+	
+	if c == EXPRESSION_GLOBAL_VARIABLE goto addrof_global_var
+	if c == EXPRESSION_LOCAL_VARIABLE goto addrof_local_var
+	if c == EXPRESSION_DEREFERENCE goto addrof_dereference
+	if c == EXPRESSION_SUBSCRIPT goto addrof_subscript
+	if c == EXPRESSION_DOT goto addrof_dot
+	if c == EXPRESSION_ARROW goto addrof_arrow
+	
+	statement_error(statement, .str_bad_lvalue)
+	:str_bad_lvalue
+		string Bad l-value.
+		byte 0
+	:addrof_global_var
+		expr += 8
+		emit_mov_rax_imm64(*4expr)
+		emit_push_rax()
+		expr += 8
+		return expr
+	:addrof_local_var
+		expr += 8
+		emit_lea_rax_rbp_plus_imm32(*4expr)
+		emit_push_rax()
+		expr += 8
+		return expr
+	:addrof_dereference
+		expr += 8
+		return generate_push_expression(statement, expr)
+	:addrof_subscript
+		expr += 8
+		c = expr + 4 ; type 1
+		c = *4c
+		expr = generate_push_expression(statement, expr)
+		d = expr + 4 ; type 2
+		d = *4d
+		expr = generate_push_expression(statement, expr)
+		generate_stack_add(statement, c, d, c)
+		return expr
+	:addrof_dot
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
+		goto addrof_dot_cont
+	:addrof_arrow
+		expr += 8
+		expr = generate_push_expression(statement, expr)
+		:addrof_dot_cont
+		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
+		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
+		emit_mov_rax_imm64(*8expr)     ; mov rax, (offset to member)
+		emit_add_rax_rbx()             ; add rax, rbx
+		emit_mov_qword_rsp_rax()       ; mov [rsp], rax
+		expr += 8
+		return expr
+
 ; `statement` is used for errors
 ; returns pointer to end of expression
 function generate_push_expression
@@ -1024,6 +1086,7 @@ function generate_push_expression
 	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
 	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
+	if c == EXPRESSION_ADDRESS_OF goto generate_address_of
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1064,6 +1127,10 @@ function generate_push_expression
 		emit_not_rax()            ; not rax
 		emit_mov_qword_rsp_rax()  ; mov [rsp], rax
 		generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+		return expr
+	:generate_address_of
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
 		return expr
 	:generate_add
 		expr += 8
