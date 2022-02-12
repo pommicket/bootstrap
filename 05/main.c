@@ -1,4 +1,4 @@
 
 long main(int argc, char **argv) {
-	return argc + argv;
+	return 43 >> 2;
 }

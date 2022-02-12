@@ -491,10 +491,20 @@ function emit_div_rbx
 	code_output += 1
 	return
 
-function emit_cqo
-	; 48 99
-	*2code_output = 0x9948
+function emit_and_rax_rbx
+	; 48 21 d8
+	*2code_output = 0x2148
 	code_output += 2
+	*1code_output = 0xd8
+	code_output += 1
+	return
+
+function emit_or_rax_rbx
+	; 48 09 d8
+	*2code_output = 0x0948
+	code_output += 2
+	*1code_output = 0xd8
+	code_output += 1
 	return
 
 function emit_xor_rax_rbx
@@ -503,6 +513,36 @@ function emit_xor_rax_rbx
 	code_output += 2
 	*1code_output = 0xd8
 	code_output += 1
+	return
+
+function emit_shl_rax_cl
+	; 48 d3 e0
+	*2code_output = 0xd348
+	code_output += 2
+	*1code_output = 0xe0
+	code_output += 1
+	return
+
+function emit_shr_rax_cl
+	; 48 d3 e8
+	*2code_output = 0xd348
+	code_output += 2
+	*1code_output = 0xe8
+	code_output += 1
+	return
+
+function emit_sar_rax_cl
+	; 48 d3 f8
+	*2code_output = 0xd348
+	code_output += 2
+	*1code_output = 0xf8
+	code_output += 1
+	return
+
+function emit_cqo
+	; 48 99
+	*2code_output = 0x9948
+	code_output += 2
 	return
 
 function emit_test_rax_rax
@@ -1124,6 +1164,81 @@ function generate_stack_remainder
 	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
 	return
 	
+; pop the top two things off of the stack, and push their bitwise and
+function generate_stack_bitwise_and
+	argument statement ; for errors
+	argument type
+	emit_mov_rax_qword_rsp_plus_imm32(0)   ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)         ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8]  (first operand)
+	emit_and_rax_rbx()                     ; and rax, rbx
+	emit_add_rsp_imm32(8)                  ; add rsp, 8
+	emit_mov_qword_rsp_rax()               ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+
+; pop the top two things off of the stack, and push their bitwise or
+function generate_stack_bitwise_or
+	argument statement ; for errors
+	argument type
+	emit_mov_rax_qword_rsp_plus_imm32(0)   ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)         ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8]  (first operand)
+	emit_or_rax_rbx()                     ; or rax, rbx
+	emit_add_rsp_imm32(8)                  ; add rsp, 8
+	emit_mov_qword_rsp_rax()               ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+
+; pop the top two things off of the stack, and push their bitwise xor
+function generate_stack_bitwise_xor
+	argument statement ; for errors
+	argument type
+	emit_mov_rax_qword_rsp_plus_imm32(0)   ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)         ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8]  (first operand)
+	emit_xor_rax_rbx()                     ; xor rax, rbx
+	emit_add_rsp_imm32(8)                  ; add rsp, 8
+	emit_mov_qword_rsp_rax()               ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+
+
+function generate_stack_lshift
+	argument statement ; for errors
+	argument type
+	emit_mov_rax_qword_rsp_plus_imm32(0)   ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RCX, REG_RAX)         ; mov rcx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8]  (first operand)
+	emit_shl_rax_cl()                      ; shl rax, cl
+	emit_add_rsp_imm32(8)                  ; add rsp, 8
+	emit_mov_qword_rsp_rax()               ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+
+
+function generate_stack_rshift
+	argument statement ; for errors
+	argument type
+	local p
+	local c
+	p = types + type
+	c = *1p & 1
+	
+	emit_mov_rax_qword_rsp_plus_imm32(0)   ; mov rax, [rsp]   (second operand)
+	emit_mov_reg(REG_RCX, REG_RAX)         ; mov rcx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8]  (first operand)
+	if c == 1 goto gen_rshift_signed
+		emit_shr_rax_cl()              ; shr rax, cl
+		goto gen_rshift_cont
+	:gen_rshift_signed
+		emit_sar_rax_cl()              ; sar rax, cl
+	:gen_rshift_cont
+	emit_add_rsp_imm32(8)                  ; add rsp, 8
+	emit_mov_qword_rsp_rax()               ; mov [rsp], rax
+	generate_cast_top_of_stack(statement, TYPE_UNSIGNED_LONG, type)
+	return
+
 ; pop a pointer off of the stack, then push the dereferenced value according to `type`
 function generate_stack_dereference
 	argument statement ; for errors
@@ -1318,6 +1433,11 @@ function generate_push_expression
 	if c == EXPRESSION_MUL goto generate_mul
 	if c == EXPRESSION_DIV goto generate_div
 	if c == EXPRESSION_REMAINDER goto generate_remainder
+	if c == EXPRESSION_BITWISE_AND goto generate_bitwise_and
+	if c == EXPRESSION_BITWISE_OR goto generate_bitwise_or
+	if c == EXPRESSION_BITWISE_XOR goto generate_bitwise_xor
+	if c == EXPRESSION_LSHIFT goto generate_lshift
+	if c == EXPRESSION_RSHIFT goto generate_rshift
 	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
 	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
@@ -1433,6 +1553,36 @@ function generate_push_expression
 		expr = generate_push_expression_casted(statement, expr, type)
 		expr = generate_push_expression_casted(statement, expr, type)
 		generate_stack_remainder(statement, type)
+		return expr
+	:generate_bitwise_and
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_bitwise_and(statement, type)
+		return expr
+	:generate_bitwise_or
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_bitwise_or(statement, type)
+		return expr
+	:generate_bitwise_xor
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_bitwise_xor(statement, type)
+		return expr
+	:generate_lshift
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_lshift(statement, type)
+		return expr
+	:generate_rshift
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, type)
+		expr = generate_push_expression_casted(statement, expr, type)
+		generate_stack_rshift(statement, type)
 		return expr
 	:generate_unary_logical_not
 		expr += 8
