@@ -1612,9 +1612,9 @@ function generate_push_expression
 	if c == EXPRESSION_CONDITIONAL goto generate_conditional
 	
 	putnln(c)	
-	die(.str_genpushexprNI)
-	:str_genpushexprNI
-		string generate_push_expression not implemented.
+	die(.str_genpushbadexpr)
+	:str_genpushbadexpr
+		string Internal compiler error: bad expression passed to generate_push_expression.
 		byte 0
 	:generate_cast
 		expr += 8
@@ -2509,9 +2509,13 @@ function generate_statement
 	local dat2
 	local dat3
 	local dat4
+	local addr0
+	local addr1
+	local addr2
 	local n
 	local p
 	local c
+	local d
 	
 	dat1 = statement + 8
 	dat1 = *8dat1
@@ -2528,6 +2532,10 @@ function generate_statement
 	if c == STATEMENT_RETURN goto gen_return
 	if c == STATEMENT_LOCAL_DECLARATION goto gen_local_decl
 	if c == STATEMENT_EXPRESSION goto gen_stmt_expr
+	if c == STATEMENT_IF goto gen_stmt_if
+	if c == STATEMENT_WHILE goto gen_stmt_while
+	if c == STATEMENT_DO goto gen_stmt_do
+	
 	; @TODO
 	die(.str_genstmtNI)
 	:str_genstmtNI
@@ -2584,7 +2592,60 @@ function generate_statement
 		; since we casted to void, it'll always be 8 bytes on the stack
 		emit_add_rsp_imm32(8)
 		return
-		
+	:gen_stmt_if
+		p = dat1 + 4
+		generate_push_expression(statement, dat1)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_je_rel32(0)    ; je +0 (temporary)
+		addr1 = code_output
+		generate_statement(dat2) ; "if" branch
+		emit_jmp_rel32(0)   ; jmp +0 (temporary)
+		addr2 = code_output
+		; fill in je
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		addr1 = addr2
+		if dat3 == 0 goto gen_if_no_else
+			generate_statement(dat3) ; "else" branch
+		:gen_if_no_else
+		addr2 = code_output
+		; fill in jmp
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		return
+	:gen_stmt_while
+		addr0 = code_output
+		p = dat1 + 4
+		generate_push_expression(statement, dat1)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_je_rel32(0)    ; je +0 (temporary)
+		addr1 = code_output
+		generate_statement(dat2)
+		emit_jmp_rel32(0)   ; jmp +0 (temporary)
+		addr2 = code_output
+		; fill in je
+		d = addr2 - addr1
+		p = addr1 - 4
+		*4p = d
+		; fill in jmp
+		d = addr0 - addr2
+		p = addr2 - 4
+		*4p = d
+		return
+	:gen_stmt_do
+		addr0 = code_output
+		generate_statement(dat1)
+		p = dat2 + 4
+		generate_push_expression(statement, dat2)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_jne_rel32(0) ; jne +0 (temorary)
+		addr1 = code_output
+		d = addr0 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		return
 		
 function generate_function
 	argument function_name

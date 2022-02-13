@@ -1,6 +1,9 @@
 long factorial(long x) {
-	return x > 0 ? x * factorial(x - 1)
-		: 1;
+	if (x == 0) {
+		return 1;
+	} else {
+		return x * factorial(x-1);
+	}
 }
 
 long fibonacci(long x) {
@@ -11,28 +14,22 @@ long fibonacci(long x) {
 		: 0;
 }
 
+long gcd(long a, long b) {
+	while (a != 0) {
+		long temp = a;
+		a = b % a;
+		b = temp;
+	}
+	return b;
+}
+
 int main(int argc, char **argv) {
-	float f = 3.7;
-	int i = 37;
-	f--;
-	++i;
-	--f;
-	++f;
-	f++;
-	--i;
-	f--;
-	++i;
-	--f;
-	++f;
-	f++;
-	--i;
-	f--;
-	++i;
-	--f;
-	++f;
-	f++;
-	--i;
-	
-	return f;
+	double f = 1;
+	int exp = 0;
+	do {
+		f /= 2;
+		++exp;
+	} while (f);
+	return exp;
 }
 
