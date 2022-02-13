@@ -113,6 +113,7 @@ ax  bx  cx  dx  sp  bp  si  di
 ├──────────────────────┼───────────────────┼────────────────────────────────────────┤
 │ mov rax, IMM64       │ 48 b8 IMM64       │ set rax to the 64-bit value IMM64      │
 │ mov rbx, IMM64       │ 48 bb IMM64       │ set rbx to the 64-bit value IMM64      │
+| add rax, IMM32       | 48 05 IMM32       | add IMM32 (signed) to rax              |
 │ xor eax, eax         │ 31 c0             │ set rax to 0 (shorter than mov rax, 0) │
 │ xor edx, edx         │ 31 d2             │ set rdx to 0                           │
 │ mov RDEST, RSRC      │ 48 89 (DEST|SRC<<3|0xc0) │ set register DEST to current    │

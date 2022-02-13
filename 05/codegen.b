@@ -108,6 +108,16 @@ function emit_mov_rbx_imm64
 	code_output += 8
 	return
 
+function emit_add_rax_imm32
+	; 48 05 IMM32
+	argument imm32
+	*2code_output = 0x0548
+	code_output += 2
+	*4code_output = imm32
+	code_output += 4
+	return
+	
+
 function emit_zero_rax
 	; 31 c0
 	*2code_output = 0xc031
@@ -1421,8 +1431,10 @@ function generate_push_expression
 	type = *4type
 	
 	c = *1expr
+	; @TODO : reorder from most to least common, probably
 	if c == EXPRESSION_CONSTANT_INT goto generate_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto generate_float
+	if c == EXPRESSION_FUNCTION goto generate_function_addr
 	if c == EXPRESSION_CAST goto generate_cast
 	if c == EXPRESSION_UNARY_PLUS goto generate_cast ; the unary plus operator just casts to the promoted type
 	if c == EXPRESSION_UNARY_MINUS goto generate_unary_minus
@@ -1447,6 +1459,9 @@ function generate_push_expression
 	if c == EXPRESSION_ARROW goto generate_dot_or_arrow
 	if c == EXPRESSION_COMMA goto generate_comma
 	if c == EXPRESSION_ASSIGN goto generate_assign
+	if c == EXPRESSION_CALL goto generate_call
+	
+	putnln(c)
 	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
@@ -1456,6 +1471,27 @@ function generate_push_expression
 		expr += 8
 		expr = generate_push_expression_casted(statement, expr, type)
 		return expr
+	:generate_function_addr
+		d = 0
+		expr += 8
+		if codegen_second_pass == 0 goto function_noaddr
+		d = ident_list_lookup(functions_addresses, *8expr)
+		if d == 0 goto no_such_function
+		:function_noaddr
+		expr += 8
+		emit_mov_rax_imm64(d)
+		emit_push_rax()
+		return expr
+		
+		:no_such_function
+			print_statement_location(statement)
+			puts(.str_no_such_function)
+			putsln(*8expr)
+			exit(1)
+			:str_no_such_function
+				string : Error: No such function:
+				byte 32
+				byte 0
 	:generate_unary_minus
 		expr += 8
 		expr = generate_push_expression_casted(statement, expr, type)
@@ -1724,6 +1760,93 @@ function generate_push_expression
 		emit_add_rsp_imm32(c) ; add rsp, (size of expression value on stack)
 		expr = generate_push_expression(statement, expr)
 		return expr
+	:generate_call
+		expr += 8
+		global 4000 expr_arg_ptrs_dat
+		local expr_arg_ptrs
+		expr_arg_ptrs = &expr_arg_ptrs_dat
+		local arg_idx
+		local call_function
+		local return_val_size
+		local args_size
+		
+		return_val_size = type_sizeof(type)
+		return_val_size = round_up_to_8(return_val_size)
+		
+		call_function = expr
+		expr = expression_get_end(expr)
+		
+		args_size = 0
+		
+		; we have to do a bit of work because the arguments are stored
+		;  left to right, but pushed right to left
+		arg_idx = 0
+		p = expr_arg_ptrs
+		:find_call_args_loop
+			if *1expr == 0 goto find_call_args_loop_end
+			*8p = expr
+			
+			c = expr + 4
+			c = type_sizeof(*4c)
+			c = round_up_to_8(c)
+			args_size += c
+			
+			expr = expression_get_end(expr)
+			p += 8
+			arg_idx += 1
+			goto find_call_args_loop
+		:find_call_args_loop_end
+		expr += 8
+		
+		:push_args_loop
+			if arg_idx == 0 goto push_args_loop_end
+			p -= 8
+			generate_push_expression(statement, *8p)
+			arg_idx -= 1
+			goto push_args_loop
+		:push_args_loop_end
+		
+		; create space on stack for return value
+		emit_sub_rsp_imm32(return_val_size)
+		; put function in rax
+		generate_push_expression(statement, call_function)
+		emit_mov_rax_qword_rsp()
+		emit_add_rsp_imm32(8)
+		; call
+		emit_call_rax()
+		
+		if return_val_size > 8 goto generate_big_return
+		emit_mov_rax_qword_rsp()      ; mov rax, [rsp]
+		emit_add_rsp_imm32(args_size) ; add rsp, (size of arguments on stack)
+		emit_mov_qword_rsp_rax()      ; mov [rsp], rax
+		return expr
+		
+		:generate_big_return
+		; now we need to copy the return value to the proper place in the stack
+		; this is kind of annoying because that might overlap with the current position.
+		; so, we'll push a copy of the return value, then copy that over to the proper place.
+		local copy_offset
+		
+		; first copy
+		copy_offset = 0 - return_val_size
+		emit_mov_reg(REG_RSI, REG_RSP)
+		emit_mov_reg(REG_RAX, REG_RSP)
+		emit_add_rax_imm32(copy_offset)
+		emit_mov_reg(REG_RDI, REG_RAX)
+		generate_copy_rsi_to_rdi_qwords(type)
+		
+		; second copy
+		emit_mov_reg(REG_RAX, REG_RSP)
+		emit_add_rax_imm32(copy_offset)
+		emit_mov_reg(REG_RSI, REG_RAX)
+		emit_mov_reg(REG_RAX, REG_RSP)
+		emit_add_rax_imm32(args_size)
+		emit_mov_reg(REG_RDI, REG_RAX)
+		generate_copy_rsi_to_rdi_qwords(type)
+		
+		emit_add_rsp_imm32(args_size)
+		return
+		
 function generate_statement
 	argument statement
 	local dat1
@@ -1868,7 +1991,7 @@ function generate_functions
 	:function_addr_mismatch
 		; address of function on 2nd pass doesn't line up with 1st pass
 		puts(.str_function_addr_mismatch)
-		puts(function_name)
+		putsln(function_name)
 		exit(1)
 	:str_function_addr_mismatch
 		string Function address on first pass doesn't match 2nd pass:

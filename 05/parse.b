@@ -23,6 +23,7 @@ function token_is_type
 		b = ident_list_lookup(typedefs, c)
 		if b != 0 goto return_1
 		goto return_0
+	
 
 function type_is_array
 	argument type
