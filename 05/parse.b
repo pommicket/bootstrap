@@ -2803,8 +2803,12 @@ function parse_expression
 		:call_args_loop
 			if *1p == SYMBOL_RPAREN goto call_args_loop_end
 			n = token_next_semicolon_comma_rbracket(p)
+			*1out = EXPRESSION_CAST ; generate cast to proper argument type
 			arg_type = out + 4
+			out += 8
+			b = out + 4
 			out = parse_expression(p, n, out)
+			*4arg_type = type_create_copy(*4b)
 			b = types + param_type
 			if *1b == 0 goto arg_is_varargs ; reached the end of arguments (so presumably this function has varargs)
 			; set argument type to parameter type. this is necessary because:
