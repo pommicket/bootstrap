@@ -1476,6 +1476,16 @@ function generate_push_expression
 	if c == EXPRESSION_LSHIFT goto generate_lshift
 	if c == EXPRESSION_RSHIFT goto generate_rshift
 	if c == EXPRESSION_ASSIGN goto generate_assign
+	if c == EXPRESSION_ASSIGN_ADD goto generate_assign_add
+	if c == EXPRESSION_ASSIGN_SUB goto generate_assign_sub
+	if c == EXPRESSION_ASSIGN_MUL goto generate_assign_mul
+	if c == EXPRESSION_ASSIGN_DIV goto generate_assign_div
+	if c == EXPRESSION_ASSIGN_REMAINDER goto generate_assign_remainder
+	if c == EXPRESSION_ASSIGN_LSHIFT goto generate_assign_lshift
+	if c == EXPRESSION_ASSIGN_RSHIFT goto generate_assign_rshift
+	if c == EXPRESSION_ASSIGN_AND goto generate_assign_and
+	if c == EXPRESSION_ASSIGN_OR goto generate_assign_or
+	if c == EXPRESSION_ASSIGN_XOR goto generate_assign_xor
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
 	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
 	if c == EXPRESSION_ADDRESS_OF goto generate_address_of
@@ -1581,6 +1591,196 @@ function generate_push_expression
 		:str_exprend_wrong
 			string Internal compiler error: expression_get_end disagrees with generate_push_expression.
 			byte 0
+	:generate_assign_add
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (addend)
+		emit_push_rax()                       ; push rax
+		generate_stack_add(statement, type, type, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, addend)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_sub
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_sub(statement, type, type, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_mul
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_mul(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_div
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_div(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_remainder
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_remainder(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_and
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_bitwise_and(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_or
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_bitwise_or(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_xor
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_bitwise_xor(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_lshift
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_lshift(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
+	:generate_assign_rshift
+		expr += 8
+		p = expression_get_end(expr)
+		p = generate_push_expression_casted(statement, p, type)
+		generate_push_address_of_expression(statement, expr)
+		expr = p
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
+		emit_push_rax()                       ; push rax
+		generate_stack_rshift(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
+		emit_push_rax()                       ; push rax
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()              ; mov rax, [rsp] (result)
+		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
+		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
+		return expr
 	:generate_add
 		expr += 8
 		c = expr + 4 ; type of 1st operand
@@ -2141,9 +2341,12 @@ function generate_code
 	
 	
 	local p_func
+	local end_addr
 	code_output = output_file_data + FUNCTIONS_ADDR
 	codegen_second_pass = 0
 	generate_functions()
+	end_addr = code_output - output_file_data
+	if end_addr ] FUNCTIONS_END goto too_much_code
 	code_output = output_file_data + FUNCTIONS_ADDR
 	codegen_second_pass = 1
 	generate_functions()
@@ -2186,4 +2389,9 @@ function generate_code
 	die(.str_no_main_function)
 	:str_no_main_function
 		string Error: No main function.
+		byte 0
+	:too_much_code
+		die(.str_too_much_code)
+	:str_too_much_code
+		string Too much code for executable.
 		byte 0

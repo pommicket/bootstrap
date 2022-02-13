@@ -8,6 +8,7 @@
 ; you should be able to change these constants (in a way that's consistent) without breaking anything:
 #define ENTRY_ADDR 0x200000
 #define FUNCTIONS_ADDR 0x400000
+#define FUNCTIONS_END 0x800000
 #define TOTAL_CODE_SIZE 0x600000
 #define RODATA_ADDR 0x800000
 #define RODATA_SIZE 0x400000
