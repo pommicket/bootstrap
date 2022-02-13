@@ -1596,6 +1596,10 @@ function generate_push_expression
 	if c == EXPRESSION_ASSIGN_AND goto generate_assign_and
 	if c == EXPRESSION_ASSIGN_OR goto generate_assign_or
 	if c == EXPRESSION_ASSIGN_XOR goto generate_assign_xor
+	if c == EXPRESSION_POST_INCREMENT goto generate_post_increment
+	if c == EXPRESSION_POST_DECREMENT goto generate_post_decrement
+	if c == EXPRESSION_PRE_INCREMENT goto generate_pre_increment
+	if c == EXPRESSION_PRE_DECREMENT goto generate_pre_decrement
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
 	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
 	if c == EXPRESSION_ADDRESS_OF goto generate_address_of
@@ -1891,6 +1895,220 @@ function generate_push_expression
 		emit_add_rsp_imm32(16)                ; add rsp, 16 (pop address, 2nd operand)
 		emit_mov_qword_rsp_rax()              ; mov [rsp], rax
 		return expr
+	:generate_post_increment
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
+		
+		p = types + type
+		if *1p == TYPE_FLOAT goto post_increment_float
+		if *1p == TYPE_DOUBLE goto post_increment_double
+		
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (address)
+		emit_push_rax()                        ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_imm64(1)                  ; mov rax, 1
+		scale_rax_for_addition_with(type) ; in case this is a pointer increment
+		emit_mov_reg(REG_RBX, REG_RAX)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_add_rax_rbx()                     ; add rax, rbx
+		emit_push_rax()                        ; push rax
+		emit_mov_rax_qword_rsp_plus_imm32(16)  ; mov rax, [rsp+16] (address)
+		emit_push_rax()
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8] (old value)
+		emit_mov_qword_rsp_plus_imm32_rax(16)  ; mov [rsp+16], rax
+		emit_add_rsp_imm32(16)                 ; add rsp, 16
+		return expr
+		
+		:post_increment_float
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_eax_dword_rbx()        ; mov eax, [rbx]
+			emit_mov_reg(REG_RSI, REG_RAX)  ; mov rsi, rax (save old value)
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()       ; cvtss2sd xmm0, xmm0
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_addsd_xmm0_xmm1()          ; addsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()       ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_dword_rbx_eax()        ; mov [rbx], eax
+			emit_mov_reg(REG_RAX, REG_RSI)  ; mov rax, rsi (old value)
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+		:post_increment_double
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_rax_qword_rbx()        ; mov rax, [rbx]
+			emit_mov_reg(REG_RSI, REG_RAX)  ; mov rsi, rax (save old value)
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_addsd_xmm0_xmm1()          ; addsd xmm0, xmm1
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_qword_rbx_rax()        ; mov [rbx], rax
+			emit_mov_reg(REG_RAX, REG_RSI)  ; mov rax, rsi (old value)
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+	:generate_post_decrement
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
+		
+		p = types + type
+		if *1p == TYPE_FLOAT goto post_decrement_float
+		if *1p == TYPE_DOUBLE goto post_decrement_double
+		
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (address)
+		emit_push_rax()                        ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_imm64(1)                  ; mov rax, 1
+		scale_rax_for_addition_with(type) ; in case this is a pointer decrement
+		emit_mov_reg(REG_RBX, REG_RAX)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_sub_rax_rbx()                     ; sub rax, rbx
+		emit_push_rax()                        ; push rax
+		emit_mov_rax_qword_rsp_plus_imm32(16)  ; mov rax, [rsp+16] (address)
+		emit_push_rax()
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp_plus_imm32(8)   ; mov rax, [rsp+8] (old value)
+		emit_mov_qword_rsp_plus_imm32_rax(16)  ; mov [rsp+16], rax
+		emit_add_rsp_imm32(16)                 ; add rsp, 16
+		return expr
+		
+		:post_decrement_float
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_eax_dword_rbx()        ; mov eax, [rbx]
+			emit_mov_reg(REG_RSI, REG_RAX)  ; mov rsi, rax (save old value)
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()       ; cvtss2sd xmm0, xmm0
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_subsd_xmm0_xmm1()          ; subsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()       ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_dword_rbx_eax()        ; mov [rbx], eax
+			emit_mov_reg(REG_RAX, REG_RSI)  ; mov rax, rsi (old value)
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+		:post_decrement_double
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_rax_qword_rbx()        ; mov rax, [rbx]
+			emit_mov_reg(REG_RSI, REG_RAX)  ; mov rsi, rax (save old value)
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_subsd_xmm0_xmm1()          ; subsd xmm0, xmm1
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_qword_rbx_rax()        ; mov [rbx], rax
+			emit_mov_reg(REG_RAX, REG_RSI)  ; mov rax, rsi (old value)
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+	:generate_pre_increment
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
+		
+		p = types + type
+		if *1p == TYPE_FLOAT goto pre_increment_float
+		if *1p == TYPE_DOUBLE goto pre_increment_double
+		
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (address)
+		emit_push_rax()                        ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_imm64(1)                  ; mov rax, 1
+		scale_rax_for_addition_with(type) ; in case this is a pointer increment
+		emit_mov_reg(REG_RBX, REG_RAX)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_add_rax_rbx()                     ; add rax, rbx
+		emit_push_rax()                        ; push rax
+		emit_mov_rax_qword_rsp_plus_imm32(16)  ; mov rax, [rsp+16] (address)
+		emit_push_rax()
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_mov_qword_rsp_plus_imm32_rax(16)  ; mov [rsp+16], rax
+		emit_add_rsp_imm32(16)                 ; add rsp, 16
+		return expr
+		
+		:pre_increment_float
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_eax_dword_rbx()        ; mov eax, [rbx]
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()       ; cvtss2sd xmm0, xmm0
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_addsd_xmm0_xmm1()          ; addsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()       ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_dword_rbx_eax()        ; mov [rbx], eax
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+		:pre_increment_double
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_rax_qword_rbx()        ; mov rax, [rbx]
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_addsd_xmm0_xmm1()          ; addsd xmm0, xmm1
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_qword_rbx_rax()        ; mov [rbx], rax
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+			
+	:generate_pre_decrement
+		expr += 8
+		expr = generate_push_address_of_expression(statement, expr)
+		
+		p = types + type
+		if *1p == TYPE_FLOAT goto pre_decrement_float
+		if *1p == TYPE_DOUBLE goto pre_decrement_double
+		
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (address)
+		emit_push_rax()                        ; push rax
+		generate_stack_dereference(statement, type)
+		emit_mov_rax_imm64(1)                  ; mov rax, 1
+		scale_rax_for_addition_with(type) ; in case this is a pointer decrement
+		emit_mov_reg(REG_RBX, REG_RAX)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_sub_rax_rbx()                     ; sub rax, rbx
+		emit_push_rax()                        ; push rax
+		emit_mov_rax_qword_rsp_plus_imm32(16)  ; mov rax, [rsp+16] (address)
+		emit_push_rax()
+		generate_stack_assign(statement, type)
+		emit_mov_rax_qword_rsp()               ; mov rax, [rsp] (value)
+		emit_mov_qword_rsp_plus_imm32_rax(16)  ; mov [rsp+16], rax
+		emit_add_rsp_imm32(16)                 ; add rsp, 16
+		return expr
+		
+		:pre_decrement_float
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_eax_dword_rbx()        ; mov eax, [rbx]
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_cvtss2sd_xmm0_xmm0()       ; cvtss2sd xmm0, xmm0
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_subsd_xmm0_xmm1()          ; subsd xmm0, xmm1
+			emit_cvtsd2ss_xmm0_xmm0()       ; cvtsd2ss xmm0, xmm0
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_dword_rbx_eax()        ; mov [rbx], eax
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+		:pre_decrement_double
+			emit_mov_rax_qword_rsp()        ; mov rax, [rsp] (address)
+			emit_mov_reg(REG_RBX, REG_RAX)  ; mov rbx, rax
+			emit_mov_rax_qword_rbx()        ; mov rax, [rbx]
+			emit_movq_xmm0_rax()            ; movq xmm0, rax
+			emit_mov_rax_imm64(0x3ff0000000000000) ; mov rax, 1.0
+			emit_movq_xmm1_rax()            ; movq xmm1, rax
+			emit_subsd_xmm0_xmm1()          ; subsd xmm0, xmm1
+			emit_movq_rax_xmm0()            ; mov rax, xmm0
+			emit_mov_qword_rbx_rax()        ; mov [rbx], rax
+			emit_mov_qword_rsp_rax()        ; mov [rsp], rax
+			return expr
+			
 	:generate_add
 		expr += 8
 		c = expr + 4 ; type of 1st operand

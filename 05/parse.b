@@ -39,6 +39,14 @@ function type_is_function
 	if *1p == TYPE_FUNCTION goto return_1
 	return 0
 
+function type_is_floating
+	argument type
+	local p
+	p = types + type
+	if *1p == TYPE_FLOAT goto return_1
+	if *1p == TYPE_DOUBLE goto return_1
+	return 0
+
 function functype_return_type
 	argument ftype
 	local type
