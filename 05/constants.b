@@ -160,7 +160,7 @@
 ;    - for unary operators, the operand
 ;    - for casts, the operand (type is given by type member)
 ;    - for binary operators, the first operand followed by the second
-;        - for the operators . and ->, the first argument is the expression on the left-hand side, and the second argument is a 64-bit offset.
+;        - for the operators . and ->,  first the expression on the left-hand side, then the 32-bit offset, then a 32-bit number which is 1 if the member is an array
 ;    - for the ternary operator ? :, the first followed by the second followed by the third
 ;    - for function calls, the function, followed by each of the arguments to the function, followed by 8 bytes of zeros
 ; File/line number are not stored in expressions.
@@ -271,7 +271,7 @@
 ; a type of 0 indicates the end of the block.
 ; data layout for particular statements:
 ;     - STATEMENT_EXPRESSION - data1 is a pointer to expression data; data2,3,4 are unused
-;     - STATEMENT_LOCAL_DECLARATION - declaring a local variable, data1 = rbp - rsp BEFORE variable is pushed, data2 = type, data3 = initializer expression or 0, data4 = initializer memory address to copy from (for braced initializers) or 0
+;     - STATEMENT_LOCAL_DECLARATION - declaring a local variable, data1 = signed offset from rbp of variable, data2 = type, data3 = initializer expression or 0, data4 = initializer memory address to copy from (for braced initializers) or 0
 ;     - STATEMENT_LABEL      - data1 is a pointer to the name of the label; data2,3,4 are unused
 ;     - STATEMENT_BLOCK      - data1 is a pointer to an array of statements; data2,3,4 are unused
 ;     - STATEMENT_IF         - data1 is a pointer to the condition, data2 is a pointer to the `if' branch statement, data3 is a pointer to the `else' branch statement, or 0 if there is none; data4 is unused

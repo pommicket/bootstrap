@@ -74,6 +74,9 @@ global local_var_rbp_offset
 global function_param_names
 ; set to 1 by parse_type_declarators if at least one function parameter has no name.
 global function_param_has_no_name
+; ident list of number of bytes of stack space needed by local variables in each function
+global functions_required_stack_space
+
 
 #include util.b
 #include idents.b
@@ -248,6 +251,7 @@ function main
 	functions_addresses = ident_list_create(800000)
 	functions_labels = ident_list_create(800000)
 	function_types = ident_list_create(800000)
+	functions_required_stack_space = ident_list_create(800000)
 	function_stmt_data = malloc(800000) ; should be at least 40 bytes * max # of functions
 	
 	dat_banned_objmacros = 255
@@ -292,8 +296,8 @@ function main
 	
 	tokens = malloc(16000000)
 	p = tokenize(pptokens, tokens, input_filename, 1)
-	print_tokens(tokens, p)
-	print_separator()
+	;print_tokens(tokens, p)
+	;print_separator()
 	; NOTE: do NOT free pptokens; identifiers still reference them.
 	
 	parse_tokens(tokens)
@@ -303,9 +307,9 @@ function main
 	munmap(output_file_data, RWDATA_END)
 	close(output_fd)
 	
-	ident_list_printx64(global_variables)
-	puts(.str_types_bytes_used)
-	putnln(types_bytes_used)
+	;ident_list_printx64(global_variables)
+	;puts(.str_types_bytes_used)
+	;putnln(types_bytes_used)
 	
 	exit(0)
 	

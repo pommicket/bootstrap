@@ -730,6 +730,7 @@ function generate_copy_rsi_to_rdi_qwords
 	argument type
 	local n
 	n = type_sizeof(type)
+	
 	n = round_up_to_8(n)
 	if n == 8 goto rsi2rdi_qwords_simple
 	; this is a struct or something, use  rep movsb
@@ -743,6 +744,7 @@ function generate_copy_rsi_to_rdi_qwords
 	; this is a little "optimization" over rep movsb with rcx = 8, mainly it just makes debugging easier (otherwise you'd need 8 `stepi`s in gdb to skip over the instruction)
 	emit_movsq()
 	return
+	
 
 ; cast whatever was just pushed onto the stack from from_type to to_type
 ; `statement` is used for errors
@@ -1479,7 +1481,7 @@ function generate_push_address_of_expression
 		:addrof_dot_cont
 		emit_mov_rax_qword_rsp()       ; mov rax, [rsp]
 		emit_mov_reg(REG_RBX, REG_RAX) ; mov rbx, rax
-		emit_mov_rax_imm64(*8expr)     ; mov rax, (offset to member)
+		emit_mov_rax_imm64(*4expr)     ; mov rax, (offset to member)
 		emit_add_rax_rbx()             ; add rax, rbx
 		emit_mov_qword_rsp_rax()       ; mov [rsp], rax
 		expr += 8
@@ -2375,8 +2377,13 @@ function generate_push_expression
 		; @NONSTANDARD: we require that the 1st operand to . be an lvalue
 		;   e.g.   int thing = function_which_returns_struct().x;
 		; is not allowed
+		p = expr + 8
+		p = expression_get_end(p)
+		p += 4
 		expr = generate_push_address_of_expression(statement, expr)
+		if *4p == 1 goto member_array
 		generate_stack_dereference(statement, type)
+		:member_array
 		return expr
 	:generate_local_variable
 		expr += 8
@@ -2630,30 +2637,32 @@ function generate_statement
 		generate_return()
 		return
 	:gen_local_decl
-		c = type_sizeof(dat2)
-		c = round_up_to_8(c)
-		if dat3 != 0 goto gen_local_decl_initializer
-		; move the stack pointer to the start of the variable
-		dat1 += c
 		dat1 = 0 - dat1
-		emit_lea_rsp_rbp_plus_imm32(dat1)
+		
+		if dat3 != 0 goto gen_local_decl_initializer
 		if dat4 != 0 goto gen_local_decl_data_initializer
 		return
 		
 		:gen_local_decl_initializer
-			dat1 = 0 - dat1
-			; move the stack pointer to the end of the variable
-			emit_lea_rsp_rbp_plus_imm32(dat1)
+			c = type_sizeof(dat2)
+			c = round_up_to_8(c)
+			
 			; push the expression
 			generate_push_expression_casted(statement, dat3, dat2)
+			; copy it to where the variable's supposed to be
+			emit_mov_reg(REG_RSI, REG_RSP)           ; mov rsi, rsp
+			emit_lea_rax_rbp_plus_imm32(dat1)        ; lea rax, [rbp+X]
+			emit_mov_reg(REG_RDI, REG_RAX)           ; mov rdi, rax
+			generate_copy_rsi_to_rdi_qwords(dat2) 
+			; pop the expression
+			emit_add_rsp_imm32(c)                    ; add rsp, (size)
 			return
 		:gen_local_decl_data_initializer
-			emit_mov_rax_imm64(dat4)       ; mov rax, (data address)
-			emit_mov_reg(REG_RSI, REG_RAX) ; mov rsi, rax
-			emit_mov_reg(REG_RDI, REG_RSP) ; mov rdi, rsp
-			emit_mov_rax_imm64(c)          ; mov rax, (size)
-			emit_mov_reg(REG_RCX, REG_RAX) ; mov rcx, rax
-			emit_rep_movsb()               ; rep movsb
+			emit_mov_rax_imm64(dat4)          ; mov rax, (data address)
+			emit_mov_reg(REG_RSI, REG_RAX)    ; mov rsi, rax
+			emit_lea_rax_rbp_plus_imm32(dat1) ; lea rax, [rbp+X]
+			emit_mov_reg(REG_RDI, REG_RAX)    ; mov rdi, rax
+			generate_copy_rsi_to_rdi_qwords(dat2)
 			return
 	:gen_stmt_expr
 		generate_push_expression_casted(statement, dat1, TYPE_VOID)
@@ -2878,6 +2887,7 @@ function generate_function
 	argument function_statement
 	local function_type
 	local out0
+	local n_stack_bytes
 	
 	function_type = ident_list_lookup(function_types, function_name)
 	
@@ -2895,6 +2905,9 @@ function generate_function
 	emit_sub_rsp_imm32(8)
 	emit_mov_qword_rsp_rbp()
 	emit_mov_reg(REG_RBP, REG_RSP)
+	
+	n_stack_bytes = ident_list_lookup(functions_required_stack_space, function_name)
+	emit_sub_rsp_imm32(n_stack_bytes)
 	
 	generate_statement(function_statement)
 	

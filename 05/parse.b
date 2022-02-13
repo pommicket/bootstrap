@@ -1,3 +1,6 @@
+
+global curr_function_stack_space
+
 ; is this token the start of a type?
 function token_is_type
 	argument token
@@ -264,6 +267,9 @@ function parse_toplevel_declaration
 	:parse_function_definition
 		local ret_type
 		local param_offset
+		local f_name
+		
+		f_name = name
 		
 		if block_depth != 0 goto nested_function
 		if function_param_has_no_name != 0 goto function_no_param_name
@@ -314,7 +320,10 @@ function parse_toplevel_declaration
 		parse_statement(&token, &out)
 		if block_depth != 0 goto blockdepth_internal_err
 		function_stmt_data_bytes_used = out - function_stmt_data
-		print_statement(out0)
+		
+		ident_list_add(functions_required_stack_space, f_name, curr_function_stack_space)
+		
+		;print_statement(out0)
 		goto parse_tld_ret
 		
 		:function_no_param_name
@@ -720,6 +729,12 @@ function parse_statement
 			; we need to calculate the size of the type here, because of stuff like
 			;    int x[] = {1,2,3};
 			n = type_sizeof(l_type)
+			
+			; advance
+			local_var_rbp_offset += n
+			; align
+			local_var_rbp_offset = round_up_to_8(local_var_rbp_offset)
+			
 			write_statement_header(out, STATEMENT_LOCAL_DECLARATION, token)
 			out += 8
 			*8out = local_var_rbp_offset
@@ -727,10 +742,7 @@ function parse_statement
 			*8out = l_type
 			out += 24
 			
-			; advance
-			local_var_rbp_offset += n
-			; align
-			local_var_rbp_offset = round_up_to_8(local_var_rbp_offset)
+			curr_function_stack_space = local_var_rbp_offset
 			
 			p = local_variables
 			p += block_depth < 3
@@ -2181,6 +2193,7 @@ function parse_base_type
 				ident_list_add(structures, struct_name, struct)
 			
 			:struct_definition_fill_in
+			
 			*1out = TYPE_STRUCT
 			out += 1
 			*8out = struct
@@ -3031,10 +3044,15 @@ function parse_expression
 		p += 8
 		c = ident_list_lookup(a, *8p)
 		if c == 0 goto member_not_in_struct
-		*8out = c & 0xffffffff ; offset
+		
 		*4type = c > 32 ; type
-		out += 8
+		*4type = type_create_copy(*4type)
+		*4out = c & 0xffffffff ; offset
+		out += 4
+		*4out = type_is_array(*4type)
+		out += 4
 		p += 8
+		
 		if p != tokens_end goto bad_expression ; e.g. foo->bar hello
 		return out
 		:use_of_incomplete_struct
@@ -4286,7 +4304,7 @@ function print_expression
 		expression += 8
 		expression = print_expression(expression)
 		puts(.str_dot)
-		putn(*8expression)
+		putn(*4expression)
 		expression += 8
 		putc(41)
 		return expression
@@ -4295,7 +4313,7 @@ function print_expression
 		expression += 8
 		expression = print_expression(expression)
 		puts(.str_arrow)
-		putn(*8expression)
+		putn(*4expression)
 		expression += 8
 		putc(41)
 		return expression
@@ -4451,12 +4469,17 @@ function print_type
 		putc('[)
 		type += 1
 		c = types + type
-		putn(*8c) ; UNALIGNED
+		putn(*8c)
 		putc('])
 		type += 8
 		goto print_type_top
 	:print_type_struct
-		return puts(.str_struct)
+		puts(.str_struct)
+		c = types + type
+		c += 1
+		putc('@)
+		putx64(*8c)
+		return
 	:print_type_function
 		type += 1
 		putc(40)

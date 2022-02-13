@@ -27,15 +27,7 @@ int f() {
 	lb: goto lb;
 }
 
-int main(int argc, char **argv) {
-	int a = 5;
-	switch(a++){
-	case 5: a++; 
-	case 3: a++;
-	case 4: a++;
-	default: a++;
-	}
-	
-	return a ;
+int main(int argc, char **argv) {	
+	return fibonacci(20);
 }
 
