@@ -24,12 +24,16 @@ long gcd(long a, long b) {
 }
 
 int main(int argc, char **argv) {
-	double f = 1;
 	int exp = 0;
-	do {
-		f /= 2;
-		++exp;
-	} while (f);
-	return exp;
+	int i;
+	int j;
+	for (i = 0; i < 10; ++i) {
+		for (j = 0; j < 10; ++j) {
+			if (j >= i) break;
+			exp += 1;
+		}
+		if (i >= 5) break;
+	}
+	return exp ;
 }
 

@@ -23,6 +23,9 @@ global functions_labels ; ident list of ident lists of label addresses
 global curr_function_labels ; ident list of labels for current function (written to in 1st pass, read from in 2nd pass)
 global curr_function_return_type
 
+global break_refs ; 0-terminated array of pointers to be filled in with the break offset
+global continue_refs
+
 #define REG_RAX 0
 #define REG_RBX 3
 #define REG_RCX 1
@@ -2502,7 +2505,44 @@ function generate_push_expression
 		
 		emit_add_rsp_imm32(args_size)
 		return
-		
+
+; fill in break/continue jump addresses
+function handle_refs
+	argument p_refs
+	argument prev_refs
+	argument ref_addr
+	local refs
+	local p
+	local addr
+	local d
+	
+	refs = *8p_refs
+	p = refs
+	:handle_refs_loop
+		if *8p == 0 goto handle_refs_loop_end
+		addr = *8p
+		p += 8
+		d = ref_addr - addr
+		addr -= 4
+		*4addr = d
+		goto handle_refs_loop
+	:handle_refs_loop_end
+	
+	free(refs)
+	*8p_refs = prev_refs
+	return
+
+function add_ref
+	argument refs
+	argument addr
+	:add_ref_loop
+		if *8refs == 0 goto add_ref_loop_end
+		refs += 8
+		goto add_ref_loop
+	:add_ref_loop_end
+	*8refs = addr
+	return
+
 function generate_statement
 	argument statement
 	local dat1
@@ -2512,10 +2552,15 @@ function generate_statement
 	local addr0
 	local addr1
 	local addr2
+	local prev_continue_refs
+	local prev_break_refs
 	local n
 	local p
 	local c
 	local d
+	
+	prev_continue_refs = continue_refs
+	prev_break_refs = break_refs
 	
 	dat1 = statement + 8
 	dat1 = *8dat1
@@ -2528,6 +2573,7 @@ function generate_statement
 	
 	c = *1statement
 	
+	if c == STATEMENT_NOOP goto return_0
 	if c == STATEMENT_BLOCK goto gen_block
 	if c == STATEMENT_RETURN goto gen_return
 	if c == STATEMENT_LOCAL_DECLARATION goto gen_local_decl
@@ -2535,6 +2581,9 @@ function generate_statement
 	if c == STATEMENT_IF goto gen_stmt_if
 	if c == STATEMENT_WHILE goto gen_stmt_while
 	if c == STATEMENT_DO goto gen_stmt_do
+	if c == STATEMENT_FOR goto gen_stmt_for
+	if c == STATEMENT_CONTINUE goto gen_stmt_continue
+	if c == STATEMENT_BREAK goto gen_stmt_break
 	
 	; @TODO
 	die(.str_genstmtNI)
@@ -2616,6 +2665,9 @@ function generate_statement
 		*4addr1 = d
 		return
 	:gen_stmt_while
+		continue_refs = malloc(8000)
+		break_refs = malloc(8000)
+		
 		addr0 = code_output
 		p = dat1 + 4
 		generate_push_expression(statement, dat1)
@@ -2625,6 +2677,10 @@ function generate_statement
 		generate_statement(dat2)
 		emit_jmp_rel32(0)   ; jmp +0 (temporary)
 		addr2 = code_output
+		
+		handle_refs(&continue_refs, prev_continue_refs, addr0)
+		handle_refs(&break_refs, prev_break_refs, addr2)
+		
 		; fill in je
 		d = addr2 - addr1
 		p = addr1 - 4
@@ -2635,6 +2691,9 @@ function generate_statement
 		*4p = d
 		return
 	:gen_stmt_do
+		continue_refs = malloc(8000)
+		break_refs = malloc(8000)
+		
 		addr0 = code_output
 		generate_statement(dat1)
 		p = dat2 + 4
@@ -2642,9 +2701,51 @@ function generate_statement
 		generate_stack_compare_against_zero(statement, *4p)
 		emit_jne_rel32(0) ; jne +0 (temorary)
 		addr1 = code_output
+		
+		handle_refs(&continue_refs, prev_continue_refs, addr0)
+		handle_refs(&break_refs, prev_break_refs, addr1)
+		
 		d = addr0 - addr1
 		addr1 -= 4
 		*4addr1 = d
+		return
+	:gen_stmt_for
+		continue_refs = malloc(8000)
+		break_refs = malloc(8000)
+		
+		generate_push_expression_casted(statement, dat1, TYPE_VOID)
+		emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		addr0 = code_output
+		p = dat2 + 4
+		generate_push_expression(statement, dat2)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_je_rel32(0) ; je +0 (temporary)
+		addr1 = code_output
+		generate_statement(dat4)
+		handle_refs(&continue_refs, prev_continue_refs, code_output)
+		generate_push_expression_casted(statement, dat3, TYPE_VOID)
+		emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		emit_jmp_rel32(0) ; jmp +0 (temporary)
+		addr2 = code_output
+		handle_refs(&break_refs, prev_break_refs, addr2)
+		
+		; fill in je
+		d = addr2 - addr1
+		p = addr1 - 4
+		*4p = d
+		
+		; fill in jmp
+		d = addr0 - addr2
+		p = addr2 - 4
+		*4p = d
+		return
+	:gen_stmt_continue
+		emit_jmp_rel32(0) ; jmp +0 (temporary)
+		add_ref(continue_refs, code_output)
+		return
+	:gen_stmt_break
+		emit_jmp_rel32(0) ; jmp +0 (temporary)
+		add_ref(break_refs, code_output)
 		return
 		
 function generate_function
