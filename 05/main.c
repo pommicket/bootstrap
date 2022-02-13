@@ -12,7 +12,7 @@ long fibonacci(long x) {
 }
 
 int main(int argc, char **argv) {
-	double x = 3.5;
-	return factorial(x);
+	long (*fp)(long) = factorial;
+	return (*fp)(6);
 }
 

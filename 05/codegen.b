@@ -1457,6 +1457,8 @@ function generate_push_expression
 	
 	if c == EXPRESSION_CONSTANT_INT goto generate_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto generate_float
+	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
+	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
 	if c == EXPRESSION_FUNCTION goto generate_function_addr
 	if c == EXPRESSION_CAST goto generate_cast
 	if c == EXPRESSION_UNARY_PLUS goto generate_cast ; the unary plus operator just casts to the promoted type
@@ -1473,15 +1475,13 @@ function generate_push_expression
 	if c == EXPRESSION_BITWISE_XOR goto generate_bitwise_xor
 	if c == EXPRESSION_LSHIFT goto generate_lshift
 	if c == EXPRESSION_RSHIFT goto generate_rshift
-	if c == EXPRESSION_GLOBAL_VARIABLE goto generate_global_variable
-	if c == EXPRESSION_LOCAL_VARIABLE goto generate_local_variable
+	if c == EXPRESSION_ASSIGN goto generate_assign
 	if c == EXPRESSION_DEREFERENCE goto generate_dereference
 	if c == EXPRESSION_SUBSCRIPT goto generate_subscript
 	if c == EXPRESSION_ADDRESS_OF goto generate_address_of
 	if c == EXPRESSION_DOT goto generate_dot_or_arrow
 	if c == EXPRESSION_ARROW goto generate_dot_or_arrow
 	if c == EXPRESSION_COMMA goto generate_comma
-	if c == EXPRESSION_ASSIGN goto generate_assign
 	if c == EXPRESSION_CALL goto generate_call
 	if c == EXPRESSION_LOGICAL_AND goto generate_logical_and
 	if c == EXPRESSION_LOGICAL_OR goto generate_logical_or
@@ -1765,8 +1765,12 @@ function generate_push_expression
 			return expr
 	:generate_dereference
 		expr += 8
+		p = expr + 4
 		expr = generate_push_expression(statement, expr)
+		p = types + *4p
+		if *2p == TYPE2_FUNCTION_POINTER goto deref_function_pointer
 		generate_stack_dereference(statement, type)
+		:deref_function_pointer  ; dereferencing a function pointer does NOTHING
 		return expr
 	:generate_subscript
 		expr += 8

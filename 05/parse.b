@@ -32,6 +32,13 @@ function type_is_array
 	if *1p == TYPE_ARRAY goto return_1
 	return 0
 
+function type_is_function
+	argument type
+	local p
+	p = types + type
+	if *1p == TYPE_FUNCTION goto return_1
+	return 0
+
 function functype_return_type
 	argument ftype
 	local type
@@ -3190,7 +3197,7 @@ function parse_expression
 		if c == 0 goto undeclared_variable
 		*1out = EXPRESSION_FUNCTION
 		out += 4
-		*4out = c
+		*4out = type_create_pointer(c)
 		out += 4
 		*8out = a
 		out += 8
@@ -3360,7 +3367,7 @@ function type_sizeof
 	;   - code generation reasons
 	if c == TYPE_VOID goto return_1
 	if c == TYPE_POINTER goto return_8
-	if c == TYPE_FUNCTION goto return_8
+	if c == TYPE_FUNCTION goto return_1
 	if c == TYPE_ARRAY goto sizeof_array
 	if c == TYPE_STRUCT goto sizeof_struct
 	
