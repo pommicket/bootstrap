@@ -376,10 +376,10 @@ function parse_toplevel_declaration
 			parse_type_declarators(prefix, prefix_end, suffix, suffix_end, 0)
 			parse_base_type(base_type)
 			
-			puts(.str_typedef)
-			putc(32)
-			print_type(type)
-			putc(10)
+			;puts(.str_typedef)
+			;putc(32)
+			;print_type(type)
+			;putc(10)
 			
 			b = ident_list_lookup(typedefs, ident)
 			if b != 0 goto typedef_redefinition
