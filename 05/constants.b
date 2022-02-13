@@ -536,6 +536,9 @@
 :str_comment_end
 	string */
 	byte 0
+:str_one_line_comment
+	string //
+	byte 0
 :str_lshift_eq
 	string <<=
 	byte 0

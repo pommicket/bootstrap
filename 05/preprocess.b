@@ -88,6 +88,8 @@ function split_into_preprocessing_tokens
 		if b != 0 goto pptoken_number
 		b = isalpha_or_underscore(c)
 		if b != 0 goto pptoken_identifier
+		b = str_startswith(in, .str_one_line_comment)
+		if b != 0 goto pptoken_one_line_comment
 		b = str_startswith(in, .str_comment_start)
 		if b != 0 goto pptoken_comment
 		; now we check for all the various operators and symbols in C
@@ -169,6 +171,10 @@ function split_into_preprocessing_tokens
 		; " each non-white-space character that cannot be one of the above"
 		goto pptoken_single_character
 		
+		:pptoken_one_line_comment
+			; skip over comment
+			in = memchr(in, 10)
+			goto pptokens_loop
 		:pptoken_comment
 			; emit a space ("Each comment is replaced by one space character.")
 			*1out = 32

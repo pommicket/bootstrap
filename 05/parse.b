@@ -323,7 +323,9 @@ function parse_toplevel_declaration
 		
 		ident_list_add(functions_required_stack_space, f_name, curr_function_stack_space)
 		
-		;print_statement(out0)
+		; ENABLE/DISABLE PARSING DEBUG OUTPUT:
+		print_statement(out0)
+		
 		goto parse_tld_ret
 		
 		:function_no_param_name

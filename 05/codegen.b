@@ -762,7 +762,6 @@ function generate_cast_top_of_stack
 	
 	if *1to == TYPE_VOID goto gen_cast_to_void
 	if *1from == TYPE_VOID goto bad_gen_cast ; cast from void to something - that's bad
-	if *1from == TYPE_ARRAY goto bad_gen_cast ; cast array (this probably won't ever happen because of decaying)
 	if *1to == TYPE_ARRAY goto bad_gen_cast ; cast to array
 	if *1from == TYPE_FUNCTION goto bad_gen_cast ; shouldn't happen
 	if *1to == TYPE_FUNCTION goto bad_gen_cast ; shouldn't happen
@@ -793,6 +792,7 @@ function generate_cast_top_of_stack
 		emit_add_rsp_imm32(c)
 		return
 	:gen_cast_to_integer
+		if *1from == TYPE_ARRAY goto return_0 ;  e.g. (void *)"hello"
 		if *1from == *1to goto return_0 ; casting from type to same type
 		if *1from == TYPE_POINTER goto return_0 ; no need to do anything
 		; cast float/double to integer
@@ -3001,7 +3001,7 @@ function generate_code
 	
 	; program header 3 (rwdata)
 	emit_dword(1) ; loadable segment
-	emit_dword(6) ; read/write
+	emit_dword(7) ; read/write/execute  (this needs to be executable for `syscall` to be implementable)
 	emit_qword(RWDATA_ADDR) ; offset in file
 	emit_qword(RWDATA_ADDR) ; virtual address
 	emit_qword(0) ; physical address

@@ -217,6 +217,11 @@ ax  bx  cx  dx  sp  bp  si  di
 │ syscall              │ 0f 05             │ execute a system call                  │
 │ nop                  │ 90                │ do nothing                             │
 └──────────────────────┴───────────────────┴────────────────────────────────────────┘
+
+SYSCALLS
+Arguments are passed in
+	rdi, rsi, rdx, r10, r8, r9
+The return value is placed in rax.
 ```
 
 More will be added in the future as needed.
