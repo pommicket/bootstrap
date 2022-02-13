@@ -31,13 +31,8 @@ command codes.
 
 ## prerequisite knowledge
 
-In this series, I want to *everything* that's going on to be understandable. I'm going to
-need to assume some passing knowledge, so here's a quick overview of what you'll
-want to know before starting.
-You don't need to understand everything about each of these, just get
-a general idea:
+If you want to follow along with this series, you'll probably want to know about:
 
-- the basics of programming
 - what a system call is
 - what memory is
 - what a compiler is
@@ -56,8 +51,7 @@ decimal.
 - how pointers work
 - how floating-point numbers work
 
-If you aren't familiar with x86-64 assembly, be sure to check out the instruction list
-below.
+If you're unfamiliar with x86-64 assembly, you should check out the instruction list below.
 
 ## principles
 
@@ -99,7 +93,18 @@ x86-64 has a *gigantic* instruction set. The manual for it is over 2,000 pages
 long! To make things simpler, we will only use a small subset.
 
 Here are all the instructions we'll be using. If you're not familiar with
-x86-64 assembly, you might want to look over these (but you don't need to understand everything).
+x86-64 assembly, you might want to look over these.
+
+x86-64 has 16 integer registers: rax, rbx, rcx, rdx, rsp, rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15.
+We will almost entirely be using the first 8 of these.
+al refers to the bottom 8 bits of rax, likewise with bl, cl, dl;
+ax refers to the bottom 16 bits of rax, likewise with bx, cx, dx;
+eax refers to the bottom 32 bits of rax, likewise with ebx, ecx, edx.
+
+x86-64 also has 16 floating-point registers: xmm0 through xmm15. We'll only be using
+xmm0 and xmm1. These registers can hold either four 32-bit floating-point numbers (`float`s) or
+two 64-bit floating-point numbers (`double`s), but we'll only be using them to hold either one
+`float` or one `double`.
 
 In the table below, `IMM64` means a 64-bit *immediate* (a constant number).
 `rdx:rax` refers to the 128-bit number you get by combining `rdx` and `rax`.
@@ -184,6 +189,16 @@ ax  bx  cx  dx  sp  bp  si  di
 │ ja IMM32             │ 0f 87 IMM32       │ jump if "above" (like jg but unsigned) │
 │ jbe IMM32            │ 0f 86 IMM32       │ jump if below or equal to              │
 │ jae IMM32            │ 0f 83 IMM32       │ jump if above or equal to              │
+│ sete al              │ 0f 94 c0          │ set al to 1 if equal; 0 otherwise      │
+│ setne al             │ 0f 95 c0          │ set al to 1 if not equal               │
+│ setl al              │ 0f 9c c0          │ set al to 1 if less than               │
+│ setg al              │ 0f 9f c0          │ set al to 1 if greater than            │
+│ setle al             │ 0f 9e c0          │ set al to 1 if less than or equal to   │
+│ setge al             │ 0f 9d c0          │ set al to 1 if greater than or equal to│
+│ setb al              │ 0f 92 c0          │ set al to 1 if below                   │
+│ seta al              │ 0f 97 c0          │ set al to 1 if above                   │
+│ setbe al             │ 0f 96 c0          │ set al to 1 if below or equal to       │
+│ setae al             │ 0f 93 c0          │ set al to 1 if above or equal to       │
 | movq rax, xmm0       | 66 48 0f 7e c0    | set rax to xmm0                        |
 | movq xmm0, rax       | 66 48 0f 6e c0    | set xmm0 to rax                        |
 | movq xmm1, rax       | 66 48 0f 6e c8    | set xmm1 to rax                        |

@@ -662,10 +662,42 @@ function emit_jae_rel32
 	code_output += 4
 	return
 
+function emit_cmp_rax_rbx
+	; 48 39 d8
+	*2code_output = 0x3948
+	code_output += 2
+	*1code_output = 0xd8
+	code_output += 1
+	return
+
 function emit_comisd_xmm0_xmm1
 	; 66 0f 2f c1
 	*4code_output = 0xc12f0f66
 	code_output += 4
+	return
+
+#define COMPARISON_E 0x4
+#define COMPARISON_NE 0x5
+#define COMPARISON_L 0xc
+#define COMPARISON_G 0xf
+#define COMPARISON_LE 0xe
+#define COMPARISON_GE 0xd
+#define COMPARISON_B 0x2
+#define COMPARISON_A 0x7
+#define COMPARISON_BE 0x6
+#define COMPARISON_AE 0x3
+
+; emits two instructions:
+;    setC al
+;    movzx rax, al
+function emit_setC_rax
+	; 0f 9C c0 48 0f b6 c0
+	argument comparison
+	local a
+	a = 0xc0b60f48c0900f
+	a |= comparison < 8
+	*8code_output = a
+	code_output += 7
 	return
 
 ; make sure you put the return value in the proper place before calling this
@@ -1436,7 +1468,78 @@ function generate_push_address_of_expression
 		expr += 8
 		return expr
 
+; pop the top two things off the stack of type `type` and compare them
+function generate_stack_compare
+	argument statement
+	argument type
+	local p
+	p = types + type
+	
+	emit_add_rsp_imm32(16)                 ; add rsp, 16
+	
+	; NB: we do float comparisons as double comparisons (see function comparison_type)
+	if *1p == TYPE_DOUBLE goto stack_compare_double
+	if *1p > TYPE_UNSIGNED_LONG goto stack_compare_bad
+	
+	emit_mov_rax_qword_rsp_plus_imm32(-16) ; mov rax, [rsp-16] (second operand)
+	emit_mov_reg(REG_RBX, REG_RAX)         ; mov rbx, rax
+	emit_mov_rax_qword_rsp_plus_imm32(-8)  ; mov rax, [rsp-8] (first operand)
+	emit_cmp_rax_rbx()                     ; cmp rax, rbx
+	return
+	
+	:stack_compare_bad
+		die(.str_stack_compare_bad)
+		:str_stack_compare_bad
+			string Bad types passed to generate_stack_compare()
+			byte 0
+	:stack_compare_double
+		emit_mov_rax_qword_rsp_plus_imm32(-8)  ; mov rax, [rsp-8] (first operand)
+		emit_movq_xmm0_rax()                   ; movq xmm0, rax
+		emit_mov_rax_qword_rsp_plus_imm32(-16) ; mov rax, [rsp-16] (second operand)
+		emit_movq_xmm1_rax()                   ; movq xmm1, rax
+		emit_comisd_xmm0_xmm1()                ; comisd xmm0, xmm1
+		return
+	
+; given that expr is a comparison expression, which type should both operands be converted to?
+function comparison_type
+	argument statement
+	argument expr
+	local type1
+	local type2
+	expr += 8
+	
+	type1 = expr + 4
+	type1 = *4type1
+	expr = expression_get_end(expr)
+	type2 = expr + 4
+	type2 = *4type2
+	
+	type1 += types
+	type1 = *1type1
+	type2 += types
+	type2 = *1type2
+	
+	; do float comparisons as double comparisons to make things simpler
+	if type1 == TYPE_FLOAT goto return_type_double
+	if type2 == TYPE_FLOAT goto return_type_double
+	
+	if type1 == TYPE_POINTER goto return_type_unsigned_long
+	if type2 == TYPE_POINTER goto return_type_unsigned_long
+	return expr_binary_type_usual_conversions(statement, type1, type2)
 
+; is this comparison expression a comparison between unsigned integers or floats?
+function comparison_is_unsigned
+	argument statement
+	argument expr
+	local type
+	type = comparison_type(statement, expr)
+	type += types
+	type = *1type
+	if type > TYPE_UNSIGNED_LONG goto return_1 ; double comparisons use setb/seta not setl/setg
+	type &= 1
+	if type == 0 goto return_1
+	return 0
+	
 ; `statement` is used for errors
 ; returns pointer to end of expression
 function generate_push_expression
@@ -1446,6 +1549,7 @@ function generate_push_expression
 	local c
 	local d
 	local p
+	local comparison
 	local addr1
 	local addr2
 	local type
@@ -1475,6 +1579,12 @@ function generate_push_expression
 	if c == EXPRESSION_BITWISE_XOR goto generate_bitwise_xor
 	if c == EXPRESSION_LSHIFT goto generate_lshift
 	if c == EXPRESSION_RSHIFT goto generate_rshift
+	if c == EXPRESSION_EQ goto generate_eq
+	if c == EXPRESSION_NEQ goto generate_neq
+	if c == EXPRESSION_LT goto generate_lt
+	if c == EXPRESSION_GT goto generate_gt
+	if c == EXPRESSION_LEQ goto generate_leq
+	if c == EXPRESSION_GEQ goto generate_geq
 	if c == EXPRESSION_ASSIGN goto generate_assign
 	if c == EXPRESSION_ASSIGN_ADD goto generate_assign_add
 	if c == EXPRESSION_ASSIGN_SUB goto generate_assign_sub
@@ -1850,13 +1960,56 @@ function generate_push_expression
 		p = expr + 4
 		expr = generate_push_expression(statement, expr)
 		generate_stack_compare_against_zero(statement, *4p)
-		emit_je_rel32(7)          ; je +7   (2 bytes for xor eax, eax; 5 bytes for jmp +10)
-		emit_zero_rax()           ; xor eax, eax
-		emit_jmp_rel32(10)        ; jmp +10 (10 bytes for mov rax, 1)
-		emit_mov_rax_imm64(1)     ; mov rax, 1
-		emit_push_rax()           ; push rax
+		emit_setC_rax(COMPARISON_E)   ; sete al ; movzx rax, al
+		emit_push_rax()               ; push rax
 		return expr
-		
+	:generate_eq
+		comparison = COMPARISON_E
+		goto generate_comparison
+	:generate_neq
+		comparison = COMPARISON_NE
+		goto generate_comparison
+	:generate_lt
+		b = comparison_is_unsigned(statement, expr)
+		if b != 0 goto comparison_b
+			comparison = COMPARISON_L
+			goto generate_comparison
+		:comparison_b
+			comparison = COMPARISON_B
+			goto generate_comparison
+	:generate_leq
+		b = comparison_is_unsigned(statement, expr)
+		if b != 0 goto comparison_be
+			comparison = COMPARISON_LE
+			goto generate_comparison
+		:comparison_be
+			comparison = COMPARISON_BE
+			goto generate_comparison
+	:generate_gt
+		b = comparison_is_unsigned(statement, expr)
+		if b != 0 goto comparison_a
+			comparison = COMPARISON_G
+			goto generate_comparison
+		:comparison_a
+			comparison = COMPARISON_A
+			goto generate_comparison
+	:generate_geq
+		b = comparison_is_unsigned(statement, expr)
+		if b != 0 goto comparison_ae
+			comparison = COMPARISON_GE
+			goto generate_comparison
+		:comparison_ae
+			comparison = COMPARISON_AE
+			goto generate_comparison
+	:generate_comparison
+		c = comparison_type(statement, expr)
+		expr += 8
+		expr = generate_push_expression_casted(statement, expr, c)
+		expr = generate_push_expression_casted(statement, expr, c)
+		generate_stack_compare(statement, c)
+		emit_setC_rax(comparison)
+		emit_push_rax()
+		return expr
 	:generate_conditional
 		expr += 8
 		p = expr + 4
