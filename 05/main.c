@@ -1,28 +1,17 @@
-typedef struct {
-	long a;
-	long aah[810];
-	long b;
-} Structure;
-
-Structure mkstruct(int x, int y) {
-	Structure s;
-	s.a = x;
-	s.b = y;
-	return s;
+long factorial(long x) {
+	return x ? x * factorial(x - 1)
+		: 1;
 }
 
-Structure mkstruct1(int x) {
-	return mkstruct(x, x*2);
+long fibonacci(long x) {
+	return x ?
+		x-1 ?
+			fibonacci(x-1) + fibonacci(x-2)
+		: 1
+		: 0;
 }
 
-Structure mkstruct_a() {
-	return mkstruct1(1033.3);
-}
-
-
-long main(int argc, char **argv) {
-	Structure t;
-	t = mkstruct_a();
-	return t.b;
+int main(int argc, char **argv) {
+	return fibonacci(30);
 }
 

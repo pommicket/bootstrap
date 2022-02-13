@@ -3075,6 +3075,11 @@ function parse_expression
 		a = out + 4
 		out = parse_expression(tokens, best, out)
 		type_decay_array_to_pointer_in_place(*4a)
+		
+		; check type of "condition"
+		b = types + *4a
+		if *1b > TYPE_POINTER goto bad_condition_type
+		
 		a = out + 4 ; type of left branch of conditional
 		best += 16
 		out = parse_expression(best, p, out)
@@ -3093,6 +3098,11 @@ function parse_expression
 		; no conversions
 		*4type = *4a
 		return out
+		:bad_condition_type
+			token_error(tokens, .str_bad_condition_type)
+		:str_bad_condition_type
+			string Bad condition type for conditional operator (? :).
+			byte 0
 	:parse_postincrement
 		*1out = EXPRESSION_POST_INCREMENT
 		p = tokens_end - 16

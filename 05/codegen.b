@@ -1350,9 +1350,30 @@ function generate_stack_assign
 		emit_mov_rax_qword_rsp_plus_imm32(8) ; mov rax, [rsp+8]
 		emit_mov_qword_rbx_rax()             ; mov [rbx], rax
 		goto gen_assign_ret
-	
-	
-	
+
+; pop from the stack and compare with 0 (setting eflags appropriately)
+function generate_stack_compare_against_zero
+	argument statement
+	argument type
+	local p
+	p = types + type
+	if *1p == TYPE_FLOAT goto cmp_zero_float
+	if *1p == TYPE_DOUBLE goto cmp_zero_double
+	emit_add_rsp_imm32(8)                 ; add rsp, 8
+	emit_mov_rax_qword_rsp_plus_imm32(-8) ; mov rax, [rsp-8]
+	emit_test_rax_rax()                   ; test rax, rax
+	return
+	:cmp_zero_float
+		generate_cast_top_of_stack(statement, TYPE_FLOAT, TYPE_DOUBLE) ; cast to double for comparison
+	:cmp_zero_double	
+		emit_add_rsp_imm32(8)                  ; add rsp, 8
+		emit_zero_rax()                        ; xor eax, eax
+		emit_movq_xmm1_rax()                   ; movq xmm1, rax
+		emit_mov_rax_qword_rsp_plus_imm32(-8)  ; mov rax, [rsp-8]
+		emit_movq_xmm0_rax()                   ; movq xmm0, rax
+		emit_comisd_xmm0_xmm1()                ; comisd xmm0, xmm1
+		return
+
 ; returns pointer to end of expr
 function generate_push_address_of_expression
 	argument statement ; for errors
@@ -1425,13 +1446,15 @@ function generate_push_expression
 	local c
 	local d
 	local p
+	local addr1
+	local addr2
 	local type
 	
 	type = expr + 4
 	type = *4type
 	
 	c = *1expr
-	; @TODO : reorder from most to least common, probably
+	
 	if c == EXPRESSION_CONSTANT_INT goto generate_int
 	if c == EXPRESSION_CONSTANT_FLOAT goto generate_float
 	if c == EXPRESSION_FUNCTION goto generate_function_addr
@@ -1460,6 +1483,7 @@ function generate_push_expression
 	if c == EXPRESSION_COMMA goto generate_comma
 	if c == EXPRESSION_ASSIGN goto generate_assign
 	if c == EXPRESSION_CALL goto generate_call
+	if c == EXPRESSION_CONDITIONAL goto generate_conditional
 	
 	putnln(c)
 	
@@ -1472,7 +1496,7 @@ function generate_push_expression
 		expr = generate_push_expression_casted(statement, expr, type)
 		return expr
 	:generate_function_addr
-		d = 0
+		d = 1 ; default to address of 1, not 0 because that will be optimized to xor eax, eax
 		expr += 8
 		if codegen_second_pass == 0 goto function_noaddr
 		d = ident_list_lookup(functions_addresses, *8expr)
@@ -1623,31 +1647,37 @@ function generate_push_expression
 	:generate_unary_logical_not
 		expr += 8
 		p = expr + 4
-		p = types + *4p
-		if *1p == TYPE_FLOAT goto generate_logical_not_floating
-		if *1p == TYPE_DOUBLE goto generate_logical_not_floating
-		
 		expr = generate_push_expression(statement, expr)
-		
-		emit_mov_rax_qword_rsp()  ; mov rax, [rsp]
-		emit_test_rax_rax()       ; test rax, rax
-		:generate_logical_not_cont
+		generate_stack_compare_against_zero(statement, *4p)
 		emit_je_rel32(7)          ; je +7   (2 bytes for xor eax, eax; 5 bytes for jmp +10)
 		emit_zero_rax()           ; xor eax, eax
 		emit_jmp_rel32(10)        ; jmp +10 (10 bytes for mov rax, 1)
 		emit_mov_rax_imm64(1)     ; mov rax, 1
-		emit_mov_qword_rsp_rax()  ; mov [rsp], rax
+		emit_push_rax()           ; push rax
 		return expr
 		
-		:generate_logical_not_floating
-			; we want !-0.0 to be 1, so this needs to be a separate case
-			expr = generate_push_expression_casted(statement, expr, TYPE_DOUBLE) ; cast floats to doubles when comparing
-			emit_zero_rax()           ; xor eax, eax
-			emit_movq_xmm1_rax()      ; movq xmm1, rax
-			emit_mov_rax_qword_rsp()  ; mov rax, [rsp]
-			emit_movq_xmm0_rax()      ; movq xmm0, rax
-			emit_comisd_xmm0_xmm1()   ; comisd xmm0, xmm1
-			goto generate_logical_not_cont
+	:generate_conditional
+		expr += 8
+		p = expr + 4
+		expr = generate_push_expression(statement, expr)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_je_rel32(0) ; temporary je +0 (correct offset will be filled in)
+		c = code_output
+		expr = generate_push_expression_casted(statement, expr, type)
+		d = code_output
+		; fill in jump offset
+		d -= c
+		c -= 4
+		*4c = d + 5 ; + 5 because of the jmp instruction below
+		emit_jmp_rel32(0) ; temporary jmp +0 (correct offset will be filled in)
+		c = code_output
+		expr = generate_push_expression_casted(statement, expr, type)
+		d = code_output
+		; fill in jump offset
+		d -= c
+		c -= 4
+		*4c = d
+		return expr
 	:generate_global_variable
 		expr += 8
 		d = *4expr ; address
