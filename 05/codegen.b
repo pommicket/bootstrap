@@ -1,3 +1,13 @@
+; @TODO : declarations need to be done differently.
+; this should work, but doesn't currently;
+;    goto lbl1;
+;    {
+;       int x;
+;        lbl1: ...
+;    }
+
+
+
 ; CALLING CONVENTION:
 ;  Here is the process for calling a function:
 ;     - the caller pushes the arguments on to the stack, from right to left
@@ -25,6 +35,10 @@ global curr_function_return_type
 
 global break_refs ; 0-terminated array of pointers to be filled in with the break offset
 global continue_refs
+
+; address of previous "case" label
+global prev_case_addr
+
 
 #define REG_RAX 0
 #define REG_RBX 3
@@ -2586,6 +2600,9 @@ function generate_statement
 	if c == STATEMENT_BREAK goto gen_stmt_break
 	if c == STATEMENT_LABEL goto gen_stmt_label
 	if c == STATEMENT_GOTO goto gen_stmt_goto
+	if c == STATEMENT_SWITCH goto gen_stmt_switch
+	if c == STATEMENT_CASE goto gen_stmt_case
+	if c == STATEMENT_DEFAULT goto gen_stmt_default
 	
 	; @TODO
 	die(.str_genstmtNI)
@@ -2742,13 +2759,25 @@ function generate_statement
 		*4p = d
 		return
 	:gen_stmt_continue
+		if continue_refs == 0 goto continue_outside_of_loop
 		emit_jmp_rel32(0) ; jmp +0 (temporary)
 		add_ref(continue_refs, code_output)
 		return
+		:continue_outside_of_loop
+			statement_error(statement, .str_continue_outside_of_loop)
+		:str_continue_outside_of_loop
+			string continue statement not inside loop.
+			byte 0
 	:gen_stmt_break
+		if break_refs == 0 goto break_outside_of_loop
 		emit_jmp_rel32(0) ; jmp +0 (temporary)
 		add_ref(break_refs, code_output)
 		return
+		:break_outside_of_loop
+			statement_error(statement, .str_break_outside_of_loop)
+		:str_break_outside_of_loop
+			string break statement not inside loop or switch.
+			byte 0
 	:gen_stmt_label
 		if codegen_second_pass != 0 goto gen_label_pass2
 			ident_list_add(curr_function_labels, dat1, code_output)
@@ -2778,6 +2807,72 @@ function generate_statement
 		:str_bad_label
 			string Unrecognized label.
 			byte 0
+	:gen_stmt_switch
+		break_refs = malloc(8000)
+		
+		local old_prev_case_addr
+		old_prev_case_addr = prev_case_addr
+		
+		generate_push_expression_casted(statement, dat1, TYPE_UNSIGNED_LONG)
+		emit_pop_rax()                    ; pop rax
+		emit_mov_reg(REG_RBX, REG_RAX)    ; mov rbx, rax
+		
+		emit_jmp_rel32(0)                 ; jmp +0 (temporary)
+		prev_case_addr = code_output
+		
+		generate_statement(dat2)
+		
+		addr1 = code_output
+		handle_refs(&break_refs, prev_break_refs, addr1)
+		
+		; fill in last jump, if any
+		if prev_case_addr == 0 goto switch_had_default
+			d = addr1 - prev_case_addr
+			p = prev_case_addr - 4
+			*4p = d
+		:switch_had_default
+		prev_case_addr = old_prev_case_addr
+		return
+	:gen_stmt_case
+		if prev_case_addr == 0 goto gen_bad_case
+		emit_jmp_rel32(0) ; jump over the part where we deal with this case label
+		addr0 = code_output
+		
+		; fill in previous jump
+		d = addr0 - prev_case_addr
+		p = prev_case_addr - 4
+		*4p = d
+		
+		emit_mov_rax_imm64(dat1)
+		emit_cmp_rax_rbx()
+		emit_jne_rel32(0)
+		prev_case_addr = code_output
+		
+		addr1 = code_output
+		; fill in jump over comparison
+		d = addr1 - addr0
+		p = addr0 - 4
+		*4p = d
+		return
+		
+		:gen_bad_case
+			; @NONSTANDARD: we don't allow `case X:` after `default:`
+			; it's very annoying that the C standard allows that
+			statement_error(statement, .str_gen_bad_case)
+		:str_gen_bad_case
+			string Either case outside of switch, or case following default.
+			byte 0
+	:gen_stmt_default
+		addr0 = code_output
+		
+		; fill in previous jump
+		d = addr0 - prev_case_addr
+		p = prev_case_addr - 4
+		*4p = d
+		
+		prev_case_addr = 0
+		return
+	
 function generate_function
 	argument function_name
 	argument function_statement

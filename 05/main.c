@@ -28,10 +28,14 @@ int f() {
 }
 
 int main(int argc, char **argv) {
-	int exp = 0;
-	lb:
-	exp++;
-	if (exp < 10) goto lb;
-	return exp ;
+	int a = 5;
+	switch(a++){
+	case 5: a++; 
+	case 3: a++;
+	case 4: a++;
+	default: a++;
+	}
+	
+	return a ;
 }
 
