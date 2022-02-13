@@ -23,17 +23,15 @@ long gcd(long a, long b) {
 	return b;
 }
 
+int f() {
+	lb: goto lb;
+}
+
 int main(int argc, char **argv) {
 	int exp = 0;
-	int i;
-	int j;
-	for (i = 0; i < 10; ++i) {
-		for (j = 0; j < 10; ++j) {
-			if (j >= i) break;
-			exp += 1;
-		}
-		if (i >= 5) break;
-	}
+	lb:
+	exp++;
+	if (exp < 10) goto lb;
 	return exp ;
 }
 

@@ -2584,6 +2584,8 @@ function generate_statement
 	if c == STATEMENT_FOR goto gen_stmt_for
 	if c == STATEMENT_CONTINUE goto gen_stmt_continue
 	if c == STATEMENT_BREAK goto gen_stmt_break
+	if c == STATEMENT_LABEL goto gen_stmt_label
+	if c == STATEMENT_GOTO goto gen_stmt_goto
 	
 	; @TODO
 	die(.str_genstmtNI)
@@ -2747,7 +2749,35 @@ function generate_statement
 		emit_jmp_rel32(0) ; jmp +0 (temporary)
 		add_ref(break_refs, code_output)
 		return
-		
+	:gen_stmt_label
+		if codegen_second_pass != 0 goto gen_label_pass2
+			ident_list_add(curr_function_labels, dat1, code_output)
+			return
+		:gen_label_pass2
+			addr1 = ident_list_lookup(curr_function_labels, dat1)
+			if addr1 != code_output goto bad_label_addr
+			return
+		:bad_label_addr
+			die(.str_bad_label_addr)
+		:str_bad_label_addr
+			string Internal compiler error: Label address on 2nd pass doesn't match 1st pass.
+			byte 0
+	:gen_stmt_goto
+		if codegen_second_pass == 0 goto gen_goto_pass1
+		addr0 = ident_list_lookup(curr_function_labels, dat1)
+		if addr0 == 0 goto bad_label
+		d = addr0 - code_output
+		d -= 5 ; subtract length of jmp instruction
+		emit_jmp_rel32(d)
+		return
+		:gen_goto_pass1
+			emit_jmp_rel32(0) ; we don't know the address of the label; just use 0
+			return
+		:bad_label
+			statement_error(statement, .str_bad_label)
+		:str_bad_label
+			string Unrecognized label.
+			byte 0
 function generate_function
 	argument function_name
 	argument function_statement
