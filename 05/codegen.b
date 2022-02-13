@@ -1483,10 +1483,11 @@ function generate_push_expression
 	if c == EXPRESSION_COMMA goto generate_comma
 	if c == EXPRESSION_ASSIGN goto generate_assign
 	if c == EXPRESSION_CALL goto generate_call
+	if c == EXPRESSION_LOGICAL_AND goto generate_logical_and
+	if c == EXPRESSION_LOGICAL_OR goto generate_logical_or
 	if c == EXPRESSION_CONDITIONAL goto generate_conditional
 	
-	putnln(c)
-	
+	putnln(c)	
 	die(.str_genpushexprNI)
 	:str_genpushexprNI
 		string generate_push_expression not implemented.
@@ -1662,22 +1663,72 @@ function generate_push_expression
 		expr = generate_push_expression(statement, expr)
 		generate_stack_compare_against_zero(statement, *4p)
 		emit_je_rel32(0) ; temporary je +0 (correct offset will be filled in)
-		c = code_output
+		addr1 = code_output
 		expr = generate_push_expression_casted(statement, expr, type)
-		d = code_output
-		; fill in jump offset
-		d -= c
-		c -= 4
-		*4c = d + 5 ; + 5 because of the jmp instruction below
 		emit_jmp_rel32(0) ; temporary jmp +0 (correct offset will be filled in)
-		c = code_output
-		expr = generate_push_expression_casted(statement, expr, type)
-		d = code_output
+		addr2 = code_output
 		; fill in jump offset
-		d -= c
-		c -= 4
-		*4c = d
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		
+		addr1 = code_output
+		expr = generate_push_expression_casted(statement, expr, type)
+		addr2 = code_output
+		; fill in jump offset
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
 		return expr
+	
+	:generate_logical_and
+		expr += 8
+		p = expr + 4
+		expr = generate_push_expression(statement, expr)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_je_rel32(0) ; temporary je +0; offset will be filled in later
+		addr1 = code_output
+		p = expr + 4
+		expr = generate_push_expression(statement, expr)
+		generate_stack_compare_against_zero(statement, *4p)
+		
+		emit_je_rel32(15)         ; je +15 (10 bytes for mov rax, 1; 5 bytes for jmp +2)
+		emit_mov_rax_imm64(1)     ; mov rax, 1
+		emit_jmp_rel32(2)         ; jmp +2 (skip xor rax, rax)
+		addr2 = code_output
+		emit_zero_rax()           ; xor rax, rax
+		emit_push_rax()           ; push rax
+		
+		; fill in jump offset
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		return expr
+	
+	:generate_logical_or
+		expr += 8
+		p = expr + 4
+		expr = generate_push_expression(statement, expr)
+		generate_stack_compare_against_zero(statement, *4p)
+		emit_jne_rel32(0) ; temporary jne +0; offset will be filled in later
+		addr1 = code_output
+		p = expr + 4
+		expr = generate_push_expression(statement, expr)
+		generate_stack_compare_against_zero(statement, *4p)
+		
+		emit_jne_rel32(7)         ; jne +7 (2 bytes for xor eax, eax; 5 bytes for jmp +10)
+		emit_zero_rax()           ; xor eax, eax
+		emit_jmp_rel32(10)        ; jmp +10 (skip mov rax, 1)
+		addr2 = code_output
+		emit_mov_rax_imm64(1)     ; mov rax, 1
+		emit_push_rax()           ; push rax
+		
+		; fill in jump offset
+		d = addr2 - addr1
+		addr1 -= 4
+		*4addr1 = d
+		return expr
+	
 	:generate_global_variable
 		expr += 8
 		d = *4expr ; address

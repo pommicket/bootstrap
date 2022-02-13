@@ -12,6 +12,6 @@ long fibonacci(long x) {
 }
 
 int main(int argc, char **argv) {
-	return fibonacci(30);
+	return 1 || -0.1;
 }
 
