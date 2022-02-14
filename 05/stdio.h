@@ -1541,16 +1541,6 @@ static int32_t _stbsp__real_to_str(char const **start, uint32_t *len, char *out,
 #undef STBSP__SPECIAL
 #undef STBSP__COPYFP
 
-typedef void FILE;
-
-FILE *stdin = 0;
-FILE *stdout = 1;
-FILE *stderr = 2;
-
-int __fd_puts(int fd, const char *s) {
-	return write(fd, s, strlen(s));
-}
-
 // these are the constants that gnu uses, but they don't really matter for us
 #define _IOFBF 0
 #define _IOLBF 1
@@ -1566,10 +1556,52 @@ typedef long fpos_t;
 #define SEEK_CUR 1
 #define SEEK_END 2
 #define SEEK_SET 0
-#define TMP_MAX 10000
+#define TMP_MAX 500
+
+long lseek(int fd, long offset, int whence) {
+	return __syscall(8, fd, offset, whence, 0, 0, 0);
+}
+
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
+	size_t count;
+	if (nmemb > 0xffffffffffffffff / size) {
+		stream->err = 1;
+		return 0;
+	}
+	count = size * nmemb;
+	while (count > 0) {
+		long n = write(stream->fd, ptr, count);
+		if (n <= 0) break;
+		count -= n;
+		ptr = (char *)ptr + n;
+	}
+	if (count > 0) stream->err = 1;
+	return nmemb - count / size;
+}
+
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
+	size_t count;
+	long n = 1;
+	if (stream->eof) return 0;
+	if (nmemb > 0xffffffffffffffff / size) {
+		stream->err = 1;
+		return 0;
+	}
+	count = size * nmemb;
+	while (count > 0) {
+		n = read(stream->fd, ptr, count);
+		if (n <= 0) break;
+		count -= n;
+		ptr = (char *)ptr + n;
+	}
+	if (n == 0) stream->eof = 1;
+	if (n < 0) stream->err = 1;
+	return nmemb - count / size;
+}
 
 static char *__fprintf_callback(const char *buf, void *user, int len) {
-	write((int)user, buf, len);
+	FILE *fp = user;
+	fwrite(buf, 1, len, fp);
 	return buf;
 }
 
@@ -1600,6 +1632,82 @@ int printf(const char *fmt, ...) {
 	return ret;
 }
 
+#define O_RDONLY    0
+#define O_WRONLY    1
+#define O_RDWR      2
+#define O_CREAT     0100
+#define O_TRUNC     01000
+#define O_APPEND    02000
+#define O_DIRECTORY 0200000
+#define __O_TMPFILE   020000000
+#define O_TMPFILE  (__O_TMPFILE | O_DIRECTORY)
+int open(const char *path, int flags, int mode) {
+	return __syscall(2, path, flags, mode, 0, 0, 0);
+}
+
+int close(int fd) {
+	return __syscall(3, fd, 0, 0, 0, 0, 0);
+}
+
+
+int _fopen_flags_from_mode(const char *mode) {
+	int flags;
+	if (mode[1] == '+' || (mode[1] && mode[2] == '+')) {
+		// open for updating
+		flags = O_RDWR;
+		switch (mode[0]) {
+		case 'r': break;
+		case 'w': flags |= O_TRUNC | O_CREAT; break;
+		case 'a': flags |= O_APPEND | O_CREAT; break;
+		default: return -1;
+		}
+	} else {
+		switch (mode[0]) {
+		case 'r': flags = O_RDONLY; break;
+		case 'w': flags = O_WRONLY | O_TRUNC | O_CREAT; break;
+		case 'a': flags = O_WRONLY | O_APPEND | O_CREAT; break;
+		default: return -1;
+		}
+	}
+	return flags;
+}
+
+FILE *_FILE_from_fd(int fd) {
+	FILE *fp = calloc(1, sizeof(FILE));
+	fp->fd = fd;
+	return fp;
+}
+
+FILE *fopen(const char *filename, const char *mode) {
+	int flags = _fopen_flags_from_mode(mode);
+	if (flags < 0) return NULL;
+	int fd;
+	
+	fd = open(filename, flags, 0644);
+	if (fd < 0) return NULL;
+	return _FILE_from_fd(fd);
+}
+
+int fclose(FILE *stream) {
+	int ret = close(stream->fd);
+	free(stream);
+	return ret;
+}
+
+int fflush(FILE *stream) {
+	// we don't buffer anything	
+	return 0;
+}
+
+FILE *freopen(const char *filename, const char *mode, FILE *stream) {
+	int flags = _fopen_flags_from_mode(mode);
+	close(stream->fd);
+	if (flags < 0) return NULL;
+	stream->eof = stream->err = 0;
+	stream->fd = open(filename, flags, 0644);
+	return stream;
+}
+
 int unlink(const char *pathname) {
 	return __syscall(87, pathname, 0, 0, 0, 0, 0);
 }
@@ -1614,49 +1722,187 @@ int remove(const char *filename) {
 		: 0;
 }
 
-int rename(const char *old, const char *new);
-FILE *tmpfile(void);
-char *tmpnam(char *s);
-int fclose(FILE *stream);
-int fflush(FILE *stream);
-FILE *fopen(const char *filename, const char *mode);
-FILE *freopen(const char *filename, const char *mode,
-FILE *stream);
-void setbuf(FILE *stream, char *buf);
-int setvbuf(FILE *stream, char *buf, int mode, size_t size);
-int fprintf(FILE *stream, const char *format, ...);
+int rename(const char *old, const char *new) {
+	return __syscall(82, old, new, 0, 0, 0, 0);
+}
+
+char *tmpnam(char *s) {
+	struct timespec t = {0};
+	do {		
+		clock_gettime(CLOCK_MONOTONIC, &t); // use clock as a source of randomness
+		sprintf(s, "/tmp/C_%06u", t.tv_nsec % 1000000);
+	} while (access(s, F_OK) == 0); // if file exists, generate a new name
+	return s;
+}
+
+FILE *tmpfile(void) {
+	int fd = open("/tmp", O_TMPFILE | O_RDWR, 0600);
+	if (fd < 0) return NULL;
+	return _FILE_from_fd(fd);
+}
+
+// we don't buffer anything
+// we're allowed to do this: "The contents of the array at any time are indeterminate." C89 § 4.9.5.6
+void setbuf(FILE *stream, char *buf) {
+}
+
+int setvbuf(FILE *stream, char *buf, int mode, size_t size) {
+	return 0;
+}
+
+// @TODO
 int fscanf(FILE *stream, const char *format, ...);
-int printf(const char *format, ...);
-int scanf(const char *format, ...);
-int sprintf(char *s, const char *format, ...);
 int sscanf(const char *s, const char *format, ...);
-int vfprintf(FILE *stream, const char *format, va_list arg);
-int vprintf(const char *format, va_list arg);
-int vsprintf(char *s, const char *format, va_list arg);
-int fgetc(FILE *stream);
-char *fgets(char *s, int n, FILE *stream);
-int fputc(int c, FILE *stream);
-int fputs(const char *s, FILE *stream);
-int getc(FILE *stream);
-int getchar(void);
-char *gets(char *s);
-int putc(int c, FILE *stream);
-int putchar(int c);
-int puts(const char *s);
-int ungetc(int c, FILE *stream);
-size_t fread(void *ptr, size_t size, size_t nmemb,
-FILE *stream);
-size_t fwrite(const void *ptr, size_t size, size_t nmemb,
-FILE *stream);
-int fgetpos(FILE *stream, fpos_t *pos);
-int fseek(FILE *stream, long int offset, int whence);
-int fsetpos(FILE *stream, const fpos_t *pos);
-long int ftell(FILE *stream);
-void rewind(FILE *stream);
-void clearerr(FILE *stream);
-int feof(FILE *stream);
-int ferror(FILE *stream);
-void perror(const char *s);
+int scanf(const char *format, ...);
+
+int fgetc(FILE *stream) {
+	unsigned char c;
+	long n;
+	if (stream->eof) return EOF;
+	n = read(stream->fd, &c, 1);
+	if (n > 0) return c;
+	if (n < 0) {
+		stream->err = 1;
+		return EOF;
+	}
+	// n == 0
+	stream->eof = 1;
+	return EOF;
+}
+
+#define getc(fp) fgetc(fp)
+
+char *fgets(char *s, int n, FILE *stream) {
+	char *p = s, *end = p + (n-1);
+	
+	if (stream->eof) return NULL;
+	
+	while (p < end) {
+		long n = read(stream->fd, p, 1);
+		if (n < 0) {
+			stream->err = 1;
+			return NULL;
+		}
+		if (n == 0) {
+			stream->eof = 1;
+			if (p == s) {
+				// end of file reached, and no characters were read
+				return NULL;
+			}
+			break;
+		}
+		if (*p == '\n') {
+			++p;
+			break;
+		}
+		++p;
+	}
+	*p = '\0';
+	return s;
+}
+
+int fputc(int c, FILE *stream) {
+	size_t n = fwrite(&c, 1, 1, stream);
+	if (n == 1) return c;
+	return EOF;
+}
+#define putc(c, fp) fputc(c, fp)
+
+int fputs(const char *s, FILE *stream) {
+	size_t n = strlen(s);
+	if (fwrite(s, 1, n, stream) == n)
+		return n;
+	return EOF;
+}
+
+int getchar(void) {
+	return getc(stdin);
+}
+
+char *gets(char *s) {
+	char *p;
+	fgets(s, 1l<<20, stdin);
+	if (*s) {
+		p = s + strlen(s) - 1;
+		// remove newline
+		if (*p == '\n')
+			*p = '\0';
+	}
+	return s;
+}
+
+int putchar(int c) {
+	return putc(c, stdout);
+}
+
+int puts(const char *s) {
+	fputs(s, stdout);
+	putchar('\n');
+}
+
+int ungetc(int c, FILE *stream) {
+	/* @NONSTANDARD */
+	fprintf(stderr, "ERROR: ungetc is not supported.\n");
+	_Exit(-1);
+}
+
+
+int fgetpos(FILE *stream, fpos_t *pos) {
+	long off = lseek(stream->fd, 0, SEEK_CUR);
+	if (off < 0) {
+		errno = EIO;
+		return EIO;
+	}
+	*pos = off;
+	return 0;
+}
+
+int fsetpos(FILE *stream, const fpos_t *pos) {
+	long off = lseek(stream->fd, *pos, SEEK_SET);
+	if (off < 0) {
+		errno = EIO;
+		return EIO;
+	}
+	stream->eof = 0;
+	return 0;
+}
+
+int fseek(FILE *stream, long int offset, int whence) {
+	long off = lseek(stream->fd, offset, whence);
+	if (off < 0) {
+		return EIO;
+	}
+	stream->eof = 0;
+	return 0;
+}
+
+long int ftell(FILE *stream) {
+	long off = lseek(stream->fd, 0, SEEK_CUR);
+	if (off < 0) {
+		errno = EIO;
+		return -1L;
+	}
+	return off;
+}
+
+void rewind(FILE *stream) {
+	fseek(stream, 0, SEEK_SET);
+	stream->err = 0;
+}
+
+void clearerr(FILE *stream) {
+	stream->err = 0;
+}
+
+int feof(FILE *stream) {
+	return stream->eof;
+}
+
+int ferror(FILE *stream) {
+	return stream->err;
+}
+
+void perror(const char *s); // @TODO
 
 #undef STB_SPRINTF_MIN
 

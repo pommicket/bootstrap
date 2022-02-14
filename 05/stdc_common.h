@@ -59,15 +59,107 @@ static unsigned char __syscall_data[] = {
 	(((unsigned long (*)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long))__syscall_data)\
 		(no, arg1, arg2, arg3, arg4, arg5, arg6))
 
+long read(int fd, void *buf, size_t count) {
+	return __syscall(0, fd, buf, count, 0, 0, 0);
+}
 
 long write(int fd, void *buf, size_t count) {
-	__syscall(1, fd, buf, count, 0, 0, 0);
+	return __syscall(1, fd, buf, count, 0, 0, 0);
 }
+
+void _Exit(int status) {
+	return __syscall(60, status, 0, 0, 0, 0, 0);
+}
+
+typedef long time_t;
+
+struct timespec {
+	time_t tv_sec;
+	long tv_nsec;
+};
+
+#define CLOCK_REALTIME 0
+#define CLOCK_MONOTONIC 1
+int clock_gettime(int clock, struct timespec *tp) {
+	return __syscall(228, clock, tp, 0, 0, 0, 0);
+}
+
+#define F_OK 0
+#define R_OK 4
+#define W_OK 2
+#define X_OK 1
+int access(const char *pathname, int mode) {
+	return __syscall(21, pathname, mode, 0, 0, 0, 0);
+}
+
+
+int errno;
+
+#define EIO 5
+#define EDOM 33
+#define ERANGE 34
+
+#define PROT_READ 1
+#define PROT_WRITE 2
+#define PROT_EXEC 4
+#define MAP_SHARED 0x01
+#define MAP_ANONYMOUS 0x20
+#define MAP_PRIVATE 0x02
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, long offset) {
+	return __syscall(9, addr, length, prot, flags, fd, offset);
+}
+
+int munmap(void *addr, size_t length) {
+	return __syscall(11, addr, length, 0, 0, 0, 0);
+}
+
+void *malloc(size_t n) {
+	void *memory;
+	size_t bytes = n + 16;
+	memory = mmap(0, bytes, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+	if ((uint64_t)memory > 0xffffffffffff0000) return NULL;
+	*(uint64_t *)memory = bytes;
+	return (char *)memory + 16;
+}
+
+void free(void *ptr) {
+	uint64_t *memory = (char *)ptr - 16;
+	uint64_t size = *memory;
+	munmap(memory, size);
+}
+
+void *calloc(size_t nmemb, size_t size) {
+	if (nmemb > 0xffffffffffffffff / size)
+		return NULL;
+	return malloc(nmemb * size);
+}
+
 
 size_t strlen(char *s) {
 	char *t = s;
 	while (*t) ++t;
 	return t - s;
 }
+
+
+typedef struct {
+	int fd;
+	unsigned char eof;
+	unsigned char err;
+} FILE;
+
+FILE _stdin = {0}, *stdin;
+FILE _stdout = {1}, *stdout;
+FILE _stderr = {2}, *stderr;
+
+int main();
+
+int _main(int argc, char **argv) {
+	stdin = &_stdin;
+	stdout = &_stdout;
+	stderr = &_stderr;
+	return main(argc, argv);
+}
+
 
 #endif // _STDC_COMMON_H

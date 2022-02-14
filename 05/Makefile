@@ -5,9 +5,9 @@ out04: in04 ../04/out03
 	../04/out03 in04 out04
 %.html: %.md ../markdown
 	../markdown $<
-%.out: %.c
+%.out: %.c *.h out04
 	./out04 $< $@
-a.out: main.c
+a.out: main.c *.h out04
 	./out04
 clean:
 	rm -f out* README.html *.out

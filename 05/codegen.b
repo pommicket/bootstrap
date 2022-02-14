@@ -3030,7 +3030,7 @@ function generate_code
 	generate_functions()
 	; generate code at the entry point of the executable
 	local main_addr
-	main_addr = ident_list_lookup(functions_addresses, .str_main)
+	main_addr = ident_list_lookup(functions_addresses, .str__main)
 	if main_addr == 0 goto no_main_function
 	
 	; on entry, we will have:
@@ -3066,7 +3066,7 @@ function generate_code
 	:no_main_function
 	die(.str_no_main_function)
 	:str_no_main_function
-		string Error: No main function.
+		string Error: No _main function.
 		byte 0
 	:too_much_code
 		die(.str_too_much_code)
