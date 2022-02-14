@@ -50,6 +50,17 @@ function type_is_floating
 	if *1p == TYPE_DOUBLE goto return_1
 	return 0
 
+function type_is_incomplete_struct
+	argument type
+	local p
+	p = types + type
+	if *1p != TYPE_STRUCT goto return_0
+	p += 1
+	p = *8p
+	if p == 0 goto return_1
+	if *8p == 0 goto return_1
+	return 0
+
 function functype_return_type
 	argument ftype
 	local type
@@ -156,6 +167,9 @@ function parse_toplevel_declaration
 			parse_type_declarators(prefix, prefix_end, suffix, suffix_end, function_param_names)
 			parse_base_type(base_type, base_type_end)
 			
+			b = type_is_incomplete_struct(type)
+			if b != 0 goto tld_incomplete_struct
+			
 			; ensure rwdata_end_addr is aligned to 8 bytes
 			; otherwise addresses could be screwed up
 			rwdata_end_addr += 7
@@ -199,7 +213,11 @@ function parse_toplevel_declaration
 		:tl_decl_loop_done
 		token += 16 ; skip semicolon
 		goto parse_tld_ret
-		
+		:tld_incomplete_struct
+			token_error(token, .str_tld_incomplete_struct)
+		:str_tld_incomplete_struct
+			string Declaration has incomplete struct as its type.
+			byte 0
 		:tl_decl_no_ident
 			; this might actually be okay, e.g.
 			; struct Something { int x, y; }
@@ -732,6 +750,9 @@ function parse_statement
 			parse_type_declarators(l_prefix, l_prefix_end, l_suffix, l_suffix_end, 0)
 			parse_base_type(l_base_type)
 			
+			b = type_is_incomplete_struct(l_type)
+			if b != 0 goto local_decl_incomplete_struct
+			
 			; create pseudo-entry for variable in local variables list.
 			;   this allows for  int *x = malloc(sizeof *x);
 			; unfortunately, it also allows  int x = x;
@@ -817,6 +838,11 @@ function parse_statement
 				:str_local_decl_no_ident
 					string No identifier in declaration.
 					byte 0
+			:local_decl_incomplete_struct
+				token_error(token, .str_local_decl_incomplete_struct)
+			:str_local_decl_incomplete_struct
+				string Location declaration has incomplete struct as its type.
+				byte 0
 		:local_decl_loop_end
 		token += 16 ; skip semicolon
 		goto parse_statement_ret
