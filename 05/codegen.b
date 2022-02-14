@@ -1,13 +1,3 @@
-; @TODO : declarations need to be done differently.
-; this should work, but doesn't currently;
-;    goto lbl1;
-;    {
-;       int x;
-;        lbl1: ...
-;    }
-
-
-
 ; CALLING CONVENTION:
 ;  Here is the process for calling a function:
 ;     - the caller pushes the arguments on to the stack, from right to left
@@ -2611,10 +2601,9 @@ function generate_statement
 	if c == STATEMENT_CASE goto gen_stmt_case
 	if c == STATEMENT_DEFAULT goto gen_stmt_default
 	
-	; @TODO
-	die(.str_genstmtNI)
-	:str_genstmtNI
-		string generate_statement not implemented.
+	die(.str_badgenstmt)
+	:str_badgenstmt
+		string Bad statement passed to generate_statement.
 		byte 0
 	:gen_block
 		:gen_block_loop

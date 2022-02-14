@@ -938,11 +938,6 @@ function translation_phase_4
 				goto pp_if_idents0_loop
 				:pp_replace_defined
 					; handle, e.g. #if defined(SOMETHING)
-					
-					; @NONSTANDARD?? it seems unclear in the standard whether this is legal:
-					;   #define X defined
-					; GCC and clang both accept it without warnings
-					
 					p += 16
 					if *1p != SYMBOL_LPAREN goto pp_defined_nolparen
 					p += 16

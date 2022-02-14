@@ -113,7 +113,8 @@
 #define NUMBER_SUFFIX_UL 3
 #define NUMBER_SUFFIX_F 4
 
-; #define KEYWORD_AUTO 21  (@NONSTANDARD auto only exists in C for legacy reasons and doesn't appear in TCC's source code)
+; @NONSTANDARD: we don't handle some keywords; see explanations below
+; #define KEYWORD_AUTO 21  (auto only exists in C for legacy reasons)
 #define KEYWORD_DOUBLE 22
 #define KEYWORD_INT 23
 #define KEYWORD_STRUCT 24
@@ -129,18 +130,18 @@
 #define KEYWORD_EXTERN 34
 #define KEYWORD_RETURN 35
 #define KEYWORD_UNION 36
-; #define KEYWORD_CONST 37 (we can just #define const)
+; #define KEYWORD_CONST 37 (just #define const)
 #define KEYWORD_FLOAT 38
 #define KEYWORD_SHORT 39
 #define KEYWORD_UNSIGNED 40
 #define KEYWORD_CONTINUE 41
 #define KEYWORD_FOR 42
-; #define KEYWORD_SIGNED 43 (again, just #define signed)
+; #define KEYWORD_SIGNED 43 (just #define signed)
 #define KEYWORD_VOID 44
 #define KEYWORD_DEFAULT 45
 #define KEYWORD_GOTO 46
 #define KEYWORD_SIZEOF 47
-; #define KEYWORD_VOLATILE 48 (just #define volatile if need be)
+; #define KEYWORD_VOLATILE 48 (just #define volatile)
 #define KEYWORD_DO 49
 #define KEYWORD_IF 50
 #define KEYWORD_STATIC 51

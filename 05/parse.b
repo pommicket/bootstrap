@@ -3605,7 +3605,6 @@ function evaluate_constant_expression
 		expr += 8
 		return expr
 	:eval_constant_int
-		; @TODO : check if 0
 		expr += 8
 		*8p_value = *8expr
 		expr += 8
