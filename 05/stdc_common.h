@@ -5,6 +5,7 @@
 #define volatile
 #define register
 #define const
+#define NULL ((void*)0)
 
 typedef unsigned char  uint8_t;
 typedef char           int8_t;

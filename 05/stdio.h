@@ -11,30 +11,20 @@ int printf(const char *, ...);
 #ifndef STB_SPRINTF_MIN
 #define STB_SPRINTF_MIN 512 // how many characters per callback
 #endif
-typedef char *STBSP_SPRINTFCB(const char *buf, void *user, int len);
-
-#ifndef STB_SPRINTF_DECORATE
-#define STB_SPRINTF_DECORATE(name) __##name // define this before including if you want to change the names
-#endif
-
-#ifdef STB_SPRINTF_NOUNALIGNED // define this before inclusion to force stbsp_sprintf to always use aligned accesses
-#define STBSP__UNALIGNED(code)
-#else
-#define STBSP__UNALIGNED(code) code
-#endif
+typedef char *_STBSP_SPRINTFCB(const char *buf, void *user, int len);
 
 // internal float utility functions
-static int32_t stbsp__real_to_str(char const **start, uint32_t *len, char *out, int32_t *decimal_pos, double value, uint32_t frac_digits);
-static int32_t stbsp__real_to_parts(int64_t *bits, int32_t *expo, double value);
+static int32_t _stbsp__real_to_str(char const **start, uint32_t *len, char *out, int32_t *decimal_pos, double value, uint32_t frac_digits);
+static int32_t _stbsp__real_to_parts(int64_t *bits, int32_t *expo, double value);
 #define STBSP__SPECIAL 0x7000
 
-static char stbsp__period = '.';
-static char stbsp__comma = ',';
+static char _stbsp__period = '.';
+static char _stbsp__comma = ',';
 static struct
 {
    short temp; // force next field to be 2-byte aligned
    char pair[201];
-} stbsp__digitpair =
+} _stbsp__digitpair =
 {
   0,
    "00010203040506070809101112131415161718192021222324"
@@ -57,7 +47,7 @@ static struct
 #define STBSP__METRIC_1024 2048
 #define STBSP__METRIC_JEDEC 4096
 
-static void stbsp__lead_sign(uint32_t fl, char *sign)
+static void _stbsp__lead_sign(uint32_t fl, char *sign)
 {
    sign[0] = 0;
    if (fl & STBSP__NEGATIVE) {
@@ -72,7 +62,7 @@ static void stbsp__lead_sign(uint32_t fl, char *sign)
    }
 }
 
-static uint32_t stbsp__strlen_limited(char const *s, uint32_t limit)
+static uint32_t _stbsp__strlen_limited(char const *s, uint32_t limit)
 {
    char const * sn = s;
 
@@ -112,7 +102,7 @@ static uint32_t stbsp__strlen_limited(char const *s, uint32_t limit)
    return (uint32_t)(sn - s);
 }
 
-int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *fmt, va_list va)
+int __vsprintfcb(_STBSP_SPRINTFCB *callback, void *user, char *buf, char const *fmt, va_list va)
 {
    static char hex[] = "0123456789abcdefxp";
    static char hexu[] = "0123456789ABCDEFXP";
@@ -347,7 +337,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
             s = (char *)"null";
          // get the length, limited to desired precision
          // always limit to ~0u chars since our counts are 32b
-         l = stbsp__strlen_limited(s, (pr >= 0) ? pr : ~0u);
+         l = _stbsp__strlen_limited(s, (pr >= 0) ? pr : ~0u);
          lead[0] = 0;
          tail[0] = 0;
          pr = 0;
@@ -381,12 +371,12 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          if (pr == -1)
             pr = 6; // default is 6
          // read the double into a string
-         if (stbsp__real_to_parts((int64_t *)&n64, &dp, fv))
+         if (_stbsp__real_to_parts((int64_t *)&n64, &dp, fv))
             fl |= STBSP__NEGATIVE;
 
          s = num + 64;
 
-         stbsp__lead_sign(fl, lead);
+         _stbsp__lead_sign(fl, lead);
 
          if (dp == -1023)
             dp = (n64) ? -1022 : 0;
@@ -402,7 +392,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          *s++ = h[(n64 >> 60) & 15];
          n64 <<= 4;
          if (pr)
-            *s++ = stbsp__period;
+            *s++ = _stbsp__period;
          sn = s;
 
          // print the bits
@@ -449,7 +439,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          else if (pr == 0)
             pr = 1; // default is 6
          // read the double into a string
-         if (stbsp__real_to_str(&sn, &l, num, &dp, fv, (pr - 1) | 0x80000000))
+         if (_stbsp__real_to_str(&sn, &l, num, &dp, fv, (pr - 1) | 0x80000000))
             fl |= STBSP__NEGATIVE;
 
          // clamp the precision and delete extra zeros after clamp
@@ -484,11 +474,11 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          if (pr == -1)
             pr = 6; // default is 6
          // read the double into a string
-         if (stbsp__real_to_str(&sn, &l, num, &dp, fv, pr | 0x80000000))
+         if (_stbsp__real_to_str(&sn, &l, num, &dp, fv, pr | 0x80000000))
             fl |= STBSP__NEGATIVE;
       doexpfromg:
          tail[0] = 0;
-         stbsp__lead_sign(fl, lead);
+         _stbsp__lead_sign(fl, lead);
          if (dp == STBSP__SPECIAL) {
             s = (char *)sn;
             cs = 0;
@@ -500,7 +490,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          *s++ = sn[0];
 
          if (pr)
-            *s++ = stbsp__period;
+            *s++ = _stbsp__period;
 
          // handle after decimal
          if ((l - 1) > (uint32_t)pr)
@@ -549,11 +539,11 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          if (pr == -1)
             pr = 6; // default is 6
          // read the double into a string
-         if (stbsp__real_to_str(&sn, &l, num, &dp, fv, pr))
+         if (_stbsp__real_to_str(&sn, &l, num, &dp, fv, pr))
             fl |= STBSP__NEGATIVE;
       dofloatfromg:
          tail[0] = 0;
-         stbsp__lead_sign(fl, lead);
+         _stbsp__lead_sign(fl, lead);
          if (dp == STBSP__SPECIAL) {
             s = (char *)sn;
             cs = 0;
@@ -568,7 +558,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
             // handle 0.000*000xxxx
             *s++ = '0';
             if (pr)
-               *s++ = stbsp__period;
+               *s++ = _stbsp__period;
             n = -dp;
             if ((int32_t)n > pr)
                n = pr;
@@ -605,7 +595,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                for (;;) {
                   if ((fl & STBSP__TRIPLET_COMMA) && (++cs == 4)) {
                      cs = 0;
-                     *s++ = stbsp__comma;
+                     *s++ = _stbsp__comma;
                   } else {
                      *s++ = sn[n];
                      ++n;
@@ -631,7 +621,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                   while (n) {
                      if ((fl & STBSP__TRIPLET_COMMA) && (++cs == 4)) {
                         cs = 0;
-                        *s++ = stbsp__comma;
+                        *s++ = _stbsp__comma;
                      } else {
                         *s++ = '0';
                         --n;
@@ -640,7 +630,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                }
                cs = (int)(s - (num + 64)) + (3 << 24); // cs is how many tens
                if (pr) {
-                  *s++ = stbsp__period;
+                  *s++ = _stbsp__period;
                   tz = pr;
                }
             } else {
@@ -649,7 +639,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                for (;;) {
                   if ((fl & STBSP__TRIPLET_COMMA) && (++cs == 4)) {
                      cs = 0;
-                     *s++ = stbsp__comma;
+                     *s++ = _stbsp__comma;
                   } else {
                      *s++ = sn[n];
                      ++n;
@@ -659,7 +649,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                }
                cs = (int)(s - (num + 64)) + (3 << 24); // cs is how many tens
                if (pr)
-                  *s++ = stbsp__period;
+                  *s++ = _stbsp__period;
                if ((l - dp) > (uint32_t)pr)
                   l = pr + dp;
                while (n < l) {
@@ -769,7 +759,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                ++l;
                if ((l & 15) == ((l >> 4) & 15)) {
                   l &= ~15;
-                  *--s = stbsp__comma;
+                  *--s = _stbsp__comma;
                }
             }
          };
@@ -826,14 +816,14 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
             if ((fl & STBSP__TRIPLET_COMMA) == 0) {
                do {
                   s -= 2;
-                  *(uint16_t *)s = *(uint16_t *)&stbsp__digitpair.pair[(n % 100) * 2];
+                  *(uint16_t *)s = *(uint16_t *)&_stbsp__digitpair.pair[(n % 100) * 2];
                   n /= 100;
                } while (n);
             }
             while (n) {
                if ((fl & STBSP__TRIPLET_COMMA) && (l++ == 3)) {
                   l = 0;
-                  *--s = stbsp__comma;
+                  *--s = _stbsp__comma;
                   --o;
                } else {
                   *--s = (char)(n % 10) + '0';
@@ -848,7 +838,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
             while (s != o)
                if ((fl & STBSP__TRIPLET_COMMA) && (l++ == 3)) {
                   l = 0;
-                  *--s = stbsp__comma;
+                  *--s = _stbsp__comma;
                   --o;
                } else {
                   *--s = '0';
@@ -856,7 +846,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
          }
 
          tail[0] = 0;
-         stbsp__lead_sign(fl, lead);
+         _stbsp__lead_sign(fl, lead);
 
          // get the length that we copied
          l = (uint32_t)((num + STBSP__NUMSZ) - s);
@@ -952,7 +942,7 @@ int __vsprintfcb(STBSP_SPRINTFCB *callback, void *user, char *buf, char const *f
                while (i) {
                   if ((fl & STBSP__TRIPLET_COMMA) && (cs++ == c)) {
                      cs = 0;
-                     *bf++ = stbsp__comma;
+                     *bf++ = _stbsp__comma;
                   } else
                      *bf++ = '0';
                   --i;
@@ -1214,7 +1204,7 @@ int vsprintf(char *buf, char const *fmt, va_list va)
 */
 
 // get float info
-int32_t stbsp__real_to_parts(int64_t *bits, int32_t *expo, double value)
+int32_t _stbsp__real_to_parts(int64_t *bits, int32_t *expo, double value)
 {
    double d;
    int64_t b = 0;
@@ -1402,7 +1392,7 @@ static void stbsp__raise_to_power10(double *ohi, double *olo, double d, int32_t 
 //   decimal point in decimal_pos.  +/-INF and NAN are specified by special values
 //   returned in the decimal_pos parameter.
 // frac_digits is absolute normally, but if you want from first significant digits (got %g and %e), or in 0x80000000
-static int32_t stbsp__real_to_str(char const **start, uint32_t *len, char *out, int32_t *decimal_pos, double value, uint32_t frac_digits)
+static int32_t _stbsp__real_to_str(char const **start, uint32_t *len, char *out, int32_t *decimal_pos, double value, uint32_t frac_digits)
 {
    double d;
    int64_t bits = 0;
@@ -1521,7 +1511,7 @@ static int32_t stbsp__real_to_str(char const **start, uint32_t *len, char *out, 
       }
       while (n) {
          out -= 2;
-         *(uint16_t *)out = *(uint16_t *)&stbsp__digitpair.pair[(n % 100) * 2];
+         *(uint16_t *)out = *(uint16_t *)&_stbsp__digitpair.pair[(n % 100) * 2];
          n /= 100;
          e += 2;
       }
@@ -1551,18 +1541,123 @@ static int32_t stbsp__real_to_str(char const **start, uint32_t *len, char *out, 
 #undef STBSP__SPECIAL
 #undef STBSP__COPYFP
 
+typedef void FILE;
+
+FILE *stdin = 0;
+FILE *stdout = 1;
+FILE *stderr = 2;
+
 int __fd_puts(int fd, const char *s) {
 	return write(fd, s, strlen(s));
 }
 
-int printf(const char *fmt, ...) {
-	// @TODO: use a callback with __vsnprintfcb
-	va_list args;
-	char buf[2000];
-	va_start(args, fmt);
-	vsprintf(buf, fmt, args);
-	va_end(args);
-	return __fd_puts(1, buf);
+// these are the constants that gnu uses, but they don't really matter for us
+#define _IOFBF 0
+#define _IOLBF 1
+#define _IONBF 2
+#define BUFSIZ 8192
+
+
+#define EOF (-1)
+#define FILENAME_MAX 4096
+#define FOPEN_MAX 16
+typedef long fpos_t;
+#define L_tmpnam 20
+#define SEEK_CUR 1
+#define SEEK_END 2
+#define SEEK_SET 0
+#define TMP_MAX 10000
+
+static char *__fprintf_callback(const char *buf, void *user, int len) {
+	write((int)user, buf, len);
+	return buf;
 }
+
+int vfprintf(FILE *fp, const char *fmt, va_list args) {
+	char buf[STB_SPRINTF_MIN];
+	return __vsprintfcb(__fprintf_callback, fp, buf, fmt, args);
+}
+
+int fprintf(FILE *fp, const char *fmt, ...) {
+	va_list args;
+	int ret;
+	va_start(args, fmt);
+	ret = vfprintf(fp, fmt, args);
+	va_end(args);
+	return ret;
+}
+
+int vprintf(const char *fmt, va_list args) {
+	return vfprintf(stdout, fmt, args);	
+}
+
+int printf(const char *fmt, ...) {
+	va_list args;
+	int ret;
+	va_start(args, fmt);
+	ret = vfprintf(stdout, fmt, args);
+	va_end(args);
+	return ret;
+}
+
+int unlink(const char *pathname) {
+	return __syscall(87, pathname, 0, 0, 0, 0, 0);
+}
+
+int rmdir(const char *pathname) {
+	return __syscall(84, pathname, 0, 0, 0, 0, 0);
+}
+
+int remove(const char *filename) {
+	return rmdir(filename)
+		? unlink(filename)
+		: 0;
+}
+
+int rename(const char *old, const char *new);
+FILE *tmpfile(void);
+char *tmpnam(char *s);
+int fclose(FILE *stream);
+int fflush(FILE *stream);
+FILE *fopen(const char *filename, const char *mode);
+FILE *freopen(const char *filename, const char *mode,
+FILE *stream);
+void setbuf(FILE *stream, char *buf);
+int setvbuf(FILE *stream, char *buf, int mode, size_t size);
+int fprintf(FILE *stream, const char *format, ...);
+int fscanf(FILE *stream, const char *format, ...);
+int printf(const char *format, ...);
+int scanf(const char *format, ...);
+int sprintf(char *s, const char *format, ...);
+int sscanf(const char *s, const char *format, ...);
+int vfprintf(FILE *stream, const char *format, va_list arg);
+int vprintf(const char *format, va_list arg);
+int vsprintf(char *s, const char *format, va_list arg);
+int fgetc(FILE *stream);
+char *fgets(char *s, int n, FILE *stream);
+int fputc(int c, FILE *stream);
+int fputs(const char *s, FILE *stream);
+int getc(FILE *stream);
+int getchar(void);
+char *gets(char *s);
+int putc(int c, FILE *stream);
+int putchar(int c);
+int puts(const char *s);
+int ungetc(int c, FILE *stream);
+size_t fread(void *ptr, size_t size, size_t nmemb,
+FILE *stream);
+size_t fwrite(const void *ptr, size_t size, size_t nmemb,
+FILE *stream);
+int fgetpos(FILE *stream, fpos_t *pos);
+int fseek(FILE *stream, long int offset, int whence);
+int fsetpos(FILE *stream, const fpos_t *pos);
+long int ftell(FILE *stream);
+void rewind(FILE *stream);
+void clearerr(FILE *stream);
+int feof(FILE *stream);
+int ferror(FILE *stream);
+void perror(const char *s);
+
+#undef STB_SPRINTF_MIN
 
 #endif // _STDIO_H
