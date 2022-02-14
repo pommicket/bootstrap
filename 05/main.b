@@ -1,3 +1,5 @@
+#define G_DEBUG 0
+
 ; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
 byte 0x48
 byte 0x81
@@ -7,7 +9,6 @@ byte 0
 byte 0
 byte 0
 goto main
-
 
 global object_macros_size
 global function_macros_size
@@ -86,6 +87,15 @@ global functions_required_stack_space
 #include parse.b
 #include codegen.b
 
+function debug_puts
+	argument str
+	if G_DEBUG == 0 goto return_0
+	return puts(str)
+function debug_putsln
+	argument str
+	if G_DEBUG == 0 goto return_0
+	return putsln(str)
+	
 function types_init
 	argument _types
 	argument ptypes_bytes_used
@@ -208,7 +218,7 @@ function main
 	local i
 	local output_fd
 	local memory
-	
+		
 	memory = malloc(4000)
 	statement_datas = memory
 	statement_datas_ends = memory + 400

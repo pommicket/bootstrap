@@ -2741,18 +2741,25 @@ function generate_statement
 		continue_refs = malloc(8000)
 		break_refs = malloc(8000)
 		
-		generate_push_expression_casted(statement, dat1, TYPE_VOID)
-		emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		if dat1 == 0 goto gen_for_no_expr1
+			generate_push_expression_casted(statement, dat1, TYPE_VOID)
+			emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		:gen_for_no_expr1
+		
 		addr0 = code_output
 		p = dat2 + 4
-		generate_push_expression(statement, dat2)
-		generate_stack_compare_against_zero(statement, *4p)
-		emit_je_rel32(0) ; je +0 (temporary)
+		if dat2 == 0 goto gen_for_no_expr2
+			generate_push_expression(statement, dat2)
+			generate_stack_compare_against_zero(statement, *4p)
+			emit_je_rel32(0) ; je +0 (temporary)
+		:gen_for_no_dat2_cont
 		addr1 = code_output
-		generate_statement(dat4)
+		generate_statement(dat4) ; body
 		handle_refs(&continue_refs, prev_continue_refs, code_output)
-		generate_push_expression_casted(statement, dat3, TYPE_VOID)
-		emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		if dat3 == 0 goto gen_for_no_expr3
+			generate_push_expression_casted(statement, dat3, TYPE_VOID)
+			emit_add_rsp_imm32(8) ; void is stored as 8 bytes
+		:gen_for_no_expr3
 		emit_jmp_rel32(0) ; jmp +0 (temporary)
 		addr2 = code_output
 		handle_refs(&break_refs, prev_break_refs, addr2)
@@ -2767,6 +2774,13 @@ function generate_statement
 		p = addr2 - 4
 		*4p = d
 		return
+		:gen_for_no_expr2
+			; we need to have a fake jump to be filled in here
+			; so let's make a jump that'll never happen
+			emit_zero_rax()     ; xor eax, eax
+			emit_test_rax_rax() ; test rax, rax
+			emit_jne_rel32(0)   ; jne +0 (temporary)
+			goto gen_for_no_dat2_cont
 	:gen_stmt_continue
 		if continue_refs == 0 goto continue_outside_of_loop
 		emit_jmp_rel32(0) ; jmp +0 (temporary)
@@ -2888,6 +2902,8 @@ function generate_function
 	local function_type
 	local out0
 	local n_stack_bytes
+	
+	debug_putsln(function_name)
 	
 	function_type = ident_list_lookup(function_types, function_name)
 	
@@ -3015,11 +3031,13 @@ function generate_code
 	local end_addr
 	code_output = output_file_data + FUNCTIONS_ADDR
 	codegen_second_pass = 0
+	debug_puts(.str_first_pass)
 	generate_functions()
 	end_addr = code_output - output_file_data
 	if end_addr ] FUNCTIONS_END goto too_much_code
 	code_output = output_file_data + FUNCTIONS_ADDR
 	codegen_second_pass = 1
+	debug_puts(.str_second_pass)
 	generate_functions()
 	; generate code at the entry point of the executable
 	local main_addr
@@ -3066,3 +3084,12 @@ function generate_code
 	:str_too_much_code
 		string Too much code for executable.
 		byte 0
+	:str_first_pass
+		string First codegen pass...
+		byte 0xa
+		byte 0
+	:str_second_pass
+		string Second codegen pass...
+		byte 0xa
+		byte 0
+	

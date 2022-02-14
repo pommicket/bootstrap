@@ -276,6 +276,9 @@ function parse_toplevel_declaration
 		p = types + type
 		if *1p != TYPE_FUNCTION goto lbrace_after_declaration
 		
+		c = ident_list_lookup(function_statements, name)
+		if c != 0 goto function_redefinition
+		
 		ret_type = functype_return_type(type)
 		
 		global function_stmt_data ; initialized in main
@@ -324,7 +327,9 @@ function parse_toplevel_declaration
 		ident_list_add(functions_required_stack_space, f_name, curr_function_stack_space)
 		
 		; ENABLE/DISABLE PARSING DEBUG OUTPUT:
+		if G_DEBUG == 0 goto skip_print_statement
 		print_statement(out0)
+		:skip_print_statement
 		
 		goto parse_tld_ret
 		
@@ -347,6 +352,11 @@ function parse_toplevel_declaration
 			token_error(token, .str_nested_function)
 		:str_nested_function
 			string Nested function.
+			byte 0
+		:function_redefinition
+			token_error(token, .str_function_redefinition)
+		:str_function_redefinition
+			string Redefinition of function.
 			byte 0
 	:parse_typedef
 		if block_depth > 0 goto local_typedef
@@ -1258,8 +1268,8 @@ function parse_constant_initializer
 	expr = &dat_const_initializer
 	parse_expression(token, end, expr)
 	evaluate_constant_expression(token, expr, &value)
-	if *1p == TYPE_FLOAT goto init_floating_check
-	if *1p == TYPE_DOUBLE goto init_floating_check
+	if *1p == TYPE_FLOAT goto init_float_check
+	if *1p == TYPE_DOUBLE goto init_double_check
 	:init_good
 	token = end
 	c = type_sizeof(type)
@@ -1289,10 +1299,25 @@ function parse_constant_initializer
 	:write_initializer8
 		*8p = value
 		goto const_init_ret
-	:init_floating_check ; we only support 0 as a floating-point initializer
-		if value != 0 goto floating_initializer_other_than_0
+	:init_double_check
+		; check if someone did    double x[] = {3};
+		;  we would screw this up and set x[0] to the binary representation of 3 as an integer
+		
+		if value == 0 goto init_good ; 0 is fine
+		
+		; this isn't foolproof, but it should work most of the time
+		if value [ 0x10000000000000 goto bad_float_initializer
+		if value ] 0xfff0000000000000 goto bad_float_initializer
+		
 		goto init_good
-	
+	:init_float_check
+		if value == 0 goto init_good
+		goto bad_float_initializer
+	:bad_float_initializer
+		token_error(token, .str_bad_float_initializer)
+	:str_bad_float_initializer
+		string Bad floating-point initializer.
+		byte 0
 	:const_init_ret
 	*8p_token = token
 	return
@@ -3498,8 +3523,9 @@ function type_alignof
 ; evaluate an expression which can be the size of an array, e.g.
 ;    enum { A, B, C };
 ;    int x[A * sizeof(float) + 3 << 5];
-; @NONSTANDARD: doesn't handle floats. this means you can't do
-;                 e.g.   double x[] = {1.5,2.3};
+; @NONSTANDARD: only allows double-precision floating-point literals or 0; otherwise floats aren't allowed in constant expressions.
+;                     this means you can't do
+;                 e.g. float x[] = {1,2,3};  or   double x[] = {1.5+2.3, 5.5*6.4};
 ; this is also used for #if evaluation
 ; token is used for error messages (e.g. if this "constant" expression is *x or something)
 ; NOTE: this returns the end of the expression, not the value (which is stored in *8p_value)
@@ -3520,8 +3546,15 @@ function evaluate_constant_expression
 	c = *1expr
 	
 	if c == EXPRESSION_CONSTANT_INT goto eval_constant_int
+	p = types + type
+	if *1p == TYPE_FLOAT goto bad_constexpr
+	if c == EXPRESSION_CONSTANT_FLOAT goto eval_constant_float
 	if c == EXPRESSION_UNARY_PLUS goto eval_unary_plus
 	if c == EXPRESSION_UNARY_MINUS goto eval_unary_minus
+	
+	; only 0 and floating-point constants are supported as double initializers
+	if *1p == TYPE_DOUBLE goto bad_constexpr
+	
 	if c == EXPRESSION_BITWISE_NOT goto eval_bitwise_not
 	if c == EXPRESSION_LOGICAL_NOT goto eval_logical_not
 	if c == EXPRESSION_CAST goto eval_cast
@@ -3545,7 +3578,7 @@ function evaluate_constant_expression
 	if c == EXPRESSION_LOGICAL_OR goto eval_logical_or
 	if c == EXPRESSION_CONDITIONAL goto eval_conditional
 	
-	
+	:bad_constexpr
 	token_error(token, .str_eval_bad_exprtype)
 	
 	:str_eval_bad_exprtype
@@ -3555,7 +3588,6 @@ function evaluate_constant_expression
 		p = types + type
 		c = *1p
 		if c == TYPE_VOID goto eval_cast_bad_type
-		; @NONSTANDARD: we don't support, for example,  int x[(int)(float)5];
 		if c == TYPE_FLOAT goto eval_cast_bad_type
 		if c == TYPE_DOUBLE goto eval_cast_bad_type
 		if c > TYPE_POINTER goto eval_cast_bad_type
@@ -3567,7 +3599,13 @@ function evaluate_constant_expression
 		:str_eval_cast_bad_type
 			string Bad type for constant cast (note: floating-point casts are not supported even though they are standard).
 			byte 0
+	:eval_constant_float
+		expr += 8
+		*8p_value = *8expr
+		expr += 8
+		return expr
 	:eval_constant_int
+		; @TODO : check if 0
 		expr += 8
 		*8p_value = *8expr
 		expr += 8
@@ -3579,8 +3617,13 @@ function evaluate_constant_expression
 	:eval_unary_minus
 		expr += 8
 		expr = evaluate_constant_expression(token, expr, &a)
+		p = types + type
+		if *1p == TYPE_DOUBLE goto eval_minus_double
 		*8p_value = 0 - a
 		goto eval_fit_to_type
+		:eval_minus_double
+			*8p_value = 0x8000000000000000 ^ a
+			return expr
 	:eval_bitwise_not
 		expr += 8
 		expr = evaluate_constant_expression(token, expr, &a)
