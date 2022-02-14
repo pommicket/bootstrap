@@ -522,7 +522,11 @@ function parse_statement
 		token += 16
 		out += 8
 		*8out = expressions_end
+		c = expressions_end + 4
 		expressions_end = parse_expression(token, p, expressions_end)
+		c = types + *4c
+		if *1c > TYPE_UNSIGNED_LONG goto bad_switch_type
+		
 		token = p + 16
 		out += 8
 		
@@ -541,6 +545,11 @@ function parse_statement
 			token_error(token, .str_switch_no_lparen)
 		:str_switch_no_lparen
 			string No ( after switch.
+			byte 0
+		:bad_switch_type
+			token_error(token, .str_bad_switch_type)
+		:str_bad_switch_type
+			string The expression in a switch statement must have an integer type.
 			byte 0
 	:stmt_while
 		write_statement_header(out, STATEMENT_WHILE, token)		

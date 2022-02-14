@@ -1,5 +1,10 @@
+#ifndef _STDIO_H
+#define _STDIO_H
+
 #include <stdc_common.h>
 #include <stdarg.h>
+
+int printf(const char *, ...);
 
 /* ---  snprintf, adapted from github.com/nothings/stb   stb_sprintf.h */
 
@@ -1113,6 +1118,7 @@ typedef struct stbsp__context {
 static char *stbsp__clamp_callback(const char *buf, void *user, int len)
 {
    stbsp__context *c = (stbsp__context *)user;
+      
    c->length += len;
 
    if (len > c->count)
@@ -1150,7 +1156,6 @@ char * stbsp__count_clamp_callback( const char * buf, void * user, int len )
 int vsnprintf( char * buf, int count, char const * fmt, va_list va )
 {
    stbsp__context c;
-
    if ( (count == 0) && !buf )
    {
       c.length = 0;
@@ -1165,7 +1170,7 @@ int vsnprintf( char * buf, int count, char const * fmt, va_list va )
       c.count = count;
       c.length = 0;
 
-      STB_SPRINTF_DECORATE( vsprintfcb )( stbsp__clamp_callback, &c, stbsp__clamp_callback(0,&c,0), fmt, va );
+      __vsprintfcb( stbsp__clamp_callback, &c, stbsp__clamp_callback(0,&c,0), fmt, va );
 
       // zero-terminate
       l = (int)( c.buf - buf );
@@ -1545,3 +1550,19 @@ static int32_t stbsp__real_to_str(char const **start, uint32_t *len, char *out, 
 #undef stbsp__ddmultlos
 #undef STBSP__SPECIAL
 #undef STBSP__COPYFP
+
+int __fd_puts(int fd, const char *s) {
+	return write(fd, s, strlen(s));
+}
+
+int printf(const char *fmt, ...) {
+	// @TODO: use a callback with __vsnprintfcb
+	va_list args;
+	char buf[2000];
+	va_start(args, fmt);
+	vsprintf(buf, fmt, args);
+	va_end(args);
+	return __fd_puts(1, buf);
+}
+
+#endif // _STDIO_H

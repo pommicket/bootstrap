@@ -63,4 +63,10 @@ long write(int fd, void *buf, size_t count) {
 	__syscall(1, fd, buf, count, 0, 0, 0);
 }
 
+size_t strlen(char *s) {
+	char *t = s;
+	while (*t) ++t;
+	return t - s;
+}
+
 #endif // _STDC_COMMON_H

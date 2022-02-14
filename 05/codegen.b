@@ -2432,9 +2432,8 @@ function generate_push_expression
 		return expr
 	:generate_call
 		expr += 8
-		global 4000 expr_arg_ptrs_dat
 		local expr_arg_ptrs
-		expr_arg_ptrs = &expr_arg_ptrs_dat
+		expr_arg_ptrs = malloc(4000)
 		local arg_idx
 		local call_function
 		local return_val_size
@@ -2475,6 +2474,7 @@ function generate_push_expression
 			arg_idx -= 1
 			goto push_args_loop
 		:push_args_loop_end
+		free(expr_arg_ptrs)
 		
 		; create space on stack for return value
 		emit_sub_rsp_imm32(return_val_size)
