@@ -143,6 +143,8 @@ typedef struct {
 	int fd;
 	unsigned char eof;
 	unsigned char err;
+	unsigned char has_ungetc;
+	char ungetc; // character which was pushed by ungetc()
 } FILE;
 
 int errno;
@@ -213,6 +215,28 @@ int isspace(int c) {
 	return c == ' ' || c == '\f' || c == '\n' || c == '\r' || c == '\t' || c == '\v';
 }
 
+int isdigit(int c) {
+	return c >= '0' && c <= '9';
+}
+
+int _isdigit_in_base(int c, int base) {
+	if (c >= '0' && c <= '9') {
+		return c - '0' < base;
+	} else if (c >= 'a' && c <= 'z') {
+		return c - 'a' + 10 < base;
+	} else if (c >= 'A' && c <= 'Z') {
+		return c - 'A' + 10 < base;
+	}
+	return 0;
+}
+
+void *memset(void *s, int c, size_t n) {
+	char *p = s, *end = p + n;
+	while (p < end)
+		*p++ = c;
+	return s;
+}
+
 unsigned long strtoul(const char *nptr, char **endptr, int base) {
 	unsigned long value = 0, newvalue;
 	int overflow = 0;
@@ -277,7 +301,7 @@ long strtol(const char *nptr, char **endptr, int base) {
 	if (sign > 0) {
 		if (mag > LONG_MAX) {
 			errno = ERANGE;
-			return LONG_MIN;
+			return LONG_MAX;
 		}
 		return (long)mag;
 	} else {

@@ -1582,12 +1582,22 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) {
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 	size_t count;
 	long n = 1;
-	if (stream->eof) return 0;
 	if (nmemb > 0xffffffffffffffff / size) {
 		stream->err = 1;
 		return 0;
 	}
+	if (size == 0 || nmemb == 0) return 0;
+	
 	count = size * nmemb;
+	
+	if (stream->has_ungetc) {
+		*(char *)ptr = stream->ungetc;
+		stream->has_ungetc = 0;
+		ptr = (char *)ptr + 1;
+		--count;
+	}
+	if (stream->eof) return 0;
+	
 	while (count > 0) {
 		n = read(stream->fd, ptr, count);
 		if (n <= 0) break;
@@ -1741,33 +1751,13 @@ FILE *tmpfile(void) {
 	return _FILE_from_fd(fd);
 }
 
-// we don't buffer anything
-// we're allowed to do this: "The contents of the array at any time are indeterminate." C89 § 4.9.5.6
-void setbuf(FILE *stream, char *buf) {
-}
-
-int setvbuf(FILE *stream, char *buf, int mode, size_t size) {
-	return 0;
-}
-
-// @TODO
-int fscanf(FILE *stream, const char *format, ...);
-int sscanf(const char *s, const char *format, ...);
-int scanf(const char *format, ...);
-
 int fgetc(FILE *stream) {
 	unsigned char c;
 	long n;
 	if (stream->eof) return EOF;
-	n = read(stream->fd, &c, 1);
-	if (n > 0) return c;
-	if (n < 0) {
-		stream->err = 1;
-		return EOF;
-	}
-	// n == 0
-	stream->eof = 1;
-	return EOF;
+	n = fread(&c, 1, 1, stream);
+	if (n != 1) return EOF;
+	return c;
 }
 
 #define getc(fp) fgetc(fp)
@@ -1778,13 +1768,8 @@ char *fgets(char *s, int n, FILE *stream) {
 	if (stream->eof) return NULL;
 	
 	while (p < end) {
-		long n = read(stream->fd, p, 1);
-		if (n < 0) {
-			stream->err = 1;
-			return NULL;
-		}
-		if (n == 0) {
-			stream->eof = 1;
+		size_t n = fread(p, 1, 1, stream);
+		if (n != 1) {
 			if (p == s) {
 				// end of file reached, and no characters were read
 				return NULL;
@@ -1841,9 +1826,11 @@ int puts(const char *s) {
 }
 
 int ungetc(int c, FILE *stream) {
-	/* @NONSTANDARD */
-	fprintf(stderr, "ERROR: ungetc is not supported.\n");
-	_Exit(-1);
+	if (c == EOF || stream->has_ungetc) return EOF;
+	stream->has_ungetc = 1;
+	stream->ungetc = c;
+	stream->eof = 0;
+	return c;
 }
 
 
@@ -1901,6 +1888,386 @@ int feof(FILE *stream) {
 int ferror(FILE *stream) {
 	return stream->err;
 }
+
+// we don't buffer anything
+// we're allowed to do this: "The contents of the array at any time are indeterminate." C89 § 4.9.5.6
+void setbuf(FILE *stream, char *buf) {
+}
+
+int setvbuf(FILE *stream, char *buf, int mode, size_t size) {
+	return 0;
+}
+
+typedef int _VscanfNextChar(void *, long *);
+typedef int _VscanfPeekChar(void *);
+int _str_next_char(void *dat, long *pos) {
+	const char **s = dat;
+	int c = **s;
+	if (c == '\0') return c;
+	++*pos;
+	++*s;
+	return c;
+}
+int _file_next_char(void *dat, long *pos) {
+	int c = getc(dat);
+	if (c == EOF) return c;
+	++*pos;
+	return c;
+}
+int _str_peek_char(void *dat) {
+	const char **s = dat;
+	return **s;
+}
+int _file_peek_char(void *dat) {
+	int c = getc(dat);
+	ungetc(c, dat);
+	return c;
+}
+
+int _clamp_long_to_int(long x) {
+	if (x < INT_MIN) return INT_MIN;
+	if (x > INT_MAX) return INT_MAX;
+	return x;
+}
+
+short _clamp_long_to_short(long x) {
+	if (x < SHRT_MIN) return SHRT_MIN;
+	if (x > SHRT_MAX) return SHRT_MAX;
+	return x;
+}
+
+unsigned _clamp_ulong_to_uint(unsigned long x) {
+	if (x > UINT_MAX) return UINT_MAX;
+	return x;
+}
+
+unsigned short _clamp_ulong_to_ushort(unsigned long x) {
+	if (x > USHRT_MAX) return USHRT_MAX;
+	return x;
+}
+
+void _bad_scanf(void) {
+	fprintf(stderr, "bad scanf format.\n");
+	abort();
+}
+
+char _parse_escape_sequence(char **p_str) {
+	char *str = *p_str;
+	if (*str == '\\') {
+		++str;
+		switch (*str) {
+		case 'n': *p_str = str + 1; return '\n';
+		case 'v': *p_str = str + 1; return '\v';
+		case 't': *p_str = str + 1; return '\t';
+		case 'a': *p_str = str + 1; return '\a';
+		case 'f': *p_str = str + 1; return '\f';
+		case 'r': *p_str = str + 1; return '\r';
+		case 'b': *p_str = str + 1; return '\b';
+		case 'x':
+			++str;
+			return (char)strtoul(str, p_str, 16);
+		case '0':case '1':case '2':case '3':case '4':case '5':case '6':case '7': {
+			int c = *str++ - '0';
+			if (_isdigit_in_base(*str, 8)) c = (c << 3) + *str - '0', ++str;
+			if (_isdigit_in_base(*str, 8)) c = (c << 3) + *str - '0', ++str;
+			return c;
+		} break;
+		default: *p_str = str + 1; return *str;
+		}
+	} else {
+		*p_str += 1;
+		return *str;	
+	}
+}
+
+int _vscanf(_VscanfNextChar *__next_char, _VscanfPeekChar *__peek_char, int terminator, void *data, const char *fmt, va_list args) {
+	long pos = 0; // position in file/string (needed for %n)
+	int assignments = 0;
+	char number[128], *p_number;
+	unsigned char charset[256];
+	int i;
+	
+	#define _next_char() (__next_char(data, &pos))
+	#define _peek_char() (__peek_char(data))
+	while (*fmt) {
+		if (*fmt == '%') {
+			int base = 10;
+			int assign = 1;
+			long field_width = LONG_MAX;
+			int modifier = 0;
+			char *end;
+			
+			++fmt;
+			if (*fmt == '*') assign = 0, ++fmt; // assignment suppression
+			if (*fmt >= '0' && *fmt <= '9')
+				field_width = strtol(fmt, &fmt, 10); // field width
+			if (*fmt == 'l' || *fmt == 'L' || *fmt == 'h')
+				modifier = *fmt, ++fmt;
+			switch (*fmt) {
+			case 'd': {
+				while (isspace(_peek_char())) _next_char();
+				// signed decimal integer
+				++fmt;
+				if (field_width > 100) field_width = 100; // max number length
+				if (field_width == 0) goto vscanf_done; // number can't have size 0
+				int c = _peek_char();
+				p_number = number;
+				if (c == '-' || c == '+') {
+					if (field_width == 1) goto vscanf_done;
+					*p_number++ = _next_char();
+				}
+				while ((p_number - number) < field_width && isdigit(_peek_char()))
+					*p_number++ = _next_char();
+				*p_number = 0;
+				long value = strtol(number, &end, 10);
+				if (end == number) goto vscanf_done; // bad number
+				if (assign) {
+					switch (modifier) {
+					case 0: *va_arg(args, int*) = _clamp_long_to_int(value); break;
+					case 'h': *va_arg(args, short*) = _clamp_long_to_short(value); break;
+					case 'l': *va_arg(args, long*) = value; break;
+					default: _bad_scanf(); break;
+					}
+					++assignments;
+				}
+			} break;
+			case 'i': {
+				while (isspace(_peek_char())) _next_char();
+				// signed integer
+				long value = 0;
+				++fmt;
+				if (field_width > 100) field_width = 100; // max number length
+				if (field_width == 0) goto vscanf_done; // number can't have size 0
+				int c = _peek_char();
+				p_number = number;
+				if (c == '-' || c == '+') {
+					if (field_width == 1) goto vscanf_done;
+					*p_number++ = _next_char();
+					c = _peek_char();
+				}
+				if (c == '0') {
+					*p_number++ = _next_char();
+					if ((p_number - number) < field_width) {
+						c = _peek_char();
+						if (c == 'x') {
+							if ((p_number - number) < field_width-1)
+								*p_number++ = _next_char(), base = 16;
+							else
+								goto emit_value; // e.g. 0x... width field width 2
+						} else {
+							base = 8;
+						}
+					} else goto emit_value;
+				}
+				while ((p_number - number) < field_width && _isdigit_in_base(_peek_char(), base))
+					*p_number++ = _next_char();
+				*p_number = 0;
+				value = strtol(number, &end, 0);
+				if (end == number) goto vscanf_done; // bad number
+				emit_value:
+				if (assign) {
+					switch (modifier) {
+					case 0: *va_arg(args, int*) = _clamp_long_to_int(value); break;
+					case 'h': *va_arg(args, short*) = _clamp_long_to_short(value); break;
+					case 'l': *va_arg(args, long*) = value; break;
+					default: _bad_scanf(); break;
+					}
+					++assignments;
+				}
+			} break;
+			case 'o': base = 8; goto vscanf_unsigned;
+			case 'u': goto vscanf_unsigned;
+			case 'p': modifier = 'l', base = 16; goto vscanf_unsigned;
+			case 'x': case 'X': base = 16; goto vscanf_unsigned;
+			vscanf_unsigned:{
+				while (isspace(_peek_char())) _next_char();
+				// unsigned integers
+				++fmt;
+				if (field_width > 100) field_width = 100; // max number length
+				if (field_width == 0) goto vscanf_done;
+				int c = _peek_char();
+				p_number = number;
+				if (c == '+') *p_number++ = _next_char();
+				while ((p_number - number) < field_width && _isdigit_in_base(_peek_char(), base))
+					*p_number++ = _next_char();
+				*p_number = 0;
+				unsigned long value = strtoul(number, &end, base);
+				if (end == number) goto vscanf_done; // bad number
+				if (assign) {
+					switch (modifier) {
+					case 0: *va_arg(args, unsigned*) = _clamp_ulong_to_uint(value); break;
+					case 'h': *va_arg(args, unsigned short*) = _clamp_ulong_to_ushort(value); break;
+					case 'l': *va_arg(args, unsigned long*) = value; break;
+					default: _bad_scanf(); break;
+					}
+					++assignments;
+				}
+			} break;
+			case 'e':
+			case 'f':
+			case 'g':
+			case 'E':
+			case 'G': {
+				while (isspace(_peek_char())) _next_char();
+				// floats
+				++fmt;
+				if (field_width > 100) field_width = 100; // max number length
+				if (field_width == 0) goto vscanf_done;
+				int c = _peek_char();
+				p_number = number;
+				if (c == '-' || c == '+') {
+					if (field_width == 1) goto vscanf_done;
+					*p_number++ = _next_char();
+					c = _peek_char();
+				}
+				if (c != '.' && !isdigit(c))
+					goto vscanf_done;
+				while ((p_number - number) < field_width && isdigit(_peek_char()))
+					*p_number++ = _next_char();
+				if ((p_number - number) < field_width && _peek_char() == '.') {
+					*p_number++ = _next_char();
+					while ((p_number - number) < field_width && isdigit(_peek_char()))
+						*p_number++ = _next_char();
+				}
+				c = _peek_char();
+				if ((p_number - number) < field_width && c == 'e' || c == 'E') {
+					*p_number++ = _next_char();
+					c = _peek_char();
+					if ((p_number - number) < field_width && c == '+')
+						*p_number++ = _next_char();
+					else if ((p_number - number) < field_width && c == '-')
+						*p_number++ = _next_char();
+					
+					while ((p_number - number) < field_width && isdigit(_peek_char()))
+						*p_number++ = _next_char();
+				}
+				double value = strtod(number, &end);
+				if (end == number) goto vscanf_done; // bad number
+				if (assign) {
+					switch (modifier) {
+					case 0: *va_arg(args, float*) = value; break;
+					case 'l': case 'L': *va_arg(args, double*) = value; break;
+					default: _bad_scanf(); break;
+					}
+					
+					++assignments;
+				}
+			} break;
+			case 's': {
+				while (isspace(_peek_char())) _next_char();
+				// string of non-whitespace characters
+				++fmt;
+				char *str = assign ? va_arg(args, char*) : NULL, *p = str;
+				for (i = 0; i < field_width && !isspace(_peek_char()); ++i) {
+					int c = _next_char();
+					if (c == terminator) break;
+					if (p) *p++ = c;
+				}
+				if (i == 0) goto vscanf_done; // empty sequence
+				if (p) {
+					*p = 0;
+					++assignments;
+				}
+			} break;
+			case '[': {
+				// string of characters in charset
+				int complement = 0;
+				++fmt;
+				if (*fmt == '^') {
+					complement = 1;
+					++fmt;
+				}
+				memset(charset, complement, sizeof charset);
+				do { // NB: this is a do-while loop and not a while loop, because []] matches strings of ]'s.
+					charset[(unsigned char)_parse_escape_sequence(&fmt)] = !complement;
+				} while (*fmt != ']');
+				++fmt; // skip ]
+				char *str = assign ? va_arg(args, char*) : NULL, *p = str;
+				for (i = 0; i < field_width && charset[(unsigned char)_peek_char()]; ++i) {
+					int c = _next_char();
+					if (c == terminator) break;
+					if (p) *p++ = c;
+				}
+				if (i == 0) goto vscanf_done; // empty sequence
+				if (p) {
+					*p = 0;
+					++assignments;
+				}
+			} break;
+			case 'c': {
+				// string of characters
+				++fmt;
+				char *str = assign ? va_arg(args, char*) : NULL, *p = str;
+				if (field_width == LONG_MAX) field_width = 1;
+				for (i = 0; i < field_width; ++i) {
+					int c = _next_char();
+					if (c == terminator) break;
+					if (p) *p++ = c;
+				}
+				if (i < field_width) goto vscanf_done; // end of file encountered
+				if (p) {
+					++assignments;
+				}
+			} break;
+			case 'n':
+				++fmt;
+				switch (modifier) {
+				case 0: *va_arg(args, int *) = pos; break;
+				case 'h': *va_arg(args, short *) = pos; break;
+				case 'l': *va_arg(args, long *) = pos; break;
+				default: _bad_scanf(); break;
+				}
+				break;
+			default:
+				_bad_scanf();
+				break;
+			}
+		} else if (isspace(*fmt)) {
+			// skip spaces in input
+			++fmt;
+			while (isspace(_peek_char())) _next_char();
+		} else {
+			if (_peek_char() == *fmt) {
+				// format character matches input character
+				++fmt;
+				_next_char();
+			} else {
+				// format character doesn't match input character; stop parsing
+				break;
+			}
+		}
+	}
+	vscanf_done:
+	if (_peek_char() == terminator && assignments == 0) return EOF;
+	return assignments;
+	#undef _next_char
+	#undef _peek_char
+}
+
+int fscanf(FILE *stream, const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	int ret = _vscanf(_file_next_char, _file_peek_char, EOF, stream, format, args);
+	va_end(args);
+	return ret;
+}
+
+int sscanf(const char *s, const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	int ret = _vscanf(_str_next_char, _str_peek_char, 0, &s, format, args);
+	va_end(args);
+	return ret;
+}
+
+int scanf(const char *format, ...) {
+	va_list args;
+	va_start(args, format);
+	int ret = _vscanf(_file_next_char, _file_peek_char, EOF, stdin, format, args);
+	va_end(args);
+	return ret;	
+}
+
 
 void perror(const char *s); // @TODO
 
