@@ -1751,7 +1751,7 @@ FILE *tmpfile(void) {
 	return _FILE_from_fd(fd);
 }
 
-int fgetc(FILE *stream) {
+int getc(FILE *stream) {
 	unsigned char c;
 	long n;
 	if (stream->eof) return EOF;
@@ -1760,7 +1760,9 @@ int fgetc(FILE *stream) {
 	return c;
 }
 
-#define getc(fp) fgetc(fp)
+int fgetc(FILE *stream) {
+	return getc(stream);
+}
 
 char *fgets(char *s, int n, FILE *stream) {
 	char *p = s, *end = p + (n-1);
@@ -1786,12 +1788,15 @@ char *fgets(char *s, int n, FILE *stream) {
 	return s;
 }
 
-int fputc(int c, FILE *stream) {
+int putc(int c, FILE *stream) {
 	size_t n = fwrite(&c, 1, 1, stream);
 	if (n == 1) return c;
 	return EOF;
 }
-#define putc(c, fp) fputc(c, fp)
+
+int fputc(int c, FILE *stream) {
+	return putc(c, stream);
+}
 
 int fputs(const char *s, FILE *stream) {
 	size_t n = strlen(s);

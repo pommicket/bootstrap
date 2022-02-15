@@ -1,15 +1,16 @@
 #define _STDLIB_DEBUG
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stddef.h>
+#include <ctype.h>
 
-int main(void) {
-         int count; float quant; char units[21], item[21];
-         while (!feof(stdin) && !ferror(stdin)) {
-                  count = fscanf(stdin, "%f%20s of %20s",
-                           &quant, units, item);
-                  fscanf(stdin,"%*[^\n]");
-                  printf("%d %g %s %s\n", count, quant, units, item);
-         }
+typedef struct {
+	int x;
+	long y;
+} S;
+
+int main(int argc, char **argv) {
 	return 0;
 }
 

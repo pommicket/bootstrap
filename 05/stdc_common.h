@@ -431,9 +431,13 @@ double strtod(const char *nptr, char **endptr) {
 
 int main();
 
+static char **_envp;
+
 int _main(int argc, char **argv) {
 	int i;
 	_Float p = {1, 0};
+	
+	_envp = argv + argc + 1; // this is where the environment variables will be
 	
 	stdin = &_stdin;
 	stdout = &_stdout;
