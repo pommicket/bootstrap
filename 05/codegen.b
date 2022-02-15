@@ -1515,6 +1515,8 @@ function comparison_type
 	argument expr
 	local type1
 	local type2
+	local t1
+	local t2
 	expr += 8
 	
 	type1 = expr + 4
@@ -1523,17 +1525,19 @@ function comparison_type
 	type2 = expr + 4
 	type2 = *4type2
 	
-	type1 += types
-	type1 = *1type1
-	type2 += types
-	type2 = *1type2
+	t1 = types + type1
+	t1 = *1t1
+	t2 = types + type2
+	t2 = *1t2
 	
 	; do float comparisons as double comparisons to make things simpler
-	if type1 == TYPE_FLOAT goto return_type_double
-	if type2 == TYPE_FLOAT goto return_type_double
+	if t1 == TYPE_FLOAT goto return_type_double
+	if t2 == TYPE_FLOAT goto return_type_double
 	
-	if type1 == TYPE_POINTER goto return_type_unsigned_long
-	if type2 == TYPE_POINTER goto return_type_unsigned_long
+	if t1 == TYPE_POINTER goto return_type_unsigned_long
+	if t2 == TYPE_POINTER goto return_type_unsigned_long
+	if t1 == TYPE_ARRAY goto return_type_unsigned_long ; type1 decays to pointer
+	if t2 == TYPE_ARRAY goto return_type_unsigned_long ; type2 decays to pointer
 	return expr_binary_type_usual_conversions(statement, type1, type2)
 
 ; is this comparison expression a comparison between unsigned integers or floats?

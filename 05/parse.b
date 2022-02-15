@@ -2775,7 +2775,6 @@ function parse_expression
 	if c == EXPRESSION_LT goto type_int
 	if c == EXPRESSION_GT goto type_int
 	if c == EXPRESSION_COMMA goto type_binary_right
-	if c == EXPRESSION_EQ goto type_binary_left
 	if c == EXPRESSION_ASSIGN goto type_binary_left
 	if c == EXPRESSION_ASSIGN_ADD goto type_binary_left
 	if c == EXPRESSION_ASSIGN_SUB goto type_binary_left

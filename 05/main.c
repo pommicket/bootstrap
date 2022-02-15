@@ -3,11 +3,11 @@
 #include <string.h>
 
 int main(void) {
-	char s[] = "   -0XAh.\n";
+	char *s = "1.35984534e135-e12hello";
 	char *end;
-	errno = 0;
-	printf("%ld\n", strtol(s, &end, 0));
-	printf("%d:%s",errno,end);
+	_Float f = _powers_of_10[-307];
+	printf("%.15g\n",strtod(s, &end));
+	printf("%s\n",end);
 	return 0;
 }
 

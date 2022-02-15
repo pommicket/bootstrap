@@ -1,11 +1,6 @@
 #ifndef _STDC_COMMON_H
 #define _STDC_COMMON_H
 
-#ifdef _STDLIB_DEBUG
-int printf(char *);
-#endif
-
-
 #define signed
 #define volatile
 #define register
@@ -105,6 +100,24 @@ void _Exit(int status) {
 	return __syscall(60, status, 0, 0, 0, 0, 0);
 }
 
+int kill(int pid, int sig) {
+	return __syscall(62, pid, sig, 0, 0, 0, 0);
+}
+
+int getpid(void) {
+	return __syscall(39, 0, 0, 0, 0, 0, 0);
+}
+
+#define SIGABRT 6
+#define SIGFPE 8
+#define SIGILL 4
+#define SIGINT 2
+#define SIGSEGV 11
+#define SIGTERM 15
+void abort(void) {
+	kill(getpid(), SIGABRT);
+}
+
 typedef long time_t;
 
 struct timespec {
@@ -126,8 +139,29 @@ int access(const char *pathname, int mode) {
 	return __syscall(21, pathname, mode, 0, 0, 0, 0);
 }
 
+typedef struct {
+	int fd;
+	unsigned char eof;
+	unsigned char err;
+} FILE;
 
 int errno;
+int printf(char *, ...);
+int fprintf(FILE *, char *, ...); // needed now for assert()
+
+FILE _stdin = {0}, *stdin;
+FILE _stdout = {1}, *stdout;
+FILE _stderr = {2}, *stderr;
+
+#ifdef NDEBUG
+#define assert(x) ((void)0)
+#else
+int __assert_failed(const char *file, int line, const char *expr) {
+	fprintf(stderr, "Assertion failed at %s:%d: %s\n", file, line, expr);
+	abort();
+}
+#define assert(x) (void)((x) || __assert_failed(__FILE__, __LINE__, #x))
+#endif
 
 #define EIO 5
 #define EDOM 33
@@ -223,7 +257,7 @@ unsigned long strtoul(const char *nptr, char **endptr, int base) {
 		value = newvalue;
 		++nptr;
 	}
-	*endptr = nptr;
+	if (endptr) *endptr = nptr;
 	if (overflow) {
 		errno = ERANGE;
 		return ULONG_MAX;
@@ -255,22 +289,151 @@ long strtol(const char *nptr, char **endptr, int base) {
 	}
 }
 
-typedef struct {
-	int fd;
-	unsigned char eof;
-	unsigned char err;
-} FILE;
+long _strtol_clamped(const char *nptr, char **endptr, int base, int min, int max) {
+	long l = strtol(nptr, endptr, base);
+	if (l < min) return min;
+	if (l > max) return max;
+	return l;
+}
 
-FILE _stdin = {0}, *stdin;
-FILE _stdout = {1}, *stdout;
-FILE _stderr = {2}, *stderr;
+#define _NPOW10 310
+#define _INFINITY 1e1000
+// non-negative floating-point number with more precision than a double
+//  its value is equal to fraction * 2^exponent
+typedef struct {
+	unsigned long fraction;
+	int exponent;
+} _Float;
+
+// ensure that f->fraction >= 2^64 / 2
+static void _normalize_float(_Float *f) {
+	if (!f->fraction) return;
+	while (f->fraction < 0x8000000000000000) {
+		f->exponent -= 1;
+		f->fraction <<= 1;
+	}
+}
+
+static double _Float_to_double(_Float f) {
+	unsigned long dbl_fraction;
+	int dbl_exponent;
+	unsigned long dbl_value;
+	if (f.fraction == 0) return 0;
+	_normalize_float(&f);
+	f.fraction &= 0x7fffffffffffffff; // remove the "1." in 1.01101110111... to get 63-bit significand
+	dbl_fraction = (f.fraction + 0x3ff) >> 11;
+	dbl_exponent = f.exponent + 63;
+	if (dbl_exponent < -1022) return 0;
+	if (dbl_exponent >  1023) return _INFINITY;
+	dbl_exponent += 1023;
+	dbl_value = (unsigned long)dbl_exponent << 52 | dbl_fraction;
+	return *(double *)&dbl_value;
+}
+
+static _Float _powers_of_10_dat[2*_NPOW10+1];
+static _Float *_powers_of_10;
+static _Float _Float_ZERO = {0, 1};
+static _Float _Float_INFINITY = {0x8000000000000000, 100000};
+
+
+_Float _int_pow10(int x) {
+	if (x <= -_NPOW10) return _Float_ZERO;
+	if (x >= _NPOW10) return _Float_INFINITY;
+	return _powers_of_10[x];
+}
+
+double strtod(const char *nptr, char **endptr) {
+	const char *flt, *dot, *p, *number_end;
+	double sign = 1;
+	int exponent = 0;
+	while (isspace(*nptr)) ++nptr;
+	
+	flt = nptr; // start of float
+	if (*flt == '+') ++flt;
+	else if (*flt == '-') sign = -1, ++flt;
+	
+	if (*flt != '.' && (*flt < '0' || *flt > '9')) {
+		// this isn't a float
+		*endptr = nptr;
+		return 0;
+	}
+	
+	// find the decimal point, if any
+	dot = flt;
+	while (*dot >= '0' && *dot <= '9') ++dot;
+	
+	nptr = dot + (*dot == '.');
+	// skip digits after the dot
+	while (*nptr >= '0' && *nptr <= '9') ++nptr;
+	number_end = nptr;
+	
+	if (*nptr == 'e') {
+		++nptr;
+		exponent = 1;
+		if (*nptr == '+') ++nptr;
+		else if (*nptr == '-') ++nptr, exponent = -1;
+		exponent *= _strtol_clamped(nptr, &nptr, 10, -10000, 10000); // use _strtol_clamped to prevent problems with -LONG_MIN
+	}
+	
+	// construct the value using the Kahan summation algorithm (https://en.wikipedia.org/wiki/Kahan_summation_algorithm)
+	double sum = 0;
+	double c = 0;
+	for (p = flt; p < number_end; ++p) {
+		if (*p == '.') continue;
+		int n = *p - '0';
+		assert(n >= 0 && n <= 9);
+		int pow10 = dot - p;
+		pow10 -= pow10 > 0;
+		pow10 += exponent;
+		_Float f_val = _int_pow10(pow10);
+		f_val.fraction >>= 4;
+		f_val.exponent += 4;
+		f_val.fraction *= n;
+		double value = _Float_to_double(f_val);
+		if (value == _INFINITY || sum == _INFINITY) {
+			sum = _INFINITY;
+			break;
+		}
+		double y = value - c;
+		double t = sum + y;
+		c = (t - sum) - y;
+		sum = t;
+	}
+	
+	if (endptr) *endptr = nptr;
+	return sum * sign;
+}
+
 
 int main();
 
 int _main(int argc, char **argv) {
+	int i;
+	_Float p = {1, 0};
+	
 	stdin = &_stdin;
 	stdout = &_stdout;
 	stderr = &_stderr;
+	
+	// initialize powers of 10
+	_powers_of_10 = _powers_of_10_dat + _NPOW10;
+	for (i = 0; i < _NPOW10; ++i) {
+		_normalize_float(&p);
+		_powers_of_10[i] = p;
+		p.exponent += 4;
+		p.fraction >>= 4;
+		p.fraction *= 10;
+	}
+	
+	p.fraction = 1;
+	p.exponent = 0;
+	for (i = 0; i > -_NPOW10; --i) {
+		_normalize_float(&p);
+		_powers_of_10[i] = p;
+		p.fraction /= 5;
+		p.exponent -= 1;
+	}
+	
 	return main(argc, argv);
 }
 
