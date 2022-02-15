@@ -802,7 +802,9 @@ function parse_statement
 			
 			:local_decl_initializer
 				token += 16
-				if *1token == SYMBOL_LBRACE goto local_init_lbrace
+				if *1token == SYMBOL_LBRACE goto local_const_init
+				if *1token == TOKEN_STRING_LITERAL goto maybe_string_init
+				:not_string_init
 				n = token_next_semicolon_comma_rbracket(token)
 				out += 24
 				p = expressions_end
@@ -813,7 +815,13 @@ function parse_statement
 				type_decay_array_to_pointer_in_place(*4p) ; fix typing for `int[] x = {5,6}; int *y = x;`
 				token = n
 				goto local_decl_continue
-			:local_init_lbrace
+				:maybe_string_init
+					; check if we have  char x[] = "hello"; or char *x = "hello"; (we'll use parse_constant_initializer for that)
+					p = token + 16
+					if *1p == SYMBOL_SEMICOLON goto local_const_init
+					if *1p == SYMBOL_COMMA goto local_const_init
+					goto not_string_init
+			:local_const_init
 				rwdata_end_addr += 7
 				rwdata_end_addr >= 3
 				rwdata_end_addr <= 3

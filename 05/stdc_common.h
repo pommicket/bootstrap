@@ -1,6 +1,11 @@
 #ifndef _STDC_COMMON_H
 #define _STDC_COMMON_H
 
+#ifdef _STDLIB_DEBUG
+int printf(char *);
+#endif
+
+
 #define signed
 #define volatile
 #define register
@@ -19,6 +24,35 @@ typedef unsigned long  size_t;
 typedef long           ptrdiff_t;
 typedef unsigned long  uintptr_t;
 typedef long           intptr_t;
+
+#define INT8_MAX    0x7f
+#define INT8_MIN  (-0x80)
+#define INT16_MAX   0x7fff
+#define INT16_MIN (-0x8000)
+#define INT32_MAX   0x7fffffff
+#define INT32_MIN (-0x80000000)
+#define INT64_MAX   0x7fffffffffffffff
+#define INT64_MIN (-0x8000000000000000)
+#define UINT8_MAX   0xff
+#define UINT16_MAX  0xffff
+#define UINT32_MAX  0xffffffff
+#define UINT64_MAX  0xffffffffffffffff
+#define CHAR_BIT 8
+#define MB_LEN_MAX 4
+#define CHAR_MIN INT8_MIN
+#define CHAR_MAX INT8_MAX
+#define SCHAR_MIN INT8_MIN
+#define SCHAR_MAX INT8_MAX
+#define INT_MIN INT32_MIN
+#define INT_MAX INT32_MAX
+#define LONG_MIN INT64_MIN
+#define LONG_MAX INT64_MAX
+#define SHRT_MIN INT16_MIN
+#define SHRT_MAX INT16_MAX
+#define UCHAR_MAX UINT8_MAX
+#define USHRT_MAX UINT16_MAX
+#define UINT_MAX UINT32_MAX
+#define ULONG_MAX UINT64_MAX
 
 static unsigned char __syscall_data[] = {
 	// mov rax, [rsp+24]
@@ -141,6 +175,85 @@ size_t strlen(char *s) {
 	return t - s;
 }
 
+int isspace(int c) {
+	return c == ' ' || c == '\f' || c == '\n' || c == '\r' || c == '\t' || c == '\v';
+}
+
+unsigned long strtoul(const char *nptr, char **endptr, int base) {
+	unsigned long value = 0, newvalue;
+	int overflow = 0;
+	
+	while (isspace(*nptr)) ++nptr;
+	if (*nptr == '+') ++nptr;
+	if (base == 0) {
+		if (*nptr == '0') {
+			++nptr;
+			switch (*nptr) {
+			case 'x':
+			case 'X':
+				base = 16;
+				++nptr;
+				break;
+			case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7':
+				base = 8;
+				break;
+			default:
+				// this must just be the number 0.
+				if (endptr) *endptr = nptr;
+				return 0;
+			}
+		} else {
+			base = 10;
+		}
+	}
+		
+	while (1) {
+		int c = *nptr;
+		unsigned v;
+		if (c >= '0' && c <= '9')
+			v = c - '0';
+		else if (c >= 'a' && c <= 'z')
+			v = c - 'a' + 10;
+		else if (c >= 'A' && c <= 'Z')
+			v = c - 'A' + 10;
+		else break;
+		if (v >= base) break;
+		unsigned long newvalue = value * base + v;
+		if (newvalue < value) overflow = 1;
+		value = newvalue;
+		++nptr;
+	}
+	*endptr = nptr;
+	if (overflow) {
+		errno = ERANGE;
+		return ULONG_MAX;
+	} else {
+		return value;
+	}
+}
+
+long strtol(const char *nptr, char **endptr, int base) {
+	int sign = 1;
+	while (isspace(*nptr)) ++nptr;
+	if (*nptr == '-') {
+		sign = -1;
+		++nptr;
+	}
+	unsigned long mag = strtoul(nptr, endptr, base);
+	if (sign > 0) {
+		if (mag > LONG_MAX) {
+			errno = ERANGE;
+			return LONG_MIN;
+		}
+		return (long)mag;
+	} else {
+		if (mag > (unsigned long)LONG_MAX + 1) {
+			errno = ERANGE;
+			return LONG_MIN;
+		}
+		return -(long)mag;
+	}
+}
 
 typedef struct {
 	int fd;
