@@ -1683,7 +1683,8 @@ int _fopen_flags_from_mode(const char *mode) {
 }
 
 FILE *_FILE_from_fd(int fd) {
-	FILE *fp = calloc(1, sizeof(FILE));
+	FILE *fp = malloc(sizeof(FILE));
+	// NB: our malloc implementation returns zeroed memory
 	fp->fd = fd;
 	return fp;
 }
@@ -2274,7 +2275,9 @@ int scanf(const char *format, ...) {
 }
 
 
-void perror(const char *s); // @TODO
+void perror(const char *s) {
+	printf("%s: %s\n", s, strerror(errno));
+}
 
 #undef STB_SPRINTF_MIN
 

@@ -108,6 +108,23 @@ int getpid(void) {
 	return __syscall(39, 0, 0, 0, 0, 0, 0);
 }
 
+int fork(void) {
+	return __syscall(57, 0, 0, 0, 0, 0, 0);
+}
+
+int execve(const char *pathname, char *const argv[], char *const envp[]) {
+	return __syscall(59, pathname, argv, envp, 0, 0, 0);
+}
+
+
+#define _WEXITSTATUS(status)   (((status) & 0xff00) >> 8)
+#define _WIFEXITED(status) (__WTERMSIG(status) == 0)
+#define _WIFSIGNALED(status) \
+  (((signed char) (((status) & 0x7f) + 1) >> 1) > 0)
+int wait4(int pid, int *status, int options, struct rusage *rusage) {
+	return __syscall(61, pid, status, options, rusage, 0, 0);
+}
+
 #define SIGABRT 6
 #define SIGFPE 8
 #define SIGKILL 9
@@ -184,7 +201,13 @@ int munmap(void *addr, size_t length) {
 	return __syscall(11, addr, length, 0, 0, 0, 0);
 }
 
+#define MREMAP_MAYMOVE 1
+void *_mremap(void *addr, size_t old_size, size_t new_size, int flags) {
+	return __syscall(25, addr, old_size, new_size, flags, 0, 0);
+}
+
 void *malloc(size_t n) {
+	if (!n) return NULL;
 	void *memory;
 	size_t bytes = n + 16;
 	memory = mmap(0, bytes, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
@@ -194,15 +217,10 @@ void *malloc(size_t n) {
 }
 
 void free(void *ptr) {
+	if (!ptr) return;
 	uint64_t *memory = (char *)ptr - 16;
 	uint64_t size = *memory;
 	munmap(memory, size);
-}
-
-void *calloc(size_t nmemb, size_t size) {
-	if (nmemb > 0xffffffffffffffff / size)
-		return NULL;
-	return malloc(nmemb * size);
 }
 
 
@@ -210,6 +228,13 @@ size_t strlen(char *s) {
 	char *t = s;
 	while (*t) ++t;
 	return t - s;
+}
+
+void *memcpy(void *s1, const void *s2, size_t n) {
+	char *p = s1, *end = p + n, *q = s2;
+	while (p < end)
+		*p++ = *q++;
+	return s1;
 }
 
 int isspace(int c) {
@@ -430,10 +455,30 @@ double strtod(const char *nptr, char **endptr) {
 	return sum * sign;
 }
 
+char *strerror(int errnum) {
+	switch (errnum) {
+	case ERANGE: return "Range error";
+	case EDOM: return "Domain error";
+	case EIO: return "I/O error";
+	}
+	return "Other error";
+}
+
+typedef void (*_ExitHandler)(void);
+_ExitHandler _exit_handlers[33];
+int _n_exit_handlers;
+
+void exit(int status) {
+	int i;
+	for (i = _n_exit_handlers - 1; i >= 0; --i)
+		_exit_handlers[i]();
+	_Exit(status);
+}
 
 int main();
 
 static char **_envp;
+static uint64_t _rand_seed;
 
 int _main(int argc, char **argv) {
 	int i;
@@ -445,6 +490,12 @@ int _main(int argc, char **argv) {
 	stdout = &_stdout;
 	stderr = &_stderr;
 	
+	/*
+	"If rand is called before any calls to srand have been made,
+	the same sequence shall be generated as when srand is first
+	called with a seed value of 1." C89 § 4.10.2.2 
+	*/
+	_rand_seed = 1;
 	// initialize powers of 10
 	_powers_of_10 = _powers_of_10_dat + _NPOW10;
 	for (i = 0; i < _NPOW10; ++i) {
@@ -464,7 +515,7 @@ int _main(int argc, char **argv) {
 		p.exponent -= 1;
 	}
 	
-	return main(argc, argv);
+	exit(main(argc, argv));
 }
 
 
