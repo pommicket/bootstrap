@@ -110,6 +110,7 @@ int getpid(void) {
 
 #define SIGABRT 6
 #define SIGFPE 8
+#define SIGKILL 9
 #define SIGILL 4
 #define SIGINT 2
 #define SIGSEGV 11

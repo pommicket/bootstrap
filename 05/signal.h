@@ -6,9 +6,9 @@
 
 typedef long sig_atomic_t; // there are no "asynchronous interrupts"
 
-#define SIG_DFL 0
+#define SIG_DFL ((void *)0)
 #define SIG_IGN _sig_ign
-#define SIG_ERR (-1)
+#define SIG_ERR ((void *)-1)
 
 typedef void (*_Sighandler)(int);
 
@@ -30,6 +30,7 @@ unsigned char _signal_restorer[] = {
 
 // we need to do this weird indirection because linux has a different
 // calling convention from us.
+
 unsigned char _signal_handler[] = {
 	// signal # passed in rdi
 	0x48,0x89,0xf8,                     // mov rax, rdi (signal #)
@@ -61,25 +62,29 @@ void _sig_ign(int signal) {
 static unsigned long _sig_mask = 0;
 
 _Sighandler signal(int sig, _Sighandler func) {
-	if (func == SIG_DFL) {
-		// @TODO
-		return 0;
-	}
+	void **handlers = _SIGNAL_HANDLERS;
+	_Sighandler ret = handlers[sig];
 	if (func == SIG_IGN) {
 		func = _sig_ign;
 	}
-	
-	void **handlers = _SIGNAL_HANDLERS;
 	handlers[sig] = func;
 	
-	_sig_mask |= 1ul << (sig-1);
+	if (func == SIG_DFL) {
+		_sig_mask &= ~(1ul << (sig-1));
+	} else {
+		_sig_mask |= 1ul << (sig-1);
+	}
 	struct sigaction act = {0};
-	act.handler = _signal_handler;
+	act.handler = func == SIG_DFL ? SIG_DFL : (void*)_signal_handler;
 	act.mask = _sig_mask;
 	act.flags = _SA_RESTORER;
 	act.restorer = _signal_restorer;
 	__sigaction(sig, &act, NULL);
-	return 0;//@TODO
+	return ret;
+}
+
+int raise(int signal) {
+	return kill(getpid(), signal);
 }
 
 #endif // _SIGNAL_H
