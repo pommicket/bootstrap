@@ -5,7 +5,7 @@
 ;   read-only data    4MB  addresses 0x800000-0xbfffff
 ;   read-write data   4MB  addresses 0xc00000-0xffffff
 ; note that file offsets and runtime addresses are the same.
-; you should be able to change these constants (in a way that's consistent) without breaking anything:
+; if you want to change these constants, make sure you update signal.h's _SIGNAL_HANDLERS!
 #define ENTRY_ADDR 0x200000
 #define FUNCTIONS_ADDR 0x400000
 #define FUNCTIONS_END 0x800000
