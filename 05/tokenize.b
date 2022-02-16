@@ -287,6 +287,7 @@ function tokenize
 			fraction = strtoi(&in, 10)
 			; e.g. to turn 35 into .35, multiply by 10^-2
 			pow10 = p - in
+			;putnln_signed(pow10)
 			if pow10 < -400 goto bad_float
 			:float_no_fraction
 			; construct the number integer + fraction*10^pow10
@@ -303,16 +304,13 @@ function tokenize
 			exponent = new_exponent
 			significand += right_shift(integer, exponent)
 			:float_no_integer
+			
 			if *1in == 'e goto float_exponent
 			if *1in == 'E goto float_exponent
 			
 			:float_have_significand_and_exponent
 			if significand == 0 goto float_zero
 			normalize_float(&significand, &exponent)
-			; putn(significand)
-			; putc(32)
-			; putn_signed(exponent)
-			; putc(10)
 			; make number round to the nearest representable float roughly (this is what gcc does)
 			; this fails for 5e-100 probably because of imprecision, but mostly works
 			significand += 15
@@ -321,6 +319,7 @@ function tokenize
 			exponent += 5
 			exponent += 52  ; 1001010111... => 1.001010111... 
 			n = leftmost_1bit(significand)
+			exponent += n - 52 ; in most cases, this is 0, but sometimes it turns out to be 1.
 			b = 1 < n
 			significand &= ~b
 			data = significand

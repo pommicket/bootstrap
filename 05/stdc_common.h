@@ -424,6 +424,7 @@ double strtod(const char *nptr, char **endptr) {
 		sum = t;
 	}
 	
+	if (sum == _INFINITY) errno = ERANGE;
 	if (endptr) *endptr = nptr;
 	return sum * sign;
 }
