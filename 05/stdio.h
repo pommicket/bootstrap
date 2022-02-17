@@ -1739,7 +1739,9 @@ int rename(const char *old, const char *new) {
 
 char *tmpnam(char *s) {
 	struct timespec t = {0};
-	do {		
+	do {
+		// NB: we can't use rand() here because
+		// "The implementation shall behave as if no library function calls the rand function." C89 § 4.10.2.1
 		clock_gettime(CLOCK_MONOTONIC, &t); // use clock as a source of randomness
 		sprintf(s, "/tmp/C_%06u", t.tv_nsec % 1000000);
 	} while (access(s, F_OK) == 0); // if file exists, generate a new name

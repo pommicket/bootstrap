@@ -163,21 +163,21 @@ char *strstr(const char *s1, const char *s2) {
 	return NULL;
 }
 
-char *_strtok_str;
 char *strtok(char *s1, const char *s2) {
-	if (s1) _strtok_str = s1;
-	if (!_strtok_str) return NULL;
-	char *p = _strtok_str + strspn(_strtok_str, s2);
+	static char *str;
+	if (s1) str = s1;
+	if (!str) return NULL;
+	char *p = str + strspn(str, s2);
 	if (!*p) {
-		_strtok_str = NULL;
+		str = NULL;
 		return NULL;
 	}
 	char *q = strpbrk(p, s2);
 	if (q) {
 		*q = 0;
-		_strtok_str = q + 1;
+		str = q + 1;
 	} else {
-		_strtok_str = NULL;
+		str = NULL;
 	}
 	return p;
 }

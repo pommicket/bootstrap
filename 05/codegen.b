@@ -2352,20 +2352,26 @@ function generate_push_expression
 		p = expr + 4
 		expr = generate_push_expression(statement, expr)
 		p = types + *4p
-		if *2p == TYPE2_FUNCTION_POINTER goto deref_function_pointer
+		p += 1
+		if *1p == TYPE_FUNCTION goto deref_do_nothing ; dereferencing a function pointer does nothing
+		if *1p == TYPE_ARRAY goto deref_do_nothing ; dereferencing a pointer to array does nothing
 		generate_stack_dereference(statement, type)
-		:deref_function_pointer  ; dereferencing a function pointer does NOTHING
+		:deref_do_nothing
 		return expr
 	:generate_subscript
 		expr += 8
 		c = expr + 4 ; type 1
 		c = *4c
+		p = c + 1
 		expr = generate_push_expression(statement, expr)
 		d = expr + 4 ; type 2
 		d = *4d
 		expr = generate_push_expression(statement, expr)
 		generate_stack_add(statement, c, d, c)
+		p = type_is_array(p)
+		if p != 0 goto subscript_is_array
 		generate_stack_dereference(statement, type)
+		:subscript_is_array
 		return expr
 	:generate_dot_or_arrow
 		; @NONSTANDARD: we require that the 1st operand to . be an lvalue
