@@ -1,4 +1,4 @@
-#define G_DEBUG 0
+#define G_DEBUG 1
 
 ; add 24 + 16 = 40 to the stack pointer to put argc, argv in the right place
 byte 0x48
@@ -201,6 +201,18 @@ function compile_warning
 	byte 32
 	byte 0
 
+:str_preprocessing
+	string Preprocessing...
+	byte 10
+	byte 0
+:str_tokenizing
+	string Turning preprocessing tokens into tokens...
+	byte 10
+	byte 0
+:str_parsing
+	string Parsing...
+	byte 10
+	byte 0
 
 function main
 	argument argv2
@@ -292,6 +304,8 @@ function main
 	output_file_data = mmap(0, RWDATA_END, PROT_READ_WRITE, MAP_SHARED, output_fd, 0)
 	if output_file_data ] 0xffffffffffff0000 goto mmap_output_fd_failed
 	
+	debug_puts(.str_preprocessing)
+	
 	pptokens = split_into_preprocessing_tokens(input_filename)
 	;print_pptokens(pptokens)
 	;print_separator()
@@ -304,12 +318,15 @@ function main
 	;print_object_macros()
 	;print_function_macros()
 	
+	debug_puts(.str_tokenizing)
+	
 	tokens = malloc(16000000)
 	p = tokenize(pptokens, tokens, input_filename, 1)
 	;print_tokens(tokens, p)
 	;print_separator()
 	; NOTE: do NOT free pptokens; identifiers still reference them.
 	
+	debug_puts(.str_parsing)
 	parse_tokens(tokens)
 	generate_code()
 	

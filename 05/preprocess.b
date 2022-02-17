@@ -850,6 +850,8 @@ function translation_phase_4
 		
 		local included_pptokens
 		included_pptokens = split_into_preprocessing_tokens(inc_filename)
+		debug_puts(.str_including)
+		debug_putsln(inc_filename)
 		out = translation_phase_4(inc_filename, included_pptokens, out)
 		free(included_pptokens)
 		free(inc_filename)
@@ -865,6 +867,10 @@ function translation_phase_4
 		out += 1
 		
 		goto process_pptoken
+		:str_including
+			string Including
+			byte 32
+			byte 0
 	:pp_directive_ifdef
 		pptoken_skip(&in)
 		pptoken_skip_spaces(&in)
@@ -917,7 +923,8 @@ function translation_phase_4
 		if_expr = if_tokens + 2500
 		
 		p = if_pptokens
-		macro_replacement_to_terminator(filename, line_number, &in, &p, 10)
+		macro_replacement_to_terminator(filename, &line_number, &in, &p, 10)
+		
 		if_tokens_end = tokenize(if_pptokens, if_tokens, filename, line_number)
 		; replace all identifiers with 0
 		p = if_tokens
@@ -927,58 +934,11 @@ function translation_phase_4
 			p += 16
 			goto pp_if_idents0_loop
 			:pp_if_replace_ident
-				p += 8
-				b = str_equals(*8p, .str_defined)
-				p -= 8
-				if b != 0 goto pp_replace_defined
 				*1p = TOKEN_CONSTANT_INT
 				p += 8
 				*8p = 0
 				p += 8
 				goto pp_if_idents0_loop
-				:pp_replace_defined
-					; handle, e.g. #if defined(SOMETHING)
-					p += 16
-					if *1p != SYMBOL_LPAREN goto pp_defined_nolparen
-					p += 16
-					if *1p != TOKEN_IDENTIFIER goto pp_bad_defined
-					p += 8
-					def_name = *8p
-					p += 8
-					if *1p != SYMBOL_RPAREN goto pp_bad_defined
-					q = p + 16
-					p -= 32
-					n = if_tokens_end - q
-					memcpy(p, q, n) ; shift everything over because 0 is less tokens than defined(X)
-					p -= 16
-					goto pp_defined_lparen_cont
-					:pp_defined_nolparen
-					if *1p != TOKEN_IDENTIFIER goto pp_bad_defined
-					p += 8
-					def_name = *8p
-					p -= 8
-					q = p + 16
-					n = if_tokens_end - q
-					memcpy(p, q, n) ; shift everything over because 0 is less tokens than defined X
-					p -= 16
-					:pp_defined_lparen_cont					
-					
-					*1p = TOKEN_CONSTANT_INT
-					p += 8
-					b = look_up_object_macro(def_name)
-					if b != 0 goto pp_defined_1
-					b = look_up_function_macro(def_name)
-					if b != 0 goto pp_defined_1
-					; not defined
-					*8p = 0
-					goto pp_defined_cont
-					:pp_defined_1
-					; defined
-					*8p = 1
-					:pp_defined_cont
-					p += 8
-					goto pp_if_idents0_loop
-					
 		:pp_if_idents0_done
 		;print_tokens(if_tokens, p)
 		parse_expression(if_tokens, p, if_expr)
@@ -1176,16 +1136,59 @@ function macro_replacement_to_terminator
 	argument terminator
 	local in
 	local out
+	local b
+	local lparen
 	in = *8p_in
 	out = *8p_out
 	:macro_replacement_to_terminator_loop
 		if *1in == terminator goto macro_replacement_to_terminator_loop_end
+		b = str_equals(in, .str_defined)
+		if b != 0 goto replace_defined
 		macro_replacement(filename, p_line_number, &in, &out)
 		goto macro_replacement_to_terminator_loop
+		:replace_defined
+			; @NONSTANDARD: technically this should only happen in #ifs but whatever
+			pptoken_skip(&in)
+			pptoken_skip_spaces(&in)
+			lparen = 0
+			if *1in != 40 goto defined_no_lparen
+			lparen = 1
+			pptoken_skip(&in)
+			pptoken_skip_spaces(&in)
+			:defined_no_lparen
+			b = isalnum_or_underscore(*1in)
+			if b == 0 goto bad_defined
+			b = look_up_object_macro(in)
+			if b != 0 goto defined_1
+			b = look_up_function_macro(in)
+			if b != 0 goto defined_1
+			; not defined
+			*1out = '0
+			out += 1
+			*1out = 0
+			out += 1
+			goto defined_cont
+			:defined_1
+			*1out = '1
+			out += 1
+			*1out = 0
+			out += 1
+			:defined_cont
+			pptoken_skip(&in)
+			if lparen == 0 goto macro_replacement_to_terminator_loop
+			pptoken_skip_spaces(&in)
+			if *1in != 41 goto bad_defined
+			pptoken_skip(&in)
+			goto macro_replacement_to_terminator_loop
 	:macro_replacement_to_terminator_loop_end
 	*8p_in = in
 	*8p_out = out
 	return
+	:bad_defined
+		compile_error(filename, *8p_line_number, .str_bad_defined)
+	:str_bad_defined
+		string Bad use of defined().
+		byte 0
 
 ; @NONSTANDARD:
 ;  Macro replacement isn't handled properly in the following ways:

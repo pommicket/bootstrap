@@ -2902,6 +2902,7 @@ function generate_function
 	local out0
 	local n_stack_bytes
 	
+	debug_puts(.str_gen_code_for)
 	debug_putsln(function_name)
 	
 	function_type = ident_list_lookup(function_types, function_name)
@@ -2930,6 +2931,10 @@ function generate_function
 	generate_return()
 	
 	return
+	:str_gen_code_for
+		string Generating code for
+		byte 32
+		byte 0
 
 function generate_functions
 	local addr

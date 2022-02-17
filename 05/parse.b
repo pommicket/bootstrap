@@ -344,13 +344,20 @@ function parse_toplevel_declaration
 		
 		ident_list_add(functions_required_stack_space, f_name, curr_function_stack_space)
 		
-		; ENABLE/DISABLE PARSING DEBUG OUTPUT:
-		if G_DEBUG == 0 goto skip_print_statement
-		print_statement(out0)
-		:skip_print_statement
+		debug_puts(.str_parsed)
+		debug_putsln(f_name)
+		
+		;PARSING DEBUG OUTPUT:
+		;if G_DEBUG == 0 goto skip_print_statement
+		;print_statement(out0)
+		;:skip_print_statement
 		
 		goto parse_tld_ret
 		
+		:str_parsed
+			string Parsed
+			byte 32
+			byte 0
 		:function_no_param_name
 			token_error(base_type, .str_function_no_param_name)
 		:str_function_no_param_name
@@ -2127,7 +2134,7 @@ function parse_base_type
 			goto base_type_normal_loop
 		:base_type_flag_long
 			c = flags & PARSETYPE_FLAG_LONG
-			if c != 0 goto repeated_base_type
+			;if c != 0 goto repeated_base_type ; allow "long long" ...and also "long long long" i guess
 			flags |= PARSETYPE_FLAG_LONG
 			goto base_type_normal_loop
 		:base_type_flag_unsigned
@@ -3299,9 +3306,13 @@ function parse_expression
 		return out
 		:undeclared_variable
 			; @NONSTANDARD: C89 allows calling functions without declaring them
-			token_error(in, .str_undeclared_variable)
+			print_token_location(in)
+			puts(.str_undeclared_variable)
+			putsln(a)
+			exit(1)
 		:str_undeclared_variable
-			string Undeclared variable.
+			string : Undeclared variable:
+			byte 32
 			byte 0
 		
 		:found_local_variable
