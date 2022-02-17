@@ -20,7 +20,7 @@
 
 
 static const char tcc_keywords[] = 
-#define DEF(id, str) str "\0"
+#define DEF(id, str) str "\n"
 #include "tcctok.h"
 #undef DEF
 ;
@@ -862,6 +862,7 @@ static inline void define_push(int v, int macro_type, int *str, Sym *first_arg)
 
     s = sym_push2(&define_stack, v, macro_type, (long)str);
     s->next = first_arg;
+    
     table_ident[v - TOK_IDENT]->sym_define = s;
 }
 
@@ -2883,7 +2884,7 @@ void preprocess_new()
         r = p;
         for(;;) {
             c = *r++;
-            if (c == '\0')
+            if (c == '\n')
                 break;
         }
         ts = tok_alloc(p, r - p - 1);

@@ -37,6 +37,13 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <time.h>
+#ifdef __GNUC__
+#include <inttypes.h>
+#include <sys/mman.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <fcntl.h>
+#endif
 
 #ifdef _WIN32
 #include <windows.h>

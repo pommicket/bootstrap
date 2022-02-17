@@ -2178,7 +2178,7 @@ typedef struct FlagDef {
     const char *name;
 } FlagDef;
 
-static const FlagDef warning_defs[] = {
+static FlagDef warning_defs[] = {
     { 0, 0, "unsupported" },
     { 0, 0, "write-strings" },
     { 0, 0, "error" },
@@ -2235,7 +2235,7 @@ int tcc_set_warning(TCCState *s, const char *warning_name, int value)
     }
 }
 
-static const FlagDef flag_defs[] = {
+static FlagDef flag_defs[] = {
     { 0, 0, "unsigned-char" },
     { 0, FD_INVERT, "signed-char" },
     { 0, FD_INVERT, "common" },

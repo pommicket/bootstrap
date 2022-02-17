@@ -2580,6 +2580,15 @@ function generate_statement
 	local c
 	local d
 	
+	if codegen_second_pass == 0 goto skip_addrmap_write
+	d = code_output - output_file_data
+	fputx32(address_map_fd, d)
+	fputc(address_map_fd, ':)
+	fputc(address_map_fd, 32)
+	fprint_statement_location(address_map_fd, statement)
+	fputc(address_map_fd, 10)
+	:skip_addrmap_write
+	
 	prev_continue_refs = continue_refs
 	prev_break_refs = break_refs
 	

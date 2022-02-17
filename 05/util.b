@@ -541,6 +541,12 @@ function putx32ln
 	fputx32(1, n)
 	fputc(1, 10)
 	return
+function fputx32ln
+	argument fd
+	argument n
+	fputx32(fd, n)
+	fputc(fd, 10)
+	return
 
 function putn
 	argument n

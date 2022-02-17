@@ -77,7 +77,8 @@ global function_param_names
 global function_param_has_no_name
 ; ident list of number of bytes of stack space needed by local variables in each function
 global functions_required_stack_space
-
+; a map from pc addresses to program locations will be outputted to this file
+global address_map_fd
 
 #include util.b
 #include idents.b
@@ -123,13 +124,19 @@ function types_init
 	*8ptypes_bytes_used = p - types
 	return
 
-function print_token_location
+function fprint_token_location
+	argument fd
 	argument token
 	token += 2
-	print_filename(*2token)
+	fprint_filename(fd, *2token)
 	token += 2
-	putc(':)
-	putn(*4token)
+	fputc(fd, ':)
+	fputn(fd, *4token)
+	return
+
+function print_token_location
+	argument token
+	fprint_token_location(1, token)
 	return
 
 function print_statement_location
@@ -137,15 +144,28 @@ function print_statement_location
 	; statements & tokens have the same format for locations!
 	print_token_location(statement)
 	return
+
+function fprint_statement_location
+	argument fd
+	argument statement
+	; statements & tokens have the same format for locations!
+	fprint_token_location(fd, statement)
+	return
 	
 ; accepts EITHER file index OR pointer to filename
-function print_filename
+function fprint_filename
+	argument fd
 	argument file
 	if file ] 65535 goto print_filename_string
 	file = file_get(file)
 	; (fallthrough)
 	:print_filename_string
-	puts(file)
+	fputs(fd, file)
+	return
+
+function print_filename
+	argument file
+	fprint_filename(1, file)
 	return
 
 ; accepts EITHER file index OR pointer to filename
@@ -328,11 +348,15 @@ function main
 	
 	debug_puts(.str_parsing)
 	parse_tokens(tokens)
+	
+	address_map_fd = open_w(.str_addrmap_filename, 420)
+	
 	generate_code()
 	
 	p = output_file_data + RODATA_ADDR
 	munmap(output_file_data, RWDATA_END)
 	close(output_fd)
+	close(address_map_fd)
 	
 	;ident_list_printx64(global_variables)
 	;puts(.str_types_bytes_used)
@@ -340,6 +364,10 @@ function main
 	
 	exit(0)
 	
+:str_addrmap_filename
+	string address_map.txt
+	byte 0
+
 :str_types_bytes_used
 	string types_bytes_used:
 	byte 32
