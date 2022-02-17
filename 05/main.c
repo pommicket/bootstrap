@@ -15,9 +15,19 @@ int compar(const void *a, const void *b) {
 
 int main(int argc, char **argv) {
 	char buf[36];
-	memset(buf, 'a', sizeof buf);
-	strncpy(buf, "hello, world!\n",36);
-	printf("%d\n",strcmp(buf, "hello, world!\n"));
+	strcpy(buf, "Hello there there!");
+/* 	buf[36]='b'; */
+	printf("%s\n",strstr(buf," ther"));
+	
+         static char str[] = "?a???b,,,#c";
+         char *t;
+        
+         printf("%s\n", strtok(str, "?"));      /* t  points to the token "a" */
+         printf("%s\n", strtok(NULL, ",")); 
+         printf("%s\n", strtok(NULL, "#,")); 
+         printf("%s\n", strtok(NULL, "?")); 
+         
+
 	return 0;
 }
 
