@@ -1566,6 +1566,7 @@ function generate_push_expression
 	local addr1
 	local addr2
 	local type
+	local type2
 	
 	type = expr + 4
 	type = *4type
@@ -1721,6 +1722,8 @@ function generate_push_expression
 	:generate_assign_add
 		expr += 8
 		p = expression_get_end(expr)
+		type2 = p + 4
+		type2 = *4type2
 		p = generate_push_expression_casted(statement, p, type)
 		generate_push_address_of_expression(statement, expr)
 		expr = p
@@ -1729,7 +1732,7 @@ function generate_push_expression
 		generate_stack_dereference(statement, type)
 		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (addend)
 		emit_push_rax()                       ; push rax
-		generate_stack_add(statement, type, type, type)
+		generate_stack_add(statement, type, type2, type)
 		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
 		emit_push_rax()                       ; push rax
 		generate_stack_assign(statement, type)
@@ -1740,6 +1743,8 @@ function generate_push_expression
 	:generate_assign_sub
 		expr += 8
 		p = expression_get_end(expr)
+		type2 = p + 4
+		type2 = *4type2
 		p = generate_push_expression_casted(statement, p, type)
 		generate_push_address_of_expression(statement, expr)
 		expr = p
@@ -1748,7 +1753,7 @@ function generate_push_expression
 		generate_stack_dereference(statement, type)
 		emit_mov_rax_qword_rsp_plus_imm32(16) ; mov rax, [rsp+16] (2nd operand)
 		emit_push_rax()                       ; push rax
-		generate_stack_sub(statement, type, type, type)
+		generate_stack_sub(statement, type, type2, type)
 		emit_mov_rax_qword_rsp_plus_imm32(8)  ; mov rax, [rsp+8] (address)
 		emit_push_rax()                       ; push rax
 		generate_stack_assign(statement, type)

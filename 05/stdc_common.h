@@ -264,6 +264,7 @@ int wait4(int pid, int *status, int options, struct rusage *rusage) {
 #define SIGSEGV 11
 #define SIGTERM 15
 #define SIGBUS 7
+#define SIGTRAP 5
 void abort(void) {
 	kill(getpid(), SIGABRT);
 }
