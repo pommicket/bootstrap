@@ -12,6 +12,14 @@
 int main(int argc, char **argv) {
 	int *p = 0x100;
 	p += 1;
+	switch (5) {
+	case 5:
+		switch (6) {
+		default:;
+		}
+	case 6:
+		;
+	}
 	printf("%p\n",p);
 	return 0;
 }

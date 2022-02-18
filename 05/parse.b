@@ -237,6 +237,10 @@ function parse_toplevel_declaration
 			string No identifier in top-level declaration.
 			byte 0
 		:tld_bad_stuff_after_decl
+			;b = token - 160
+			;c = token + 160
+			;print_tokens(b, token)
+			;print_tokens(token, c)
 			token_error(token, .str_tld_bad_stuff_after_decl)
 		:str_tld_bad_stuff_after_decl
 			string Declarations should be immediately followed by a comma or semicolon.
@@ -483,6 +487,12 @@ function parse_statement
 	out = *8p_out
 	token = *8p_token
 	
+	; needed so that:
+	;   if (something)
+	;    lbl: f();
+	; works
+	:parse_another_statement
+	
 	c = *1token
 	if c == SYMBOL_SEMICOLON goto stmt_empty
 	if c == SYMBOL_LBRACE goto stmt_block
@@ -538,7 +548,7 @@ function parse_statement
 		*8out = *8token ; copy label name
 		out += 32
 		token += 24 ; skip ident name, and colon
-		goto parse_statement_ret
+		goto parse_another_statement
 	:stmt_switch
 		write_statement_header(out, STATEMENT_SWITCH, token)		
 		token += 16
@@ -915,7 +925,7 @@ function parse_statement
 		*8out = n
 		out += 32
 		token = p + 16
-		goto parse_statement_ret
+		goto parse_another_statement
 		:case_no_colon
 			token_error(token, .str_case_no_colon)
 		:str_case_no_colon
@@ -927,7 +937,7 @@ function parse_statement
 		out += 40
 		if *1token != SYMBOL_COLON goto default_no_colon
 		token += 16
-		goto parse_statement_ret
+		goto parse_another_statement
 		:default_no_colon
 			token_error(token, .str_default_no_colon)
 		:str_default_no_colon
@@ -2454,7 +2464,7 @@ function parse_base_type
 		out = types + types_bytes_used ; fix stuff in case there were any types in the enumerator expressions
 		goto base_type_done
 		:bad_enum_definition
-			token_error(base_type, .str_bad_enum_defn)
+			token_error(p, .str_bad_enum_defn)
 		:str_bad_enum_defn
 			string Bad enum definition.
 			byte 0
