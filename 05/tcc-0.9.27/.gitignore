@@ -19,7 +19,6 @@ tcc
 *-tcc
 libtcc*.def
 
-config*.h
 config*.mak
 config.texi
 conftest*

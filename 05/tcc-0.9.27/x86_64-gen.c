@@ -599,7 +599,7 @@ static void gcall_or_jmp(int is_jmp)
 #ifdef TCC_TARGET_PE
             greloca(cur_text_section, vtop->sym, ind + 1, R_X86_64_PC32, (int)(vtop->c.i-4));
 #else
-            greloca(cur_text_section, vtop->sym, ind + 1, R_X86_64_PLT32, (int)(vtop->c.i-4));
+            greloca(cur_text_section, vtop->sym, ind + 1, R_X86_64_PC32, (int)(vtop->c.i-4)); // tcc's PLT code doesn't seem to work with static builds
 #endif
         } else {
             /* put an empty PC32 relocation */

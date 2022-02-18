@@ -60,7 +60,7 @@ If you're unfamiliar with x86-64 assembly, you should check out the instruction 
 Bootstrapping a compiler is not an easy task, so we're trying to make it as easy
 as possible. We don't even necessarily need a standard-compliant C compiler, we
 only need enough to compile someone else's C compiler, specifically we'll be
-using [TCC](https://bellard.org/tcc/) since it's written in standard C89.
+using [TCC](https://bellard.org/tcc/) since it's written (mostly) in standard C89.
 
 - efficiency is not a concern
 

@@ -15,7 +15,6 @@ __syscall:
 	ret
 	
 _start:
-	lea __syscall, %rdi
 	call main
 	mov $60, %eax
 	syscall
