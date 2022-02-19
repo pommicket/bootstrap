@@ -236,10 +236,12 @@ static unsigned getclock_ms(void)
 {
 #ifdef _WIN32
     return GetTickCount();
-#else
+#elif 0
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return tv.tv_sec*1000 + (tv.tv_usec+500)/1000;
+#else
+    return 0;
 #endif
 }
 

@@ -34,4 +34,4 @@ install-tcc0: $(TCCDIR)/lib/libtcc1.a $(TCCDIR)/include/*.h
 $(TCC1): $(TCC0) $(TCCINST)/libtcc1.a
 	cd $(TCCDIR) && ./tcc0 tcc.c -o tcc1
 clean:
-	rm -f out* README.html *.out *.o $(TCC0) $(TCC1) $(TCCDIR)/lib/*.[oa]
+	rm -f out* README.html *.out *.o $(TCCDIR)/tcc[0123456] $(TCCDIR)/tcc[0123456]a $(TCCDIR)/lib/*.[oa]
