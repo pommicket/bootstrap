@@ -73,12 +73,25 @@ void *realloc(void *ptr, size_t size) {
 		free(ptr);
 		return NULL;
 	}
+#if 0
+	// this (better) implementation doesn't seem to be copying stuff to the
+	// new mapping properly
 	uint64_t *memory = (char *)ptr - 16;
 	uint64_t old_size = *memory;
 	uint64_t *new_memory = _mremap(memory, old_size, size, MREMAP_MAYMOVE);
 	if ((uint64_t)new_memory > 0xffffffffffff0000) return NULL;
 	*new_memory = size;
 	return (char *)new_memory + 16;
+#endif
+
+	uint64_t *memory = (char *)ptr - 16;
+	uint64_t old_size = *memory;
+	void *new = malloc(size);
+	char *new_dat = (char *)new + 16;
+	*(uint64_t *)new = size;
+	memcpy(new_dat, ptr, old_size);
+	free(ptr);
+	return new_dat;
 }
 
 

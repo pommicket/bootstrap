@@ -613,10 +613,17 @@ unsigned long long __fixunsxfdi (long double a1)
         return 0;
 }
 
+
+static long double negate_ld(long double d) {
+	register unsigned long long *p = (unsigned long long *)&d;
+	p[1] ^= 1ul<<15;
+	return *(long double *)p;
+}
+
 long long __fixxfdi (long double a1)
 {
     long long ret; int s;
-    ret = __fixunsxfdi((s = a1 >= 0) ? a1 : -a1);
+    ret = __fixunsxfdi((s = a1 >= 0) ? a1 : negate_ld(a1));
     return s ? ret : -ret;
 }
 #endif /* !ARM */

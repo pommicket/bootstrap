@@ -1,26 +1,15 @@
-/* #define _STDLIB_DEBUG */
-/* #include <math.h> */
 #include <stdio.h>
-/* #include <signal.h> */
-/* #include <stdlib.h> */
-/* #include <string.h> */
-/* #include <time.h> */
-/* #include <float.h> */
-/* #include <setjmp.h> */
-/*  */
+#include <stdlib.h>
 
 int main(int argc, char **argv) {
-	int *p = 0x100;
-	p += 1;
-	switch (5) {
-	case 5:
-		switch (6) {
-		default:;
-		}
-	case 6:
-		;
-	}
-	printf("%p\n",p);
+	printf("%p\n", malloc(1024*16));
+	int *list = malloc(1024*4);
+	printf("%p \n",list);
+	list[1023] = 77;
+	list = realloc(list, 1024*64);
+	printf("%p \n",list);
+	printf("%d\n",list[1023]);
+	free(list);
 	return 0;
 }
 

@@ -2458,6 +2458,16 @@ static void gen_cast_s(int t)
     gen_cast(&type);
 }
 
+static long double negate_ld(long double d) {
+	#if LDBL_MANT_DIG == 64
+	register unsigned long long *p = (unsigned long long *)&d;
+	p[1] ^= 1ul<<15;
+	return *(long double *)p;
+	#else
+	return -d;
+	#endif 
+}
+
 static void gen_cast(CType *type)
 {
     int sbt, dbt, sf, df, c, p;
@@ -2499,12 +2509,12 @@ static void gen_cast(CType *type)
                     if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 63))
                         vtop->c.ld = vtop->c.i;
                     else
-                        vtop->c.ld = -(long double)-vtop->c.i;
+                        vtop->c.ld = negate_ld((long double)-vtop->c.i);
                 } else if(!sf) {
                     if ((sbt & VT_UNSIGNED) || !(vtop->c.i >> 31))
                         vtop->c.ld = (uint32_t)vtop->c.i;
                     else
-                        vtop->c.ld = -(long double)-(uint32_t)vtop->c.i;
+                        vtop->c.ld = negate_ld((long double)-(uint32_t)vtop->c.i);
                 }
 
                 if (dbt == VT_FLOAT)

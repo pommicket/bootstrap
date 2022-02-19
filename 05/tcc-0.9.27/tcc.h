@@ -30,14 +30,15 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
-#ifdef __GNUC__
+#include <float.h>
+#if defined __GNUC__ || defined __TINYC__
 #include <fcntl.h>
 #endif
 #include <setjmp.h>
 #include <time.h>
 
 #ifndef _WIN32
-#ifdef __GNUC__
+#if defined __GNUC__ || defined __TINYC__
 # include <unistd.h>
 # include <sys/time.h>
 #endif
@@ -211,7 +212,8 @@ extern long double strtold (const char *__nptr, char **__endptr);
 #  define CONFIG_TCC_SYSINCLUDEPATHS \
         "{B}/include" \
     ":" ALSO_TRIPLET(CONFIG_SYSROOT "/usr/local/include") \
-    ":" ALSO_TRIPLET(CONFIG_SYSROOT "/usr/include")
+    ":" ALSO_TRIPLET(CONFIG_SYSROOT "/usr/include") \
+    ":/usr/include/x86_64-linux-gnu"
 # endif
 #endif
 

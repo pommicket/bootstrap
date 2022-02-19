@@ -16,6 +16,8 @@
 a.out
 tcc_g
 tcc
+tcc[0123456789]
+tcc[0123456789]a
 *-tcc
 libtcc*.def
 

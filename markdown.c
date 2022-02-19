@@ -19,7 +19,12 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 
 	for (p = text; *p; ++p) {
 		if ((*flags & FLAG_CODE) && *p != '`') {
-			putc(*p, out);
+			switch (*p) {
+			case '<': fprintf(out, "&lt;"); break;
+			case '>': fprintf(out, "&gt;"); break;
+			case '&': fprintf(out, "&amp;"); break;
+			default: putc(*p, out); break;
+			}
 			continue;
 		}
 		switch (*p) {
@@ -198,10 +203,18 @@ int main(int argc, char **argv) {
 			fprintf(out, "<pre><code>\n");
 			
 			while (fgets(line, sizeof line, in)) {
+				char *p;
 				++line_number;
 				if (strncmp(line, "```", 3) == 0)
 					break;
-				fprintf(out, "%s", line);
+				for (p = line; *p; ++p) {
+					switch (*p) {
+					case '<': fprintf(out, "&lt;"); break;
+					case '>': fprintf(out, "&gt;"); break;
+					case '&': fprintf(out, "&amp;"); break;
+					default: fputc(*p, out); break;
+					}
+				}
 			}
 
 			fprintf(out, "</code></pre>\n");
