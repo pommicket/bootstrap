@@ -1,0 +1,647 @@
+---- arm-asm.c ----
+---- arm-gen.c ----
+---- arm-link.c ----
+---- arm64-gen.c ----
+---- arm64-link.c ----
+---- c67-gen.c ----
+---- c67-link.c ----
+---- conftest.c ----
+---- i386-asm.c ----
+209c209
+<  0x0f, /* g */
+---
+>  0x0f /* g */
+238c238
+<     { 0, },
+---
+>     { 0 }
+252a253,254
+>     /* last operation */
+>     0
+1576,1578d1577
+<         default:
+<             reg = TOK_ASM_eax + reg;
+<             break;
+1583a1583,1585
+>         default:
+>             reg = TOK_ASM_eax + reg;
+>             break;
+---- i386-gen.c ----
+---- i386-link.c ----
+---- il-gen.c ----
+---- libtcc.c ----
+27c27
+< ST_DATA int gnu_ext = 1;
+---
+> //ST_DATA int gnu_ext = 1;
+30c30
+< ST_DATA int tcc_ext = 1;
+---
+> //ST_DATA int tcc_ext = 1;
+33c33
+< ST_DATA struct TCCState *tcc_state;
+---
+> //ST_DATA struct TCCState *tcc_state;
+820c820
+< # if defined(__linux__)
+---
+> //# if defined(__linux__)
+823c823
+< # endif
+---
+> //# endif
+1177c1177
+<         ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>         ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1552c1552
+<     { NULL, 0, 0 },
+---
+>     { NULL, 0, 0 }
+1555c1555
+< static const FlagDef options_W[] = {
+---
+> static FlagDef options_W[] = {
+1557,1562c1557,1561
+<     { offsetof(TCCState, warn_unsupported), 0, "unsupported" },
+<     { offsetof(TCCState, warn_write_strings), 0, "write-strings" },
+<     { offsetof(TCCState, warn_error), 0, "error" },
+<     { offsetof(TCCState, warn_gcc_compat), 0, "gcc-compat" },
+<     { offsetof(TCCState, warn_implicit_function_declaration), WD_ALL,
+<       "implicit-function-declaration" },
+---
+>     { 0, 0, "unsupported" },
+>     { 0, 0, "write-strings" },
+>     { 0, 0, "error" },
+>     { 0, 0, "gcc-compat" },
+>     { 0, WD_ALL, "implicit-function-declaration" },
+1566,1572c1565,1571
+< static const FlagDef options_f[] = {
+<     { offsetof(TCCState, char_is_unsigned), 0, "unsigned-char" },
+<     { offsetof(TCCState, char_is_unsigned), FD_INVERT, "signed-char" },
+<     { offsetof(TCCState, nocommon), FD_INVERT, "common" },
+<     { offsetof(TCCState, leading_underscore), 0, "leading-underscore" },
+<     { offsetof(TCCState, ms_extensions), 0, "ms-extensions" },
+<     { offsetof(TCCState, dollars_in_identifiers), 0, "dollars-in-identifiers" },
+---
+> static FlagDef options_f[] = {
+>     { 0, 0, "unsigned-char" },
+>     { 0, FD_INVERT, "signed-char" },
+>     { 0, FD_INVERT, "common" },
+>     { 0, 0, "leading-underscore" },
+>     { 0, 0, "ms-extensions" },
+>     { 0, 0, "dollars-in-identifiers" },
+1576,1577c1575,1576
+< static const FlagDef options_m[] = {
+<     { offsetof(TCCState, ms_bitfields), 0, "ms-bitfields" },
+---
+> static FlagDef options_m[] = {
+>     { 0, 0, "ms-bitfields" },
+1579c1578
+<     { offsetof(TCCState, nosse), FD_INVERT, "sse" },
+---
+>     { 0, FD_INVERT, "sse" },
+1582a1582,1599
+> 
+> void _init_options(void) {
+> 	options_W[1].offset = offsetof(TCCState, warn_unsupported);
+> 	options_W[2].offset = offsetof(TCCState, warn_write_strings);
+> 	options_W[3].offset = offsetof(TCCState, warn_error);
+> 	options_W[4].offset = offsetof(TCCState, warn_gcc_compat);
+> 	options_W[5].offset = offsetof(TCCState, warn_implicit_function_declaration);
+> 	options_f[0].offset = offsetof(TCCState, char_is_unsigned);
+> 	options_f[1].offset = offsetof(TCCState, char_is_unsigned);
+> 	options_f[2].offset = offsetof(TCCState, nocommon);
+> 	options_f[3].offset = offsetof(TCCState, leading_underscore);
+> 	options_f[4].offset = offsetof(TCCState, ms_extensions);
+> 	options_f[5].offset = offsetof(TCCState, dollars_in_identifiers);
+> 	options_m[0].offset = offsetof(TCCState, ms_bitfields);
+> #ifdef TCC_TARGET_X86_64
+> 	options_m[1].offset = offsetof(TCCState, nosse);
+> #endif
+> }
+---- tcc.c ----
+239c239
+< #else
+---
+> #elif 0
+242a243,244
+> #else
+>     return 0;
+254c256
+< 
+---
+> 	_init_options();
+---- tccasm.c ----
+222d221
+<         default:
+223a223
+>         default:
+251d250
+<         default:
+252a252
+>         default:
+---- tcccoff.c ----
+---- tccelf.c ----
+28a29
+> #if 0
+43a45
+> #endif
+171,172c173,174
+<             && ELFW(ST_BIND)(sym->st_info) == STB_LOCAL)
+<             sym->st_info = ELFW(ST_INFO)(STB_GLOBAL, ELFW(ST_TYPE)(sym->st_info));
+---
+>             && ELF64_ST_BIND(sym->st_info) == STB_LOCAL)
+>             sym->st_info = ELF64_ST_INFO(STB_GLOBAL, ELF64_ST_TYPE(sym->st_info));
+183c185
+<                 int n = ELFW(R_SYM)(rel->r_info) - first_sym;
+---
+>                 int n = ELF64_R_SYM(rel->r_info) - first_sym;
+185c187
+<                 rel->r_info = ELFW(R_INFO)(tr[n], ELFW(R_TYPE)(rel->r_info));
+---
+>                 rel->r_info = ELF64_R_INFO(tr[n], ELF64_R_TYPE(rel->r_info));
+375c377
+<         if (ELFW(ST_BIND)(sym->st_info) != STB_LOCAL) {
+---
+>         if (ELF64_ST_BIND(sym->st_info) != STB_LOCAL) {
+415c417
+<         if (ELFW(ST_BIND)(info) != STB_LOCAL) {
+---
+>         if (ELF64_ST_BIND(info) != STB_LOCAL) {
+497,499c499,501
+<     sym_bind = ELFW(ST_BIND)(info);
+<     sym_type = ELFW(ST_TYPE)(info);
+<     sym_vis = ELFW(ST_VISIBILITY)(other);
+---
+>     sym_bind = ELF64_ST_BIND(info);
+>     sym_type = ELF64_ST_TYPE(info);
+>     sym_vis = ELF64_ST_VISIBILITY(other);
+511c513
+<             esym_bind = ELFW(ST_BIND)(esym->st_info);
+---
+>             esym_bind = ELF64_ST_BIND(esym->st_info);
+514c516
+<             esym_vis = ELFW(ST_VISIBILITY)(esym->st_other);
+---
+>             esym_vis = ELF64_ST_VISIBILITY(esym->st_other);
+522c524
+<             esym->st_other = (esym->st_other & ~ELFW(ST_VISIBILITY)(-1))
+---
+>             esym->st_other = (esym->st_other & ~ELF64_ST_VISIBILITY(-1))
+560c562
+<             esym->st_info = ELFW(ST_INFO)(sym_bind, sym_type);
+---
+>             esym->st_info = ELF64_ST_INFO(sym_bind, sym_type);
+570c572
+<                                 ELFW(ST_INFO)(sym_bind, sym_type), other,
+---
+>                                 ELF64_ST_INFO(sym_bind, sym_type), other,
+598c600
+<     rel->r_info = ELFW(R_INFO)(symbol, type);
+---
+>     rel->r_info = ELF64_R_INFO(symbol, type);
+737c739
+<         if (ELFW(ST_BIND)(p->st_info) == STB_LOCAL) {
+---
+>         if (ELF64_ST_BIND(p->st_info) == STB_LOCAL) {
+750c752
+<         if (ELFW(ST_BIND)(p->st_info) != STB_LOCAL) {
+---
+>         if (ELF64_ST_BIND(p->st_info) != STB_LOCAL) {
+766,767c768,769
+<                 sym_index = ELFW(R_SYM)(rel->r_info);
+<                 type = ELFW(R_TYPE)(rel->r_info);
+---
+>                 sym_index = ELF64_R_SYM(rel->r_info);
+>                 type = ELF64_R_TYPE(rel->r_info);
+769c771
+<                 rel->r_info = ELFW(R_INFO)(sym_index, type);
+---
+>                 rel->r_info = ELF64_R_INFO(sym_index, type);
+810c812
+<             sym_bind = ELFW(ST_BIND)(sym->st_info);
+---
+>             sym_bind = ELF64_ST_BIND(sym->st_info);
+838c840
+<         sym_index = ELFW(R_SYM)(rel->r_info);
+---
+>         sym_index = ELF64_R_SYM(rel->r_info);
+840c842
+<         type = ELFW(R_TYPE)(rel->r_info);
+---
+>         type = ELF64_R_TYPE(rel->r_info);
+873,874c875,876
+<         sym_index = ELFW(R_SYM)(rel->r_info);
+<         type = ELFW(R_TYPE)(rel->r_info);
+---
+>         sym_index = ELF64_R_SYM(rel->r_info);
+>         type = ELF64_R_TYPE(rel->r_info);
+881c883
+<                 rel->r_info = ELFW(R_INFO)(sym_index, R_386_RELATIVE);
+---
+>                 rel->r_info = ELF64_R_INFO(sym_index, R_386_RELATIVE);
+916c918
+<     set_elf_sym(symtab_section, 0, 4, ELFW(ST_INFO)(STB_GLOBAL, STT_OBJECT),
+---
+>     set_elf_sym(symtab_section, 0, 4, ELF64_ST_INFO(STB_GLOBAL, STT_OBJECT),
+963c965
+< 	if (ELFW(ST_BIND)(sym->st_info) == STB_LOCAL) {
+---
+> 	if (ELF64_ST_BIND(sym->st_info) == STB_LOCAL) {
+1008c1010
+<             ELFW(ST_INFO)(STB_GLOBAL, STT_FUNC), 0, s1->plt->sh_num, plt_name);
+---
+>             ELF64_ST_INFO(STB_GLOBAL, STT_FUNC), 0, s1->plt->sh_num, plt_name);
+1034c1036
+<             type = ELFW(R_TYPE)(rel->r_info);
+---
+>             type = ELF64_R_TYPE(rel->r_info);
+1036c1038
+<             sym_index = ELFW(R_SYM)(rel->r_info);
+---
+>             sym_index = ELF64_R_SYM(rel->r_info);
+1068,1070c1070,1072
+< 			    && (ELFW(ST_TYPE)(esym->st_info) == STT_FUNC
+< 				|| (ELFW(ST_TYPE)(esym->st_info) == STT_NOTYPE
+< 				    && ELFW(ST_TYPE)(sym->st_info) == STT_FUNC)))
+---
+> 			    && (ELF64_ST_TYPE(esym->st_info) == STT_FUNC
+> 				|| (ELF64_ST_TYPE(esym->st_info) == STT_NOTYPE
+> 				    && ELF64_ST_TYPE(sym->st_info) == STT_FUNC)))
+1083,1085c1085,1087
+<                 (ELFW(ST_VISIBILITY)(sym->st_other) != STV_DEFAULT ||
+< 		 ELFW(ST_BIND)(sym->st_info) == STB_LOCAL)) {
+<                 rel->r_info = ELFW(R_INFO)(sym_index, R_X86_64_PC32);
+---
+>                 (ELF64_ST_VISIBILITY(sym->st_other) != STV_DEFAULT ||
+> 		 ELF64_ST_BIND(sym->st_info) == STB_LOCAL)) {
+>                 rel->r_info = ELF64_R_INFO(sym_index, R_X86_64_PC32);
+1105c1107
+<                 rel->r_info = ELFW(R_INFO)(attr->plt_sym, type);
+---
+>                 rel->r_info = ELF64_R_INFO(attr->plt_sym, type);
+1140c1142
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1144c1146
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1168c1170
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1172c1174
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1221c1223
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1225c1227
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1229c1231
+<                 ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                 ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1260c1262
+<                         ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                         ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1265c1267
+<                         ELFW(ST_INFO)(STB_GLOBAL, STT_NOTYPE), 0,
+---
+>                         ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE), 0,
+1314c1316
+<     int sym_index = ELFW(R_SYM) (rel->r_info);
+---
+>     int sym_index = ELF64_R_SYM (rel->r_info);
+1344c1346
+<             switch (ELFW(R_TYPE) (rel->r_info)) {
+---
+>             switch (ELF64_R_TYPE (rel->r_info)) {
+1363,1364c1365,1366
+< 	if (ELFW(R_TYPE)(rel->r_info) == R_RELATIVE) {
+< 	    int sym_index = ELFW(R_SYM) (rel->r_info);
+---
+>          if (ELF64_R_TYPE(rel->r_info) == R_RELATIVE) {
+> 	    int sym_index = ELF64_R_SYM (rel->r_info);
+1370c1372
+< 	    rel->r_info = ELFW(R_INFO)(0, R_RELATIVE);
+---
+> 	    rel->r_info = ELF64_R_INFO(0, R_RELATIVE);
+1400c1402
+<                 type = ELFW(ST_TYPE)(esym->st_info);
+---
+>                 type = ELF64_ST_TYPE(esym->st_info);
+1411c1413
+< 				    ELFW(ST_INFO)(STB_GLOBAL,STT_FUNC), 0, 0,
+---
+> 				    ELF64_ST_INFO(STB_GLOBAL,STT_FUNC), 0, 0,
+1428c1430
+<                     if (ELFW(ST_BIND)(esym->st_info) == STB_WEAK) {
+---
+>                     if (ELF64_ST_BIND(esym->st_info) == STB_WEAK) {
+1431c1433
+<                                 && (ELFW(ST_BIND)(dynsym->st_info) == STB_GLOBAL)) {
+---
+>                                 && (ELF64_ST_BIND(dynsym->st_info) == STB_GLOBAL)) {
+1450c1452
+<                 if (ELFW(ST_BIND)(sym->st_info) == STB_WEAK ||
+---
+>                 if (ELF64_ST_BIND(sym->st_info) == STB_WEAK ||
+1456c1458
+<         } else if (s1->rdynamic && ELFW(ST_BIND)(sym->st_info) != STB_LOCAL) {
+---
+>         } else if (s1->rdynamic && ELF64_ST_BIND(sym->st_info) != STB_LOCAL) {
+1481c1483
+<             && ELFW(ST_BIND)(sym->st_info) != STB_LOCAL) {
+---
+>             && ELF64_ST_BIND(sym->st_info) != STB_LOCAL) {
+1486c1488
+<             if (ELFW(ST_BIND)(esym->st_info) != STB_WEAK)
+---
+>             if (ELF64_ST_BIND(esym->st_info) != STB_WEAK)
+1503c1505
+<         if (ELFW(ST_BIND)(sym->st_info) != STB_LOCAL) {
+---
+>         if (ELF64_ST_BIND(sym->st_info) != STB_LOCAL) {
+1909,1913d1910
+<     default:
+<     case TCC_OUTPUT_EXE:
+<         ehdr.e_type = ET_EXEC;
+<         ehdr.e_entry = get_elf_sym_addr(s1, "_start", 1);
+<         break;
+1920a1918,1922
+>     case TCC_OUTPUT_EXE:
+>     default:
+>         ehdr.e_type = ET_EXEC;
+>         ehdr.e_entry = get_elf_sym_addr(s1, "_start", 1);
+>         break;
+2481c2483
+<                 if (ELFW(ST_BIND)(sym->st_info) != STB_LOCAL) {
+---
+>                 if (ELF64_ST_BIND(sym->st_info) != STB_LOCAL) {
+2520,2521c2522,2523
+<                 type = ELFW(R_TYPE)(rel->r_info);
+<                 sym_index = ELFW(R_SYM)(rel->r_info);
+---
+>                 type = ELF64_R_TYPE(rel->r_info);
+>                 sym_index = ELF64_R_SYM(rel->r_info);
+2537c2539
+<                 rel->r_info = ELFW(R_INFO)(sym_index, type);
+---
+>                 rel->r_info = ELF64_R_INFO(sym_index, type);
+2766c2768
+<         sym_bind = ELFW(ST_BIND)(sym->st_info);
+---
+>         sym_bind = ELF64_ST_BIND(sym->st_info);
+---- tccgen.c ----
+24a25,26
+> #define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
+> #define STATIC_DATA_WANTED (nocode_wanted & 0xC0000000) /* only static data output */
+31c33,39
+< ST_DATA int rsym, anon_sym, ind, loc;
+---
+> static int local_scope;
+> static int in_sizeof;
+> static int section_sym;
+> 
+> ST_DATA int vlas_in_scope; /* number of VLAs that are currently in scope */
+> ST_DATA int vla_sp_root_loc; /* vla_sp_loc for SP before any VLAs were pushed */
+> ST_DATA int vla_sp_loc; /* Pointer to variable holding location to store stack pointer on the stack when modifying stack pointer */
+32a41,42
+> #if 0
+> ST_DATA int rsym, anon_sym, ind, loc;
+42,48d51
+< static int local_scope;
+< static int in_sizeof;
+< static int section_sym;
+< 
+< ST_DATA int vlas_in_scope; /* number of VLAs that are currently in scope */
+< ST_DATA int vla_sp_root_loc; /* vla_sp_loc for SP before any VLAs were pushed */
+< ST_DATA int vla_sp_loc; /* Pointer to variable holding location to store stack pointer on the stack when modifying stack pointer */
+54,55d56
+< #define NODATA_WANTED (nocode_wanted > 0) /* no static data output wanted either */
+< #define STATIC_DATA_WANTED (nocode_wanted & 0xC0000000) /* only static data output */
+63,64c64,66
+< 
+< ST_DATA CType char_pointer_type, func_old_type, int_type, size_type, ptrdiff_type;
+---
+> ST_DATA CType char_pointer_type, func_old_type, int_type, size_type;
+> #endif
+> ST_DATA CType ptrdiff_type;
+161c163
+<                                   ELFW(ST_INFO)(STB_LOCAL, STT_SECTION), 0,
+---
+>                                   ELF64_ST_INFO(STB_LOCAL, STT_SECTION), 0,
+179c181
+<                 ELFW(ST_INFO)(STB_LOCAL, STT_FILE), 0,
+---
+>                 ELF64_ST_INFO(STB_LOCAL, STT_FILE), 0,
+302c304
+<         esym->st_other = (esym->st_other & ~ELFW(ST_VISIBILITY)(-1))
+---
+>         esym->st_other = (esym->st_other & ~ELF64_ST_VISIBILITY(-1))
+311c313
+<     old_sym_bind = ELFW(ST_BIND)(esym->st_info);
+---
+>     old_sym_bind = ELF64_ST_BIND(esym->st_info);
+313c315
+<         esym->st_info = ELFW(ST_INFO)(sym_bind, ELFW(ST_TYPE)(esym->st_info));
+---
+>         esym->st_info = ELF64_ST_INFO(sym_bind, ELF64_ST_TYPE(esym->st_info));
+410c412
+<         info = ELFW(ST_INFO)(sym_bind, sym_type);
+---
+>         info = ELF64_ST_INFO(sym_bind, sym_type);
+1904d1905
+<             default: l1 = gen_opic_sdiv(l1, l2); break;
+1907a1909
+>             default: l1 = gen_opic_sdiv(l1, l2); break;
+2458a2461,2470
+> static long double negate_ld(long double d) {
+> 	#if LDBL_MANT_DIG == 64
+> 	register unsigned long long *p = (unsigned long long *)&d;
+> 	p[1] ^= 1ul<<15;
+> 	return *(long double *)p;
+> 	#else
+> 	return -d;
+> 	#endif 
+> }
+> 
+2500c2512
+<                         vtop->c.ld = -(long double)-vtop->c.i;
+---
+>                         vtop->c.ld = negate_ld((long double)-vtop->c.i);
+2505c2517
+<                         vtop->c.ld = -(long double)-(uint32_t)vtop->c.i;
+---
+>                         vtop->c.ld = negate_ld((long double)-(uint32_t)vtop->c.i);
+6517,6518c6529,6530
+< 				   ELFW(R_TYPE)(rel->r_info),
+< 				   ELFW(R_SYM)(rel->r_info),
+---
+> 				   ELF64_R_TYPE(rel->r_info),
+> 				   ELF64_R_SYM(rel->r_info),
+---- tccpe.c ----
+---- tccpp.c ----
+25a26
+> #if 0
+39a41
+> #endif
+62c64
+< #define DEF(id, str) str "\0"
+---
+> #define DEF(id, str) str "\n"
+1506c1508
+<             if (varg < TOK_IDENT)
+---
+>             if (varg < TOK_IDENT) {
+1508a1511
+>             }
+1554c1557
+<     if (3 == spc)
+---
+>     if (3 == spc) {
+1556a1560
+>     }
+3671c3675
+<             if (c == '\0')
+---
+>             if (c == '\n')
+---- tccrun.c ----
+---- tcctools.c ----
+---- x86_64-gen.c ----
+111,141d110
+< ST_DATA const int reg_classes[NB_REGS] = {
+<     /* eax */ RC_INT | RC_RAX,
+<     /* ecx */ RC_INT | RC_RCX,
+<     /* edx */ RC_INT | RC_RDX,
+<     0,
+<     0,
+<     0,
+<     0,
+<     0,
+<     RC_R8,
+<     RC_R9,
+<     RC_R10,
+<     RC_R11,
+<     0,
+<     0,
+<     0,
+<     0,
+<     /* xmm0 */ RC_FLOAT | RC_XMM0,
+<     /* xmm1 */ RC_FLOAT | RC_XMM1,
+<     /* xmm2 */ RC_FLOAT | RC_XMM2,
+<     /* xmm3 */ RC_FLOAT | RC_XMM3,
+<     /* xmm4 */ RC_FLOAT | RC_XMM4,
+<     /* xmm5 */ RC_FLOAT | RC_XMM5,
+<     /* xmm6 an xmm7 are included so gv() can be used on them,
+<        but they are not tagged with RC_FLOAT because they are
+<        callee saved on Windows */
+<     RC_XMM6,
+<     RC_XMM7,
+<     /* st0 */ RC_ST0
+< };
+< 
+633c602
+<             greloca(cur_text_section, vtop->sym, ind + 1, R_X86_64_PLT32, (int)(vtop->c.i-4));
+---
+>             greloca(cur_text_section, vtop->sym, ind + 1, R_X86_64_PC32, (int)(vtop->c.i-4)); // tcc's PLT code doesn't seem to work with static builds
+1194a1164,1166
+> enum __va_arg_type {
+> __va_gen_reg, __va_float_reg, __va_stack
+> };
+1198,1200d1169
+<     enum __va_arg_type {
+<         __va_gen_reg, __va_float_reg, __va_stack
+<     };
+1204d1172
+<     default: return __va_stack;
+1206a1175
+>     default: return __va_stack;
+1244c1213
+<     char _onstack[nb_args], *onstack = _onstack;
+---
+>     char _onstack[/*nb_args*/1000/*fucking vlas*/], *onstack = _onstack;
+1461,1465d1429
+<             default:
+<             stack_arg:
+<                 seen_stack_size = ((seen_stack_size + align - 1) & -align) + size;
+<                 break;
+<                 
+1476a1441,1445
+>             default:
+>             stack_arg:
+>                 seen_stack_size = ((seen_stack_size + align - 1) & -align) + size;
+>                 break;
+>                 
+1940,1943d1908
+<             default:
+<             case '+':
+<                 a = 0;
+<                 break;
+1956a1922,1925
+>             case '+':
+>             default:
+>                 a = 0;
+>                 break;
+2016,2019d1984
+<             default:
+<             case '+':
+<                 a = 0;
+<                 break;
+2027a1993,1996
+>                 break;
+>             case '+':
+>             default:
+>                 a = 0;
+---- x86_64-link.c ----
+177c177
+<     sym_index = ELFW(R_SYM)(rel->r_info);
+---
+>     sym_index = ELF64_R_SYM(rel->r_info);
+185c185
+<                     qrel->r_info = ELFW(R_INFO)(esym_index, R_X86_64_64);
+---
+>                     qrel->r_info = ELF64_R_INFO(esym_index, R_X86_64_64);
+190c190
+<                     qrel->r_info = ELFW(R_INFO)(0, R_X86_64_RELATIVE);
+---
+>                     qrel->r_info = ELF64_R_INFO(0, R_X86_64_RELATIVE);
+202c202
+<                 qrel->r_info = ELFW(R_INFO)(0, R_X86_64_RELATIVE);
+---
+>                 qrel->r_info = ELF64_R_INFO(0, R_X86_64_RELATIVE);
+216c216
+<                     qrel->r_info = ELFW(R_INFO)(esym_index, R_X86_64_PC32);
+---
+>                     qrel->r_info = ELF64_R_INFO(esym_index, R_X86_64_PC32);
+249c249
+<                     qrel->r_info = ELFW(R_INFO)(esym_index, R_X86_64_PC64);
+---
+>                     qrel->r_info = ELF64_R_INFO(esym_index, R_X86_64_PC64);
+---- lib/armeabi.c ----
+---- lib/armflush.c ----
+---- lib/bcheck.c ----
+---- lib/lib-arm64.c ----
+---- lib/libtcc1.c ----
+615a616,622
+> 
+> static long double negate_ld(long double d) {
+> 	register unsigned long long *p = (unsigned long long *)&d;
+> 	p[1] ^= 1ul<<15;
+> 	return *(long double *)p;
+> }
+> 
+619c626
+<     ret = __fixunsxfdi((s = a1 >= 0) ? a1 : -a1);
+---
+>     ret = __fixunsxfdi((s = a1 >= 0) ? a1 : negate_ld(a1));
+---- lib/va_list.c ----

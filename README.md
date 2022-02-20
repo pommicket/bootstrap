@@ -27,7 +27,7 @@ command codes.
 - [stage 03](03/README.md) - a language with longer labels, better error messages, and less register manipulation
 - [stage 04](04/README.md) - a language with nice functions and local variables
 - [stage 04a](04a/README.md) - (interlude) a simple preprocessor
-- more coming soon (hopefully)
+- [stage 05](05/README.md) - a C compiler capable of compiling TCC
 
 ## prerequisite knowledge
 
@@ -59,21 +59,21 @@ If you're unfamiliar with x86-64 assembly, you should check out the instruction 
 
 Bootstrapping a compiler is not an easy task, so we're trying to make it as easy
 as possible. We don't even necessarily need a standard-compliant C compiler, we
-only need enough to compile someone else's C compiler, specifically we'll be
+only need enough to compile someone else's C compiler. Specifically, we'll be
 using [TCC](https://bellard.org/tcc/) since it's written (mostly) in standard C89.
 
 - efficiency is not a concern
 
 We will create big and slow executables, and that's okay. It doesn't really
-matter if compiling TCC takes 8 as opposed to 0.01 seconds; once we compile TCC
-with itself, we'll get the same executable either way.
+matter if compiling TCC takes 30 as opposed to 0.01 seconds; once the process
+is finished, we'll get the same executable either way.
 
 ## reflections on trusting trust
 
 In 1984, Ken Thompson wrote the well-known article
 [Reflections on Trusting Trust](http://users.ece.cmu.edu/~ganger/712.fall02/papers/p761-thompson.pdf).
-This is one of the inspirations for this project. To summarize
-the article: it is possible to create a malicious C compiler which will
+This is one of the inspirations for this project. A brief summary is:
+it's possible to create a malicious C compiler which will
 replicate its own malicious functionalities (e.g. detecting password-checking
 routines to make them also accept another password the attacker knows) when used
 to compile other C compilers. For all we know, such a compiler was used to
@@ -224,9 +224,9 @@ Arguments are passed in
 The return value is placed in rax.
 ```
 
-More will be added in the future as needed.
-
 ## license
+
+Note that this does not apply to TCC's source code (`05/tcc-0.9.27`).
 
 ```
 This project is in the public domain. Any copyright protections from any law

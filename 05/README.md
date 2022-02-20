@@ -9,7 +9,7 @@ $ make
 ```
 
 to build our C compiler and TCC. This will take some time (approx. 25 seconds on my computer).
-This also compiles a "Hello, world!" with our compiler, `a.out`.
+This also compiles a "Hello, world!" executable, `a.out`, with our compiler.
 
 We can now compile TCC with itself. But first, you'll need to install the header files and library files
 which are needed to compile (almost) any program with TCC:
@@ -20,8 +20,8 @@ $ sudo make install-tcc0
 
 The files will be installed to `/usr/local/lib/tcc-bootstrap`. If you want to change this, make sure to change
 both the `TCCINST` variable in the makefile, and the `CONFIG_TCCDIR` macro in `config.h`.
-Anyways, once this installation is done, you should be able to compile any C program with `tcc-0.9.27/tcc0`!
-We can even compile TCC with itself:
+Anyways, once this installation is done, you should be able to compile any C program with `tcc-0.9.27/tcc0`,
+including TCC itself:
 
 ```
 $ cd tcc-0.9.27
@@ -44,7 +44,7 @@ $ diff tcc1 tcc1a
 Binary files tcc1 and tcc1a differ
 ```
 
-!!! Is there some malicious code hiding in the difference between these two files? Well, unfortunately (or fortunately, rather) the
+!!! Is there some malicious code hiding in the difference between these two files? Well unfortunately (fortunately, really) the
 truth is more boring than that:
 
 ```
@@ -267,48 +267,67 @@ our header files use, and then we define each of the necessary C standard librar
 ## limitations
 
 There are various minor ways in which this compiler doesn't actually handle all of C89.
-Here is a list of things we do wrong (this list is probably missing things, though):
+Here is a (probably incomplete) list of things we do wrong:
 
 - [trigraphs](https://en.wikipedia.org/wiki/Digraphs_and_trigraphs#C) are not handled
 - `char[]` string literal initializers can't contain null characters (e.g. `char x[] = "a\0b";` doesn't work)
-- you can only access members of l-values (e.g. `int x = function_which_returns_struct().member` doesn't work)
-- no default-int (this is a legacy feature of C, e.g. `main() { }` can technically stand in for `int main() {}`)
+- you can only access members of l-values (e.g. `int x = function_which_returns_struct().member;` doesn't work)
+- no default-int (this is a legacy feature of C, e.g. `main() {}` can technically stand in for `int main() {}`)
 - the keyword `auto` is not handled (again, a legacy feature of C)
-- `default:` must be the last label in a switch statement.
-- external variable declarations are ignored (e.g. `extern int x; int main() { return x; }  int x = 5; ` doesn't work)
-- `typedef`s, and `struct`/`union`/`enum` declarations aren't allowed inside functions
+- `default:` must come after all `case` labels in a switch statement.
+- external variable declarations are ignored, and global variables can only be declared once
+(e.g. `extern int x; int main() { return x; }  int x = 5; ` doesn't work)
+- `typedef`s, and `struct`/`union`/`enum` definitions aren't allowed inside functions
 - conditional expressions aren't allowed inside `case` (horribly, `switch (x) { case 5 ? 6 : 3: ; }` is legal C).
 - bit-fields aren't handled
 - Technically, `1[array]` is equivalent to `array[1]`, but we don't handle that.
 - C89 has *very* weird typing rules about `void*`/`non-void*` inside conditional expressions. We don't handle that properly.
 - C89 allows calling functions without declaring them, for legacy reasons. We don't handle that.
 - Floating-point constant expressions are very limited. Only `double` literals and 0 are supported.
-- Floating-point literals can't have their integer part greater than 2<sup>64</sup>-1.
+- In floating-point literals, the numbers before and after the decimal point must be less than 2<sup>64</sup>.
+- The only "address constants" we allow are string literals, e.g. `int y, x = &y;` is not allowed as a global declaration.
 - Redefining a macro is always an error, even if it's the same definition.
 - You can't have a variable/function/etc. called `defined`.
 - Various little things about when macros are evaluated in some contexts.
-- The horrible, horrible, function `setjmp`, which surely no one uses is not properly supported.
+- The horrible, horrible function `setjmp`, which surely no one uses, is not properly supported.
 Oh wait, TCC uses it. Fortunately it's not critically important to TCC.
-- `wchar_t` and wide character string literals are not supported.
+- Wide characters and wide character strings are not supported.
 - The `localtime()` function assumes you are in the UTC+0 timezone.
 - `mktime()` always fails.
-
-Also, the keywords `signed`, `volatile`, `register`, and `const` are all ignored. This shouldn't have an effect
-on any legal C program, though.
+- The keywords `signed`, `volatile`, `register`, and `const` are all ignored, but this should almost never
+have an effect on a legal C program.
 
 ## anecdotes
 
 Making this C compiler took over a month. Here are some interesting things
 which happened along the way:
 
-- A very difficult part of this compiler was parsing floating-point numbers in a language which
-doesn't have floats. Originally, there was a bug where negative powers of 2 were
+- Writing code to parse floating-point numbers in a language which
+doesn't have floats turned out to be quite a fun challenge!
+Not all decimal numbers have a perfect floating point representation. You could
+round 0.1 up to ~0.1000000000000000056, or down to ~0.0999999999999999917.
+This stage's C compiler should be entirely correct, up to rounding (which is all that the
+C standard requires).
+But typically C compilers
+will round to whichever is closest to the decimal value. Implementing this correctly
+is a lot harder than you might expect. For example,
+```
+0.09999999999999999861222121921855432447046041488647460937499
+rounds down, but
+0.09999999999999999861222121921855432447046041488647460937501
+rounds up.
+```
+Good luck writing a function which handles that!
+- Originally, there was a bug where negative powers of 2 were
 being interpreted as half of their actual value, e.g. `x = 0.25;` would set `x` to
 `0.125`, but `x = 4;`, `x = 0.3;`, etc. would all work just fine.
+- Writing the functions in `math.h`, although probably not necessary for compiling TCC,
+was fun! There are quite a few interesting optimizations you can make, and little
+tricks for avoiding losses in floating-point accuracy.
 - The <s>first</s> second non-trivial program I successfully compiled worked perfectly the first time I ran it!
 - A very difficult to track down bug happened the first time I ran `tcc`: there was a declaration along
 the lines of `char x[] = "a\0b\0c";` but it got compiled as `char x[] = "a";`!
-- Originally, I was just treating labels as statements, but `tcc` actually has code like:
+- Originally, I was just treating labels the same as any other statements, but `tcc` actually has code like:
 ```
 ...
 goto lbl;
@@ -318,7 +337,7 @@ if (some_condition)
 ```
 so the `do_something();` was not being considered as part of the `if` statement.
 - The first time I compiled tcc with itself (and then with itself again), I actually got a different
-executable. After spending a long time looking at disassemblies, I found the culprit:
+executable from the GCC one. After spending a long time looking at disassemblies, I found the culprit:
 ```
 # if defined(__linux__)
     tcc_define_symbol(s, "__linux__", NULL);
@@ -332,6 +351,43 @@ with itself!
 
 ## modifications of tcc's source code
 
+Some modifications were needed to bring tcc's source code in line with what our compiler expects.
+
+You can find a full list of modifications in `diffs.txt`, but I'll provide an overview (and explanation)
+here.
+
+- First, we (and C89) don't allow a comma after the last member in an initializer. In several places,
+the last comma in an initializer/enum definition was removed, or an irrelevant entry was added to the end.
+- Global variables were sometimes declared twice, which we don't support.
+So, a bunch of duplicate declarations were removed.
+- The `# if defined(__linux__)` and `# endif` mentioned above were removed.
+- In a bunch of places, `ELFW(something)` had to be replaced with `ELF64_something` due to
+subtleties of how we evaluate macros.
+- `offsetof(type, member)` isn't considered a constant expression by our compiler, so
+some initializers were replaced by functions called at the top of `main`.
+- In several places, `default:` had to be moved to after every `case` label.
+- In two places, `-some_long_double_expression` had to be replaced with
+a function call to `negate_ld` (a function I wrote for negating long doubles).
+This is because TCC only supports negating long doubles if
+the compiler used to compile it has an 80-bit long double type, which our compiler doesn't.
+- `\0` was replaced with `\n` as a separator for keyword names.
+- Forced TCC to use `R_X86_64_PC32` relocations, because its `plt` code doesn't seem to work for static
+executables.
+- Lastly, there's the `config.h` file, which is normally produced by TCC's `configure` script,
+but it's easy to write one manually:
+```
+#define TCC_VERSION "0.9.27"
+#define CONFIG_TCC_STATIC 1
+#define TCC_TARGET_X86_64 1
+#define ONE_SOURCE 1
+#define CONFIG_LDDIR "lib/x86_64-linux-gnu"
+#define CONFIG_TCCDIR "/usr/local/lib/tcc-bootstrap"
+#define inline
+```
+The last line causes the `inline` keyword (added in C99) to be ignored.
+
+Fewer changes would've been needed for an older version of TCC, but older versions didn't support
+x86-64 assembly, which might end up being relevant...
 
 ## \*the nightmare begins
 
@@ -345,12 +401,13 @@ if there a security bug were found in `printf`, it would be much easier to repla
 every program which uses `printf`.
 
 Now this library file is itself compiled from C source files (typically glibc).
-So, we *can't* really say that the self-compiled TCC was built from scratch. And there could be malicious
+So, we can't really say that the self-compiled TCC was built from scratch. And there could be malicious
 self-replicating code in glibc!
 
 So, why not just compile glibc with TCC?
-Well, it's not actually possible. glibc can pretty much only be compiled with GCC. And we can't compile GCC
-without a libc. Hmm...
+Well, it's not actually possible. glibc can pretty much only be compiled with GCC.
+This stage's C compiler definitely can't compile GCC, so we'll need a libc implementation to
+compile GCC. Hmm...
 
 Other libc implementations don't seem to like TCC either, so it seems that the only option left is to
 make a new libc implementation, use that to compile GCC (probably an old version of it which TCC can compile),

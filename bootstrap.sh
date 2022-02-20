@@ -88,5 +88,14 @@ if [ "$(sed '/^#/d;/^$/d' out04a)" != 'Hello, world!' ]; then
 fi
 cd ..
 
+echo 'Processing stage 05 (this will take some time)...'
+cd 05
+rm -f test.out out04 in04 *.o tcc-0.9.27/tcc0
+make -s test.out > /dev/null
+if [ "$(./test.out)" != 'Hello, world!' ]; then
+	echo_red 'Stage 05 failed.'
+	exit 1	
+fi
+cd ..
 
 echo_green 'all stages completed successfully!'
