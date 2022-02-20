@@ -226,7 +226,7 @@ The return value is placed in rax.
 
 ## license
 
-Note that this does not apply to TCC's source code (`05/tcc-0.9.27`).
+This does not apply to TCC's or musl's source code.
 
 ```
 This project is in the public domain. Any copyright protections from any law

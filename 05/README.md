@@ -389,7 +389,7 @@ The last line causes the `inline` keyword (added in C99) to be ignored.
 Fewer changes would've been needed for an older version of TCC, but older versions didn't support
 x86-64 assembly, which might end up being relevant...
 
-## \*the nightmare begins
+## \*libc
 
 If you look in TCC's source code, you will not find implementations of any of the C standard library functions.
 So how can programs compiled with TCC use those functions?
@@ -401,14 +401,15 @@ if there a security bug were found in `printf`, it would be much easier to repla
 every program which uses `printf`.
 
 Now this library file is itself compiled from C source files (typically glibc).
-So, we can't really say that the self-compiled TCC was built from scratch. And there could be malicious
-self-replicating code in glibc!
+So, we can't really say that the self-compiled TCC was built from scratch, and there could be malicious
+self-replicating code in glibc.
 
-So, why not just compile glibc with TCC?
-Well, it's not actually possible. glibc can pretty much only be compiled with GCC.
-This stage's C compiler definitely can't compile GCC, so we'll need a libc implementation to
-compile GCC. Hmm...
+You can't compile glibc with TCC, but
+it's possible to build an old version of `musl`, an alternate libc
+(you can run `CC=../tcc-0.9.27/tcc0 make` in the `musl-0.6.0` directory here).
 
-Other libc implementations don't seem to like TCC either, so it seems that the only option left is to
-make a new libc implementation, use that to compile GCC (probably an old version of it which TCC can compile),
-then use GCC to compile glibc. It will definitely be a large undertaking... 
+You should be able to use musl alongside TCC to build an old version of GCC (git revision
+`79a6d9b7ff3822675ee44d8d6cad86027dadd664` seems workable). This also requires
+building several tools needed to compile GCC. You should then be able to build (possibly an old version of)
+glibc, and with that, a modern version of GCC.
+This is all extremely tedious, though, so I'm not planning on doing it anytime soon.
