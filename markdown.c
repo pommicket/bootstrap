@@ -28,6 +28,14 @@ static void output_md_text(FILE *out, int *flags, int line_number, const char *t
 			continue;
 		}
 		switch (*p) {
+		case '\\':
+			++p;
+			if (*p == '\0') {
+				fprintf(stderr, "line %d: Unterminated \\.\n", line_number);
+				exit(-1);
+			}
+			fprintf(out, "%c", *p);
+			break;
 		case '*':
 			if (p[1] == '*') {
 				/* bold */

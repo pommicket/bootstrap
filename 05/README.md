@@ -5,16 +5,57 @@ to TCC's source code).
 Run
 
 ```
-make
+$ make
 ```
 
 to build our C compiler and TCC. This will take some time (approx. 25 seconds on my computer).
-Two test programs will be produced: `a.out`, compiled using our C compiler, and
-`test.out`, compiled using `tcc`. If you run either one, you should get the output
+This also compiles a "Hello, world!" with our compiler, `a.out`.
+
+We can now compile TCC with itself. But first, you'll need to install the header files and library files
+which are needed to compile (almost) any program with TCC:
 
 ```
-Hello, world!
+$ sudo make install-tcc0
 ```
+
+The files will be installed to `/usr/local/lib/tcc-bootstrap`. If you want to change this, make sure to change
+both the `TCCINST` variable in the makefile, and the `CONFIG_TCCDIR` macro in `config.h`.
+Anyways, once this installation is done, you should be able to compile any C program with `tcc-0.9.27/tcc0`!
+We can even compile TCC with itself:
+
+```
+$ cd tcc-0.9.27
+$ ./tcc0 tcc.c -o tcc1
+```
+
+Now, let's try doing the same thing, but starting with GCC instead of our C compiler:
+
+```
+$ gcc tcc.c -o tcc0a
+$ ./tcc0a tcc.c -o tcc1a
+```
+
+In theory, these should produce the same files, since the output of TCC shouldn't depend on which compiler it was compiled with.
+If they are different, then perhaps a bug *was* introduced in some early version of GCC, and replicated in all C compilers since then!
+Well, only one way to find out:
+
+```
+$ diff tcc1 tcc1a
+Binary files tcc1 and tcc1a differ
+```
+
+!!! Is there some malicious code hiding in the difference between these two files? Well, unfortunately (or fortunately, rather) the
+truth is more boring than that:
+
+```
+$ ./tcc1 tcc.c -o tcc2
+$ diff tcc2 tcc1a
+$
+```
+
+Yes, after compiling TCC with itself one more time, we get the same executable as the GCC-TCC one.
+I'm not sure why `tcc1` differs from `tcc2`, but there you go. Turns out there isn't some malicious
+self-replicating code hiding in GCC after all.\*
 
 ## the C compiler
 
@@ -34,7 +75,14 @@ main.b         - puts everything together
 
 The whole thing is ~12,000 lines of code, which is ~280KB when compiled.
 
-### the C standard
+It can be compiled with `make` or:
+
+```
+../04a/out04 main.b in04
+../04/out03 in04 out04
+```
+
+## the C standard
 
 In 1989, the C programming language was standardized by the [ANSI](https://en.wikipedia.org/wiki/American_National_Standards_Institute).
 
@@ -45,7 +93,7 @@ Since 1989, more features have been added to C, and so more C standards have bee
 To keep things simple, our compiler only supports the features from C89 (with a few exceptions).
 
 
-### compiling a C program
+## compiler high-level details
 
 Compiling a C program involves several "translation phases" (C89 standard § 2.1.1.2).
 Here, I'll only be outlining the process our C compiler uses. The technical details
@@ -112,7 +160,7 @@ This is where we read the tokens `if` `(` `a` `)` `printf` `(` `"Hello!\n"` `)` 
 and interpret it as an if statement, whose condition is the variable `a`, and whose
 body consists of the single statement calling the `printf` function with the argument `"Hello!\n"`.
 
-Finally, we output the code for every function.
+Finally, we turn this internal representation into code for every function.
 
 ## executable format
 
@@ -234,46 +282,76 @@ Here is a list of things we do wrong (this list is probably missing things, thou
 - Technically, `1[array]` is equivalent to `array[1]`, but we don't handle that.
 - C89 has *very* weird typing rules about `void*`/`non-void*` inside conditional expressions. We don't handle that properly.
 - C89 allows calling functions without declaring them, for legacy reasons. We don't handle that.
-- Floating-point constant expressions are very limited. Only `double` literals and 0 are supported (it was hard enough
-to parse floating-point literals in a language without floating-point variables!)
+- Floating-point constant expressions are very limited. Only `double` literals and 0 are supported.
 - Floating-point literals can't have their integer part greater than 2<sup>64</sup>-1.
 - Redefining a macro is always an error, even if it's the same definition.
 - You can't have a variable/function/etc. called `defined`.
 - Various little things about when macros are evaluated in some contexts.
-setjmp.h:// @NONSTANDARD: we don't actually support setjmp
-stddef.h:// @NONSTANDARD: we don't have wchar_t
-stdlib.h:// @NONSTANDARD: we don't define MB_CUR_MAX or any of the mbtowc functions
-time.h:// @NONSTANDARD(except in UTC+0): we don't support local time in timezones other than UTC+0.
-time.h: // @NONSTANDARD-ish.
-
+- The horrible, horrible, function `setjmp`, which surely no one uses is not properly supported.
+Oh wait, TCC uses it. Fortunately it's not critically important to TCC.
+- `wchar_t` and wide character string literals are not supported.
+- The `localtime()` function assumes you are in the UTC+0 timezone.
+- `mktime()` always fails.
 
 Also, the keywords `signed`, `volatile`, `register`, and `const` are all ignored. This shouldn't have an effect
 on any legal C program, though.
 
+## anecdotes
+
+Making this C compiler took over a month. Here are some interesting things
+which happened along the way:
+
+- A very difficult part of this compiler was parsing floating-point numbers in a language which
+doesn't have floats. Originally, there was a bug where negative powers of 2 were
+being interpreted as half of their actual value, e.g. `x = 0.25;` would set `x` to
+`0.125`, but `x = 4;`, `x = 0.3;`, etc. would all work just fine.
+- The <s>first</s> second non-trivial program I successfully compiled worked perfectly the first time I ran it!
+- A very difficult to track down bug happened the first time I ran `tcc`: there was a declaration along
+the lines of `char x[] = "a\0b\0c";` but it got compiled as `char x[] = "a";`!
+- Originally, I was just treating labels as statements, but `tcc` actually has code like:
+```
+...
+goto lbl;
+...
+if (some_condition)
+    lbl: do_something();
+```
+so the `do_something();` was not being considered as part of the `if` statement.
+- The first time I compiled tcc with itself (and then with itself again), I actually got a different
+executable. After spending a long time looking at disassemblies, I found the culprit:
+```
+# if defined(__linux__)
+    tcc_define_symbol(s, "__linux__", NULL);
+    tcc_define_symbol(s, "__linux", NULL);
+# endif
+```
+If the `__linux__` macro is defined (to indicate that the target OS is linux),
+TCC will also define the `__linux__` macro. Unlike GCC, our compiler doesn't define the `__linux__` macro,
+so when it's used to compile TCC, TCC won't define it either, no matter how many times you compile it
+with itself!
+
 ## modifications of tcc's source code
 
 
-## the nightmare begins
+## \*the nightmare begins
 
-So now we just compile TCC with itself, and we're done, right?
-Well, not quite...
+If you look in TCC's source code, you will not find implementations of any of the C standard library functions.
+So how can programs compiled with TCC use those functions?
 
-The issue here is that to compile TCC/GCC with TCC, we need libc, the C standard library functions.
-Our C compiler just includes these functions in the standard header files, but normally
-the code for them is located in a separate library file (called something like
-`/usr/lib/x86_64-linux-gnu/libc-2.31.so`).
+When a program compiled with TCC (under default settings) calls `printf`, say, it actually gets the instructions
+for `printf` from a separate library file
+(called something like `/usr/lib/x86_64-linux-gnu/libc-2.31.so`). There are very good reasons for this: for example,
+if there a security bug were found in `printf`, it would be much easier to replace the library file than re-compile
+every program which uses `printf`.
 
-This library file is itself compiled from C source files (typically glibc).
-So, can't we just compile glibc with TCC, then compile TCC with itself?
-Well, no. Compiling glibc with TCC is basically impossible; you need to compile
-it with GCC.
+Now this library file is itself compiled from C source files (typically glibc).
+So, we *can't* really say that the self-compiled TCC was built from scratch. And there could be malicious
+self-replicating code in glibc!
 
-Other libc implementations aren't too happy about TCC either -- I tried to compile
-[musl](http://www.musl-libc.org/) for several hours, and had to give up in the end.
+So, why not just compile glibc with TCC?
+Well, it's not actually possible. glibc can pretty much only be compiled with GCC. And we can't compile GCC
+without a libc. Hmm...
 
-It seems that the one option left is to make our own libc, and try to use it along with
-TCC to compile GCC.
-From there, we should be able to compile glibc with GCC. Then, we can compile GCC with GCC and glibc.
-If we do all this, we should get the same libc.so and gcc files as if we had started
-with any GCC and glibc builds. It's all very confusing.
-
+Other libc implementations don't seem to like TCC either, so it seems that the only option left is to
+make a new libc implementation, use that to compile GCC (probably an old version of it which TCC can compile),
+then use GCC to compile glibc. It will definitely be a large undertaking... 

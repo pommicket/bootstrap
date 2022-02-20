@@ -817,10 +817,10 @@ LIBTCCAPI TCCState *tcc_new(void)
     tcc_define_symbol(s, "__unix__", NULL);
     tcc_define_symbol(s, "__unix", NULL);
     tcc_define_symbol(s, "unix", NULL);
-# if defined(__linux__)
+//# if defined(__linux__)
     tcc_define_symbol(s, "__linux__", NULL);
     tcc_define_symbol(s, "__linux", NULL);
-# endif
+//# endif
 # if defined(__FreeBSD__)
     tcc_define_symbol(s, "__FreeBSD__", "__FreeBSD__");
     /* No 'Thread Storage Local' on FreeBSD with tcc */
