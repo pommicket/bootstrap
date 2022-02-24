@@ -2,12 +2,12 @@
 
 Compilers nowadays are written in languages like C, which themselves need to be
 compiled. But then, you need a C compiler to compile your C compiler! Of course,
-the very first C compiler was not written in C (because how would it be
-compiled?). Instead, it was built up over time, starting from a basic
-assembler, eventually reaching a full-scale compiler.
-In this repository, we'll explore how that's done. Each directory
-represents a new "stage" in the process. The first one, `00`, is a hand-written
-executable, and the last one will be a C compiler. Each directory has its own
+the very first C compiler was not written in C.
+First, people made assemblers, then simple programming languages,
+then, eventually, it was possible to make a C compiler.
+In this repository, we'll explore how that's done. Each directory here
+is a "stage" in the process. The first one, `00`, is a hand-written
+executable, and the last one, `05`, is a C compiler. Each directory has its own
 README explaining what's going on.
 
 You can run `bootstrap.sh` to run through and test every stage.
@@ -33,25 +33,24 @@ command codes.
 
 If you want to follow along with this series, you'll probably want to know about:
 
-- what a system call is
-- what memory is
-- what a compiler is
-- what an executable file is
 - number bases -- if a number is preceded by 0x, 0o, or 0b in this series, that
 means hexadecimal/octal/binary respectively. So 0xff = FF hexadecimal = 255
 decimal.
-- what a CPU is
-- what a CPU architecture is
-- what a CPU register is
-- what the (call) stack is
 - bits, bytes, kilobytes, etc.
 - bitwise operations (not, or, and, xor, left shift, right shift)
 - 2's complement
 - ASCII, null-terminated strings
 - how pointers work
 - how floating-point numbers work
+- what a compiler is
+- what an executable file is
+- what a system call is
+- what a CPU is
+- what a CPU architecture is
+- what a CPU register is
+- what the (call) stack is
 
-If you're unfamiliar with x86-64 assembly, you should check out the instruction list below.
+If you're unfamiliar with x86-64 assembly, you should take a look at the instruction list below.
 
 ## principles
 
@@ -60,13 +59,13 @@ If you're unfamiliar with x86-64 assembly, you should check out the instruction 
 Bootstrapping a compiler is not an easy task, so we're trying to make it as easy
 as possible. We don't even necessarily need a standard-compliant C compiler, we
 only need enough to compile someone else's C compiler. Specifically, we'll be
-using [TCC](https://bellard.org/tcc/) since it's written (mostly) in standard C89.
+using [tcc](https://bellard.org/tcc/) since it's written (mostly) in C89.
 
 - efficiency is not a concern
 
 We will create big and slow executables, and that's okay. It doesn't really
-matter if compiling TCC takes 30 as opposed to 0.01 seconds; once the process
-is finished, we'll get the same executable either way.
+matter if compiling TCC takes 30 as opposed to 0.01 seconds; once
+we compile it with itself, we should get the same executable either way.
 
 ## reflections on trusting trust
 
@@ -77,7 +76,7 @@ it's possible to create a malicious C compiler which will
 replicate its own malicious functionalities (e.g. detecting password-checking
 routines to make them also accept another password the attacker knows) when used
 to compile other C compilers. For all we know, such a compiler was used to
-compile GCC, say, and so all programs around today could be compromised. Of
+compile gcc, say, and so all programs around today could be compromised. Of
 course, this is practically definitely not the case, but it's still an
 interesting experiment to try to create a fully trustable compiler.  This
 project can't necessarily even do that though, because the Linux kernel, which
@@ -143,8 +142,7 @@ ax  bx  cx  dx  sp  bp  si  di
 │ mov al, [rbx]        │ 8a 03             │ load 1 byte from address rbx into al   │
 │ mov rax, [rbp+IMM32] │ 48 8b 85 IMM32    │ load 8 bytes from address rbp+IMM32    │
 │                      │                   │ into rax (note: IMM32 may be negative) │
-│ mov rax, [rsp+IMM32] │ 48 8b 84 24 IMM32 │ load 8 bytes from address rsp+IMM32    │
-│                      │                   │ into rax (note: IMM32 may be negative) │
+│ mov rax, [rsp+IMM32] │ 48 8b 84 24 IMM32 │ load 8 bytes from rsp+IMM32 into rax   │
 │ mov [rbp+IMM32], rax │ 48 89 85 IMM32    │ store rax in 8 bytes at rbp+IMM32      │
 │ mov [rsp+IMM32], rax │ 48 89 84 24 IMM32 │ store rax in 8 bytes at rsp+IMM32      │
 │ mov [rsp], rbp       │ 48 89 2c 24       │ store rbp in 8 bytes at rsp            │
@@ -161,19 +159,19 @@ ax  bx  cx  dx  sp  bp  si  di
 │ imul rbx             │ 48 f7 eb          │ set rdx:rax to rax * rbx (signed)      │
 │ cqo                  │ 48 99             │ sign-extend rax to rdx:rax             |
 │ idiv rbx             │ 48 f7 fb          │ divide rdx:rax by rbx (signed); put    │
-│                      │                   │    quotient in rax, remainder in rbx   │
+│                      │                   │    quotient in rax, remainder in rdx   │
 │ mul rbx              │ 48 f7 e3          │ like imul, but unsigned                │
-│ div rbx              │ 48 f7 f3          │ like idiv, but with unsigned division  │
+│ div rbx              │ 48 f7 f3          │ like idiv, but unsigned                │
 │ not rax              │ 48 f7 d0          │ set rax to ~rax (bitwise not)          │
 │ and rax, rbx         │ 48 21 d8          │ set rax to rax & rbx (bitwise and)     │
 │ or rax, rbx          │ 48 09 d8          │ set rax to rax | rbx (bitwise or)      │
 │ xor rax, rbx         │ 48 31 d8          │ set rax to rax ^ rbx (bitwise xor)     │
 │ shl rax, cl          │ 48 d3 e0          │ set rax to rax << cl (left shift)      │
 │ shl rax, IMM8        │ 48 c1 e0 IMM8     │ set rax to rax << IMM8                 │
-│ shr rax, cl          │ 48 d3 e8          │ set rax to rax >> cl (zero-extend)     │
-│ shr rax, IMM8        │ 48 c1 e8 IMM8     │ set rax to rax >> IMM8 (zero-extend)   │
-│ sar rax, cl          │ 48 d3 f8          │ set rax to rax >> cl (sign-extend)     │
-│ sar rax, IMM8        │ 48 c1 f8 IMM8     │ set rax to rax >> IMM8 (sign-extend)   │
+│ shr rax, cl          │ 48 d3 e8          │ set rax to rax >> cl (unsigned)        │
+│ shr rax, IMM8        │ 48 c1 e8 IMM8     │ set rax to rax >> IMM8 (unsigned)      │
+│ sar rax, cl          │ 48 d3 f8          │ set rax to rax >> cl (signed)          │
+│ sar rax, IMM8        │ 48 c1 f8 IMM8     │ set rax to rax >> IMM8 (signed)        │
 │ sub rsp, IMM32       │ 48 81 ec IMM32    │ subtract IMM32 from rsp                │
 │ add rsp, IMM32       │ 48 81 c4 IMM32    │ add IMM32 to rsp                       │
 │ cmp rax, rbx         │ 48 39 d8          │ compare rax with rbx (see je, jl, etc.)│
@@ -226,7 +224,7 @@ The return value is placed in rax.
 
 ## license
 
-This does not apply to TCC's or musl's source code.
+This does not apply to tcc's or musl's source code.
 
 ```
 This project is in the public domain. Any copyright protections from any law

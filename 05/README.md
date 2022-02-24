@@ -213,7 +213,8 @@ static unsigned char __syscall_data[] = {
 };
 
 #define __syscall(no, arg1, arg2, arg3, arg4, arg5, arg6)\
-	(((unsigned long (*)(unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long))__syscall_data)\
+	(((unsigned long (*)(unsigned long, unsigned long, unsigned long,\
+	   unsigned long, unsigned long, unsigned long, unsigned long))__syscall_data)\
 		(no, arg1, arg2, arg3, arg4, arg5, arg6))
 ```
 
@@ -296,6 +297,8 @@ Oh wait, tcc uses it. Fortunately it's not critically important to tcc.
 - `mktime()` always fails.
 - The keywords `signed`, `volatile`, `register`, and `const` are all ignored, but this should almost never
 have an effect on a legal C program.
+- Converting `unsigned long` to `double`/`float` treats the number as signed (this is incorrect
+for `unsigned long` values above 2<sup>63</sup>).
 
 ## anecdotes
 
@@ -306,7 +309,7 @@ which happened along the way:
 doesn't have floats turned out to be quite a fun challenge!
 Not all decimal numbers have a perfect floating point representation. You could
 round 0.1 up to ~0.1000000000000000056, or down to ~0.0999999999999999917.
-This stage's C compiler should be entirely correct, up to rounding (which is all that the
+This stage's C compiler should be correct up to rounding (which is all that the
 C standard requires).
 But typically C compilers
 will round to whichever is closest to the decimal value. Implementing this correctly
@@ -343,7 +346,7 @@ executable from the gcc one. After spending a long time looking at disassemblies
     tcc_define_symbol(s, "__linux", NULL);
 # endif
 ```
-If the `__linux__` macro is defined (to indicate that the target OS is linux),
+If the `__linux__` macro is defined (to indicate that the OS is linux),
 tcc will also define the `__linux__` macro in any programs it compiles.
 Unlike gcc, our compiler doesn't define the `__linux__` macro,
 so when it's used to compile tcc, tcc won't define it either, no matter how many times you compile it
@@ -424,7 +427,7 @@ get to glibc:
 - build & install dash
 - build & install sed-4.2
 - build & install ld, as (from binutils)
-- build gcc
+- build & install gcc
 - build & install grep-3.7
 - build & install awk
 - build & install bash
@@ -438,10 +441,10 @@ This made broken Makefiles which I spent hours editing by hand
 -- and is it really compiled from scratch if it's built from
 computer-generated source files and Makefiles?
 And although the developers at GNU 
-refrain from declaring variables after statements, and keep old-style function declarations
-to support compilers from the 80s; they *still* manage to use gcc-specific extensions, and
-not even extensions that all versions of gcc support!
+refrain from declaring variables after statements,
+they can't help but use bizarre gcc-specific extensions.
 After hours and hours of fixing compiler errors, I decided to give up.
 
-THIS WAY LIES MADNESS.
+I'll just say, as a reminder to my future self, and a warning to anyone
+else who wants to compile glibc from scratch: THIS WAY LIES MADNESS.
 

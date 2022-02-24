@@ -75,7 +75,7 @@ version of ELF)
 - `02 00` Object type = executable file (not a dynamic library/etc.)
 - `3e 00` Architecture x86-64
 - `01 00 00 00` Version 1 of ELF, again 
-- `78 00 40 00 00 00 00 00` **Entry point of the executable** = 0x400078
+- `78 00 40 00 00 00 00 00` Entry point of the executable = 0x400078
 - `40 00 00 00 00 00 00 00` Program header table offset in bytes from start of file
 - `00 00 00 00 00 00 00 00` Section header table offset (we're not using sections)
 - `00 00 00 00` Flags (not important to us)
@@ -194,16 +194,13 @@ similar to our first call, with two important differences: first, we specify
 `0x241` as the second argument. This tells Linux that we are writing to the
 file (`O_WRONLY = 0x01`), that we want to create it if it doesn't exist
 (`O_CREAT = 0x40`), and that we want to delete any previous contents it had
-(`O_TRUNC = 0x200`). Secondly, we're setting the third argument this time.  It
+(`O_TRUNC = 0x200`). Also, we're setting the third argument this time.  It
 specifies the permissions our file is created with (`0o755` means user
-read/write/execute, group/other read/execute). This is not very important to
-the actual execution of the program, so don't worry if you don't know 
-about UNIX permissions.
+read/write/execute, group/other read/execute).
 Note that the output file's descriptor will be 4.
 
-Now we can start reading from the file. We're going to loop back to this part of
-the code every time we want to read a new hexadecimal number from the input
-file.
+Now we can start reading the input file. We're going to loop back to this part of
+the code every time we want to read a new digit pair.
 
 - `48 b8 03 00 00 00 00 00 00 00` `mov rax, 3`
 - `48 89 c7` `mov rdi, rax`
@@ -246,7 +243,7 @@ reasons for this which I won't get into here.
 - `8a 03` `mov al, byte [rbx]`
 
 Here we put the ASCII code of the first character read from the file into `rax`.
-But now we need to turn the ASCII character code into the actual numerical value
+But now we need to turn the ASCII character code into the numerical value
 of the hex digit.
 
 - `48 89 c3` `mov rbx, rax`
@@ -255,8 +252,8 @@ of the hex digit.
 - `0f 8c 0f 00 00 00` `jl 0x400136`
 
 This checks if the character code is greater than the character code for the
-digit 9, and jumps to a different part of the code if so. This different part of
-the code will handle the case of the hex digits `a` through `f`.
+digit 9, and jumps to a different part of the code if so. That part
+will handle the case of the hex digits `a` through `f`.
 
 - `48 b8 d0 ff ff ff ff ff ff ff` `mov rax, -48`
 

@@ -36,7 +36,8 @@ separated by semicolons. Any text after the command and before the semicolon is
 ignored (that's how we get comments), and there has to be a terminating
 semicolon.
 
-So, for example, the `sy` command outputs a syscall instruction. You can see
+For example, the `sy` command outputs a syscall instruction and the
+`zA` command sets `rax` to 0. You can see
 `commands.txt` for a full list.
 
 `||` is a very important command. It outputs an ELF header for our executable.

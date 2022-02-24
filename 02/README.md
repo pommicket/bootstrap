@@ -106,7 +106,7 @@ And instead of figuring out the address of a piece of data, we can just use its 
 ```
 im
 --xy
-// rax now points to the data at the label "::xy"
+// rax now points to the data at the label ::xy
 ```
 
 This also lets us compute the length of the hello world string automatically!

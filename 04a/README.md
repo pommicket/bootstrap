@@ -72,3 +72,5 @@ B
 ```
 
 Will be preprocessed to `A`, not `10`.
+
+And with that, it's finally time to write [a C compiler](../05/README.md).

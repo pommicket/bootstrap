@@ -382,12 +382,13 @@ function main
 	byte 0
 
 :usage_error
-	puts(.str_usage_error)
+	putsln(.str_usage_error)
 	exit(1)
 
 :str_usage_error
 	string Please either specify no arguments or an input and output file.
-
+	byte 0
+	
 :str_default_input_filename
 	string main.c
 	byte 0

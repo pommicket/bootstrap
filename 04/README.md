@@ -270,5 +270,5 @@ of branching in this language (`if ... goto ...` stands in for `if`, `else if`, 
 you need to use a lot of labels, and that means their names can get quite long. But at least unlike
 the 03 language, you'll get an error if you use the same label name twice!
 
-Overall, though, this language ended up being surprisingly powerful. With any luck, stage `05` will
+Overall, though, this language ended up being surprisingly powerful. In fact, stage `05` will
 finally be a C compiler... But first, it's time to make [something that's not a compiler](../04a/README.md).
