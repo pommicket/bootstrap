@@ -48,4 +48,12 @@ size_t fwrite(const void *src, size_t size, size_t nmemb, FILE *f)
 	return l/size;
 }
 
-weak_alias(fwrite, fwrite_unlocked);
+size_t fwrite_unlocked(const void *src, size_t size, size_t nmemb, FILE *f)
+{
+	size_t l = size*nmemb;
+	if (!l) return l;
+	FLOCK(f);
+	l = __fwritex(src, l, f);
+	FUNLOCK(f);
+	return l/size;
+}

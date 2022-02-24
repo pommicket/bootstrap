@@ -7,4 +7,7 @@ int __madvise(void *addr, size_t len, int advice)
 	return syscall3(__NR_madvise, (long)addr, len, advice);
 }
 
-weak_alias(__madvise, madvise);
+int madvise(void *addr, size_t len, int advice)
+{
+	return syscall3(__NR_madvise, (long)addr, len, advice);
+}

@@ -5,4 +5,7 @@ int fileno(FILE *f)
 	return f->fd;
 }
 
-weak_alias(fileno, fileno_unlocked);
+int fileno_unlocked(FILE *f)
+{
+	return f->fd;
+}

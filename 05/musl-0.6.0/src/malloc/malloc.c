@@ -324,7 +324,7 @@ void *malloc(size_t n)
 {
 	struct chunk *c;
 	int i, j;
-
+if (n == 0) n = 1;/* everyone depends on this behavior for some fucking reason */
 	if (!n || adjust_size(&n) < 0) return 0;
 
 	if (n > MMAP_THRESHOLD) {

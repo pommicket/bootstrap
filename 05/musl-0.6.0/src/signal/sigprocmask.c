@@ -19,5 +19,26 @@ int __sigprocmask(int how, const sigset_t *set, sigset_t *old)
 	return __libc_sigprocmask(how, set, old);
 }
 
-weak_alias(__sigprocmask, sigprocmask);
-weak_alias(__sigprocmask, pthread_sigmask);
+int sigprocmask(int how, const sigset_t *set, sigset_t *old)
+{
+	sigset_t tmp;
+	/* Quickly mask out bits 32 and 33 (thread control signals) */
+	if (0 && how != SIG_UNBLOCK && (set->__bits[4/sizeof *set->__bits] & 3UL<<(32&8*sizeof *set->__bits-1))) {
+		tmp = *set;
+		set = &tmp;
+		tmp.__bits[4/sizeof *set->__bits] &= ~(3UL<<(32&8*sizeof *set->__bits-1));
+	}
+	return __libc_sigprocmask(how, set, old);
+}
+
+int pthread_sigmask(int how, const sigset_t *set, sigset_t *old)
+{
+	sigset_t tmp;
+	/* Quickly mask out bits 32 and 33 (thread control signals) */
+	if (0 && how != SIG_UNBLOCK && (set->__bits[4/sizeof *set->__bits] & 3UL<<(32&8*sizeof *set->__bits-1))) {
+		tmp = *set;
+		set = &tmp;
+		tmp.__bits[4/sizeof *set->__bits] &= ~(3UL<<(32&8*sizeof *set->__bits-1));
+	}
+	return __libc_sigprocmask(how, set, old);
+}

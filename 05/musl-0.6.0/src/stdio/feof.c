@@ -7,4 +7,7 @@ int feof(FILE *f)
 	return !!(f->flags & F_EOF);
 }
 
-weak_alias(feof, feof_unlocked);
+int feof_unlocked(FILE *f)
+{
+	return !!(f->flags & F_EOF);
+}

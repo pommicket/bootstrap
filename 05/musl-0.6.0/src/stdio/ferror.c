@@ -7,4 +7,7 @@ int ferror(FILE *f)
 	return !!(f->flags & F_ERR);
 }
 
-weak_alias(ferror, ferror_unlocked);
+int ferror_unlocked(FILE *f)
+{
+	return !!(f->flags & F_ERR);
+}

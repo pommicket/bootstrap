@@ -24,6 +24,7 @@ extern long __syscall_ret(unsigned long);
 
 #define SYSCALL "syscall"
 
+#if 0
 static inline long syscall0(long n)
 {
 	unsigned long ret;
@@ -63,7 +64,6 @@ static inline long syscall4(long n, long a1, long a2, long a3, long a4)
 	return __syscall_ret(ret);
 }
 
-#if 0
 static inline long syscall5(long n, long a1, long a2, long a3, long a4,
 							long a5)
 {
@@ -88,6 +88,11 @@ static inline long syscall6(long n, long a1, long a2, long a3, long a4,
 	return __syscall_ret(ret);
 }
 #else
+extern long syscall0(long);
+extern long syscall1(long, long);
+extern long syscall2(long, long, long);
+extern long syscall3(long, long, long, long);
+extern long syscall4(long, long, long, long, long);
 extern long syscall5(long, long, long, long, long, long);
 extern long syscall6(long, long, long, long, long, long, long);
 #endif

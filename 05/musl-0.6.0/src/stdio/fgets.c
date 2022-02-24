@@ -31,4 +31,7 @@ char *fgets(char *s, int n, FILE *f)
 	return (p == s) ? 0 : s;
 }
 
-weak_alias(fgets, fgets_unlocked);
+
+char *fgets_unlocked(char *s, int n, FILE *f) {
+	return fgets(s, n, f);
+}

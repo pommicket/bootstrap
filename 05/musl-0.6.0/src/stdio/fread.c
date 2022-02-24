@@ -46,4 +46,6 @@ eof:
 	return (len-l)/size;
 }
 
-weak_alias(fread, fread_unlocked);
+size_t fread_unlocked(void *destv, size_t size, size_t nmemb, FILE *f) {
+	return fread(destv, size, nmemb, f);
+}

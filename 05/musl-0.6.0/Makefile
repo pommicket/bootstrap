@@ -8,6 +8,7 @@
 # Do not make changes here.
 #
 
+CC = ../tcc-0.9.27/tcc0
 exec_prefix = /usr/local/musl-bootstrap
 bindir = $(exec_prefix)/bin
 
@@ -16,7 +17,7 @@ includedir = $(prefix)/include
 libdir = $(prefix)/lib
 
 SRCS = $(sort $(wildcard src/*/*.c))
-OBJS = $(SRCS:.c=.o) src/alloca86_64-bt.o src/alloca86_64.o src/libtcc1.o src/va_list.o src/syscall56.o
+OBJS = $(SRCS:.c=.o) src/alloca86_64-bt.o src/alloca86_64.o src/libtcc1.o src/va_list.o src/syscall.o
 LOBJS = $(OBJS:.o=.lo)
 GENH = include/bits/alltypes.h
 
@@ -44,9 +45,10 @@ all: $(ALL_LIBS) $(ALL_TOOLS)
 
 install: $(ALL_LIBS:lib/%=$(DESTDIR)$(libdir)/%) $(ALL_INCLUDES:include/%=$(DESTDIR)$(includedir)/%) $(ALL_TOOLS:tools/%=$(DESTDIR)$(bindir)/%)
 
-src/syscall56.o: src/syscall56.s
+src/syscall.o: src/syscall.s
 	$(CC) -c -o $@ $<
-
+src/%.o: ../tcc-0.9.27/lib/%.o
+	cp $< $@
 clean:
 	rm -f crt/*.o
 	rm -f $(OBJS)

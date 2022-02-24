@@ -42,4 +42,12 @@ int __sigaction(int sig, const struct sigaction *sa, struct sigaction *old)
 	return __libc_sigaction(sig, sa, old);
 }
 
-weak_alias(__sigaction, sigaction);
+int sigaction(int sig, const struct sigaction *sa, struct sigaction *old)
+{
+	if (sig == SIGCANCEL || sig == SIGSYSCALL) {
+		errno = EINVAL;
+		return -1;
+	}
+	return __libc_sigaction(sig, sa, old);
+}
+

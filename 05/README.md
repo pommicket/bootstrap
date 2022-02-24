@@ -1,42 +1,42 @@
 # [bootstrap](../README.md) stage 05
 
-This stage consists of a C compiler capable of compiling TCC (after some modifications
-to TCC's source code).
+This stage consists of a C compiler capable of compiling tcc (after some modifications
+to tcc's source code).
 Run
 
 ```
 $ make
 ```
 
-to build our C compiler and TCC. This will take some time (approx. 25 seconds on my computer).
+to build our C compiler and tcc. This will take some time (approx. 25 seconds on my computer).
 This also compiles a "Hello, world!" executable, `a.out`, with our compiler.
 
-We can now compile TCC with itself. But first, you'll need to install the header files and library files
-which are needed to compile (almost) any program with TCC:
+We can now compile tcc with itself. But first, you'll need to install the header files and library files
+which are needed to compile (almost) any program with tcc:
 
 ```
 $ sudo make install-tcc0
 ```
 
 The files will be installed to `/usr/local/lib/tcc-bootstrap`. If you want to change this, make sure to change
-both the `TCCINST` variable in the makefile, and the `CONFIG_TCCDIR` macro in `config.h`.
+both the `TCCINST` variable in the makefile, and the `CONFIG_TCCDIR` macro in `tcc-0.9.27/config.h`.
 Anyways, once this installation is done, you should be able to compile any C program with `tcc-0.9.27/tcc0`,
-including TCC itself:
+including tcc itself:
 
 ```
 $ cd tcc-0.9.27
 $ ./tcc0 tcc.c -o tcc1
 ```
 
-Now, let's try doing the same thing, but starting with GCC instead of our C compiler:
+Now, let's try doing the same thing, but starting with gcc instead of our C compiler:
 
 ```
 $ gcc tcc.c -o tcc0a
 $ ./tcc0a tcc.c -o tcc1a
 ```
 
-In theory, these should produce the same files, since the output of TCC shouldn't depend on which compiler it was compiled with.
-If they are different, then perhaps a bug *was* introduced in some early version of GCC, and replicated in all C compilers since then!
+In theory, these should produce the same files, since the output of tcc shouldn't depend on which compiler it was compiled with.
+If they are different, then perhaps a bug *was* introduced in some early version of gcc, and replicated in all C compilers since then!
 Well, only one way to find out:
 
 ```
@@ -53,9 +53,9 @@ $ diff tcc2 tcc1a
 $
 ```
 
-Yes, after compiling TCC with itself one more time, we get the same executable as the GCC-TCC one.
+Yes, after compiling tcc with itself one more time, we get the same executable as the gcc-tcc one.
 I'm not sure why `tcc1` differs from `tcc2`, but there you go. Turns out there isn't some malicious
-self-replicating code hiding in GCC after all.\*
+self-replicating code hiding in gcc after all.\*
 
 ## the C compiler
 
@@ -69,7 +69,7 @@ idents.b       - functions for creating mappings from identifiers to arbitrary 6
 preprocess.b   - preprocesses C files
 tokenize.b     - turns preprocessing tokens into tokens (see explanation below)
 parse.b        - turns tokens into a nice representation of the program
-codegen.b      - turns parse.b's representation into actual code
+codegen.b      - turns parse.b's representation into CPU instructions
 main.b         - puts everything together
 ```
 
@@ -290,7 +290,7 @@ Here is a (probably incomplete) list of things we do wrong:
 - You can't have a variable/function/etc. called `defined`.
 - Various little things about when macros are evaluated in some contexts.
 - The horrible, horrible function `setjmp`, which surely no one uses, is not properly supported.
-Oh wait, TCC uses it. Fortunately it's not critically important to TCC.
+Oh wait, tcc uses it. Fortunately it's not critically important to tcc.
 - Wide characters and wide character strings are not supported.
 - The `localtime()` function assumes you are in the UTC+0 timezone.
 - `mktime()` always fails.
@@ -317,17 +317,16 @@ rounds down, but
 0.09999999999999999861222121921855432447046041488647460937501
 rounds up.
 ```
-Good luck writing a function which handles that!
+Good luck writing code which handles that!
 - Originally, there was a bug where negative powers of 2 were
 being interpreted as half of their actual value, e.g. `x = 0.25;` would set `x` to
 `0.125`, but `x = 4;`, `x = 0.3;`, etc. would all work just fine.
-- Writing the functions in `math.h`, although probably not necessary for compiling TCC,
+- Writing the functions in `math.h`, although probably not necessary for compiling tcc,
 was fun! There are quite a few interesting optimizations you can make, and little
 tricks for avoiding losses in floating-point accuracy.
-- The <s>first</s> second non-trivial program I successfully compiled worked perfectly the first time I ran it!
-- A very difficult to track down bug happened the first time I ran `tcc`: there was a declaration along
+- A very difficult to track down bug happened the first time I ran tcc: there was a declaration along
 the lines of `char x[] = "a\0b\0c";` but it got compiled as `char x[] = "a";`!
-- Originally, I was just treating labels the same as any other statements, but `tcc` actually has code like:
+- Originally, I was just treating labels the same as any other statements, but tcc actually has code like:
 ```
 ...
 goto lbl;
@@ -337,7 +336,7 @@ if (some_condition)
 ```
 so the `do_something();` was not being considered as part of the `if` statement.
 - The first time I compiled tcc with itself (and then with itself again), I actually got a different
-executable from the GCC one. After spending a long time looking at disassemblies, I found the culprit:
+executable from the gcc one. After spending a long time looking at disassemblies, I found the culprit:
 ```
 # if defined(__linux__)
     tcc_define_symbol(s, "__linux__", NULL);
@@ -345,8 +344,9 @@ executable from the GCC one. After spending a long time looking at disassemblies
 # endif
 ```
 If the `__linux__` macro is defined (to indicate that the target OS is linux),
-TCC will also define the `__linux__` macro. Unlike GCC, our compiler doesn't define the `__linux__` macro,
-so when it's used to compile TCC, TCC won't define it either, no matter how many times you compile it
+tcc will also define the `__linux__` macro in any programs it compiles.
+Unlike gcc, our compiler doesn't define the `__linux__` macro,
+so when it's used to compile tcc, tcc won't define it either, no matter how many times you compile it
 with itself!
 
 ## modifications of tcc's source code
@@ -359,7 +359,7 @@ here.
 - First, we (and C89) don't allow a comma after the last member in an initializer. In several places,
 the last comma in an initializer/enum definition was removed, or an irrelevant entry was added to the end.
 - Global variables were sometimes declared twice, which we don't support.
-So, a bunch of duplicate declarations were removed.
+So a bunch of duplicate declarations were removed.
 - The `# if defined(__linux__)` and `# endif` mentioned above were removed.
 - In a bunch of places, `ELFW(something)` had to be replaced with `ELF64_something` due to
 subtleties of how we evaluate macros.
@@ -368,12 +368,12 @@ some initializers were replaced by functions called at the top of `main`.
 - In several places, `default:` had to be moved to after every `case` label.
 - In two places, `-some_long_double_expression` had to be replaced with
 a function call to `negate_ld` (a function I wrote for negating long doubles).
-This is because TCC only supports negating long doubles if
-the compiler used to compile it has an 80-bit long double type, which our compiler doesn't.
-- `\0` was replaced with `\n` as a separator for keyword names.
-- Forced TCC to use `R_X86_64_PC32` relocations, because its `plt` code doesn't seem to work for static
+This is because tcc only supports negating long doubles if
+the compiler which compiled it has an 80-bit long double type, and our compiler doesn't.
+- `\0` was replaced with `\n` as a separator for keyword names in the `tcc_keywords` global variable.
+- Forced tcc to use `R_X86_64_PC32` relocations, because its `plt` code doesn't seem to work for static
 executables.
-- Lastly, there's the `config.h` file, which is normally produced by TCC's `configure` script,
+- Lastly, there's the `config.h` file, which is normally produced by tcc's `configure` script,
 but it's easy to write one manually:
 ```
 #define TCC_VERSION "0.9.27"
@@ -386,30 +386,62 @@ but it's easy to write one manually:
 ```
 The last line causes the `inline` keyword (added in C99) to be ignored.
 
-Fewer changes would've been needed for an older version of TCC, but older versions didn't support
-x86-64 assembly, which might end up being relevant...
-
 ## \*libc
 
-If you look in TCC's source code, you will not find implementations of any of the C standard library functions.
-So how can programs compiled with TCC use those functions?
+If you look in tcc's source code, you will not find implementations of any of the C standard library functions.
+So how can programs compiled with tcc use those functions?
 
-When a program compiled with TCC (under default settings) calls `printf`, say, it actually gets the instructions
+When a program compiled with tcc (under default settings) calls `printf`, say, it actually gets the instructions
 for `printf` from a separate library file
 (called something like `/usr/lib/x86_64-linux-gnu/libc-2.31.so`). There are very good reasons for this: for example,
 if there a security bug were found in `printf`, it would be much easier to replace the library file than re-compile
 every program which uses `printf`.
 
 Now this library file is itself compiled from C source files (typically glibc).
-So, we can't really say that the self-compiled TCC was built from scratch, and there could be malicious
+So, we can't really say that the self-compiled tcc was built from scratch, and there could be malicious
 self-replicating code in glibc.
 
-You can't compile glibc with TCC, but
-it's possible to build an old version of `musl`, an alternate libc
+### compiling glibc
+
+You can't compile glibc with tcc, but
+it's possible to build an old version of musl, an alternate libc
 (you can run `CC=../tcc-0.9.27/tcc0 make` in the `musl-0.6.0` directory here).
 
-You should be able to use musl alongside TCC to build an old version of GCC (git revision
-`79a6d9b7ff3822675ee44d8d6cad86027dadd664` seems workable). This also requires
-building several tools needed to compile GCC. You should then be able to build (possibly an old version of)
-glibc, and with that, a modern version of GCC.
-This is all extremely tedious, though, so I'm not planning on doing it anytime soon.
+You should be able to use musl alongside tcc to build an old version of gcc. This also requires
+building several tools needed to compile gcc. You should then be able to build an old version of
+glibc, and with that, a modern version of gcc.
+
+Well, I tried this. And it is an absolute nightmare.
+GNU has created a horrible web of programs that all depend on each other.
+According to the recommended build process, you need awk to build awk, sed to build sed,
+sed to build grep, etc. Here was a "guide" I was starting to write for how to
+get to glibc:
+
+- install tcc, musl
+- build mrsh, make, basic utilities
+- chroot
+- build & install coreutils
+- build & install dash
+- build & install sed-4.2
+- build & install ld, as (from binutils)
+- build gcc
+- build & install grep-3.7
+- build & install awk
+- build & install bash
+- build & install glibc (didn't work)
+
+Each of these programs uses a `./configure` script to set up the code and Makefiles.
+These scripts are basically impossible to use without already having
+most of these programs. So, I resorted to configuring the build with
+the ordinary binary versions of `sed`, etc. I had on my machine.
+This made broken Makefiles which I spent hours editing by hand
+-- and is it really compiled from scratch if it's built from
+computer-generated source files and Makefiles?
+And although the developers at GNU 
+refrain from declaring variables after statements, and keep old-style function declarations
+to support compilers from the 80s; they *still* manage to use gcc-specific extensions, and
+not even extensions that all versions of gcc support!
+After hours and hours of fixing compiler errors, I decided to give up.
+
+THIS WAY LIES MADNESS.
+
