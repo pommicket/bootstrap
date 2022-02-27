@@ -90,7 +90,9 @@ The C89 standard (in theory) defines which C programs are legal, and exactly wha
 A draft of it, which is about as good as the real thing, is [available here](http://port70.net/~nsz/c/c89/c89-draft.html).
 
 Since 1989, more features have been added to C, and so more C standards have been published.
-To keep things simple, our compiler only supports the features from C89 (with a few exceptions).
+To keep things simple, our compiler only supports the features from C89, except
+that declarations can appear after statements and `//` single-line comments are allowed
+(both of these were added in C99).
 
 
 ## compiler high-level details

@@ -539,7 +539,7 @@ im
 ##43. ascii 'C'
 je
 :-<c  non-constant shift
-// write shl rax,
+// write shl rax, imm8 prefix
 im
 --<I
 IA
@@ -595,7 +595,7 @@ im
 ##43. ascii 'C'
 je
 :->c  non-constant shift
-// write shr rax,
+// write shr rax, imm8 prefix
 im
 -->I
 IA
@@ -651,7 +651,7 @@ im
 ##43. ascii 'C'
 je
 :-]c  non-constant shift
-// write sar rax,
+// write sar rax, imm8 prefix
 im
 --]I
 IA
@@ -803,7 +803,7 @@ im
 --r#
 cl
 DA
-// get index of first register
+// get index of second register
 im
 ##2.
 BA
@@ -884,7 +884,7 @@ im
 cl
 BA  put number in rbx
 im
---im  put immediate in rax
+--im  emit "mov rax, (immediate)"
 cl
 im
 --1A  transfer immediate to output
@@ -1000,7 +1000,7 @@ im
 cl    put rax in output
 jm
 :-rl
-// emit 'B = line[1]', i.e. deal with address of store instruction
+// set rbx to register referred to by line[1], i.e. deal with the address of a store instruction
 ::s@
 im
 ##1.
@@ -1173,7 +1173,7 @@ lb
 BA
 // note: for this we allow numerical operands, e.g. 'C+=d1'
 // we don't need this for ::B2 because it's only used for load instructions
-// (you don't normally need to dereference numerical literals)
+// (you don't normally need to dereference numbers)
 im
 ##41.  'A'
 je
@@ -1277,7 +1277,7 @@ BA
 zA
 jn     if on second pass,
 :-rl   ignore this (read next line)
-// first get current address
+// get current address
 im
 ##4. output fd
 JA
@@ -1303,7 +1303,7 @@ im
 --LI
 IA
 // copy from rsi to rdi until a newline is reached
-::lc  label copy
+::lc  label copy loop
 BI
 zA
 lb
@@ -1455,9 +1455,9 @@ im
 JA
 jm
 :-s= keep looping
-// emit "mov rax, immediate" -- with immediate in rbx
+// emit "mov rax, immediate" with immediate in rbx
 ::im
-// first, write prefix
+// first, emit the prefix
 im
 --IM
 IA
@@ -1574,7 +1574,8 @@ jm
 jm
 // conditional jump handling
 ::?j
-// note, we actually put the first operand in rbx and the second in rax. this is because A>0 is more familiar than 0<A
+// note, we actually put the first operand in rbx and the second in rax.
+// this is because A>0 is more familiar than 0<A
 im
 ##1. add 1 to line pointer to get pointer to 1st operand
 BA
@@ -2102,7 +2103,7 @@ BAs
 im
 ##41.
 je
-:-ca   call a
+:-ca   call A
 im
 ##5.  add 5 to line pointer to get pointer to label name
 BA
@@ -2889,7 +2890,7 @@ jm
 ~~
 ~~
 ~~
-::L$  end of current label list
+::L$  current end of label list
 --LB
 ::LB  labels
 ~~

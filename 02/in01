@@ -42,7 +42,7 @@ the segment we're loading in includes the ELF header at address 0x400000, so we 
 ;im;01;00;00;00;00;00;00;00 write
 ;sy
 
--- read command (0x400174) --
+-- read a command (0x400174) --
 ;im;03;00;00;00;00;00;00;00 input file descriptor
 ;JA
 ;im;88;00;40;00;00;00;00;00 where to read to
@@ -184,7 +184,7 @@ okay we now have a digit in rbx
 ;AR
 ;<I;04
 ;+B
-;RA    store away in rbp
+;RA    store number away in rbp
 ;jm;38;ff;ff;ff  continue loop
 
 unused padding
@@ -316,7 +316,7 @@ convert bytes to an offset
 ;BA
 offset in rbx
 
-look in the label table
+read value from label table
 ;im;00;00;42;00;00;00;00;00
 ;+B
 ;BA
@@ -366,7 +366,7 @@ it's not a label or a number. let's look it up in the instruction table.
 ;im;d0;0a;40;00;00;00;00;00   start of instruction table
 ;+B
 ;BA
-;RA    store away address of command text in rbp
+;RA    store away pointer to command text in rbp
 ;zA;lb
 ;DA    number of bytes to write (used for syscall if command exists)
 ;BA
@@ -388,7 +388,7 @@ bad command!
 ;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00;00
 
 this is a real command
-;BR   get address of command text back in rbx
+;BR   get pointer to command text back in rbx
 ;im;01;00;00;00;00;00;00;00 add 1 because we don't want to write the length 
 ;+B
 ;IA   address of data to write

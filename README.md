@@ -149,6 +149,7 @@ ax  bx  cx  dx  sp  bp  si  di
 │ mov rbp, [rsp]       │ 48 8b 2c 24       │ load 8 bytes from rsp into rbp         │
 │ lea rax, [rbp+IMM32] │ 48 8d 85 IMM32    │ set rax to rbp+IMM32                   │
 │ lea rsp, [rbp+IMM32] │ 48 8d a5 IMM32    │ set rsp to rbp+IMM32                   │
+| int3                 | cc                | raise trap signal -useful for debugging|
 | movsq                | 48 a5             | copy 8 bytes from rsi to rdi           |
 | rep movsb            | f3 a4             | copy rcx bytes from rsi to rdi         |
 │ push rax             │ 50                │ push rax onto the stack                │
@@ -220,6 +221,7 @@ SYSCALLS
 Arguments are passed in
 	rdi, rsi, rdx, r10, r8, r9
 The return value is placed in rax.
+The values of rsp, rbp and rbx are preserved, but other registers might change.
 ```
 
 ## license

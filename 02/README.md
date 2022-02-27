@@ -157,6 +157,9 @@ Numbers cannot appear at the end of a line (this made
 the compiler simpler to write), so I'm adding a `.` at the end of
 each one to avoid making that mistake.
 
+The code for `cmp rax, rbx` is now included in all conditional jump instructions
+(I kept forgetting to put `cm` before conditional jumps when writing this compiler).
+
 Anything after a command is treated as a comment;
 additionally `//` can be used for comments on their own lines.
 I decided to implement this as simply as possible:

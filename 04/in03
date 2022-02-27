@@ -127,7 +127,7 @@ R=:line
 		!:read_line_loop_end
 :read_line_loop_end
 
-; remove whitespace (specifically, ' ' characters) at end of line
+; remove whitespace (specifically, space characters) at end of line
 I=R
 :remove_terminal_whitespace_loop
 	I-=d1
