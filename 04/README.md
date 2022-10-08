@@ -51,7 +51,7 @@ These variables will be placed on the
 stack. Since arguments are also placed on the stack,
 by implementing local variables we get arguments for free. There is no difference
 between the `local` and `argument` keywords in this language other than spelling.
-In fact, the number of agruments to a function call is not checked against
+In fact, the number of arguments to a function call is not checked against
 how many arguments the function has. This does make it easy to screw things up by calling a function
 with the wrong number of arguments, but it also means that we can provide a variable number of arguments
 to the `syscall` function. Speaking of which, if you look at the bottom of `in04`, you'll see:

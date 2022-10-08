@@ -52,8 +52,8 @@ call :function
 ; return
 return
 ; label declarations
-;:function
-;:label
+:function
+:label
 ; literal byte
 x4b
 'H
