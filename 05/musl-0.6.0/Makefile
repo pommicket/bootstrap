@@ -9,7 +9,7 @@
 #
 
 CC = ../tcc-0.9.27/tcc0
-exec_prefix = /usr/local/musl-bootstrap
+exec_prefix = ../musl-bootstrapU
 bindir = $(exec_prefix)/bin
 
 prefix = /usr/local/musl-bootstrap
@@ -84,7 +84,7 @@ lib/libc.so: $(LOBJS)
 	$(OBJCOPY) --weaken $@
 
 lib/libc.a: $(OBJS)
-	rm -f $@
+	mkdir -p lib
 	$(AR) rc $@ $(OBJS)
 	# $(RANLIB) $@
 

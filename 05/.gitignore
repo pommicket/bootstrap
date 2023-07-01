@@ -1,3 +1,5 @@
 in04
 address_map.txt
 *.o
+tcc-bootstrap
+musl-bootstrap

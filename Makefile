@@ -6,7 +6,9 @@ all: markdown README.html
 	$(MAKE) -C 04
 	$(MAKE) -C 04a
 	# don't compile all of 05 because it takes a while
-	$(MAKE) -C 05 README.html
+	$(MAKE) -C 05
+	$(MAKE) -C 05 install
+	$(MAKE) -C 05 tcc
 clean:
 	$(MAKE) -C 00 clean
 	$(MAKE) -C 01 clean
@@ -14,6 +16,7 @@ clean:
 	$(MAKE) -C 03 clean
 	$(MAKE) -C 04 clean
 	$(MAKE) -C 04a clean
+	$(MAKE) -C 05 clean
 	rm -f markdown
 	rm -f README.html
 markdown: markdown.c

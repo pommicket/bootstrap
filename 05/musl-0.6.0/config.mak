@@ -6,10 +6,10 @@
 ARCH = x86_64
 
 # Installation prefix. DO NOT use /, /usr, or /usr/local !
-prefix = /usr/local/musl-bootstrap
+prefix = ../musl-bootstrap
 
 # Installation prefix for musl-gcc compiler wrapper.
-exec_prefix = /usr/local/musl-bootstrap
+exec_prefix = ../musl-bootstrap
 
 # Uncomment if you want to build i386 musl on a 64-bit host
 #CFLAGS += -m32
