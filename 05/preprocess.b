@@ -849,9 +849,9 @@ function translation_phase_4
 		:pp_include_have_filename
 		
 		local included_pptokens
-		included_pptokens = split_into_preprocessing_tokens(inc_filename)
 		debug_puts(.str_including)
 		debug_putsln(inc_filename)
+		included_pptokens = split_into_preprocessing_tokens(inc_filename)
 		out = translation_phase_4(inc_filename, included_pptokens, out)
 		free(included_pptokens)
 		free(inc_filename)

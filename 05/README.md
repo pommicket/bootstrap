@@ -11,14 +11,14 @@ $ make
 to build our C compiler and tcc. This will take some time (approx. 25 seconds on my computer).
 This also compiles a "Hello, world!" executable, `a.out`, with our compiler.
 
-We can now compile tcc with itself. But first, you'll need to install the header files and library files
+We can now compile tcc with itself. But first, you'll need to produce the header files and library files
 which are needed to compile (almost) any program with tcc:
 
 ```
-$ sudo make install
+$ make tcc-files
 ```
 
-The files will be installed to `/usr/local/lib/tcc-bootstrap`. If you want to change this, make sure to change
+The files will be installed to `./tcc-bootstrap`. If you want to change this, make sure to change
 both the `TCCINST` variable in the makefile, and the `CONFIG_TCCDIR` macro in `tcc-0.9.27/config.h`.
 Anyways, once this installation is done, you should be able to compile any C program with `tcc-0.9.27/tcc0`,
 including tcc itself:
@@ -406,11 +406,39 @@ Now this library file is itself compiled from C source files (typically glibc).
 So, we can't really say that the self-compiled tcc was built from scratch, and there could be malicious
 self-replicating code in glibc.
 
-### compiling glibc
+I have to thank [Dawid33 for coming up with the idea to try this...](https://github.com/pommicket/bootstrap/issues/1)
 
-You can't compile glibc with tcc, but
-it's possible to build an old version of musl, an alternate libc
-(you can run `CC=../tcc-0.9.27/tcc0 make` in the `musl-0.6.0` directory here).
+Compiling glibc is difficult (see below), but
+it's possible to build an old version of musl, an alternate libc,
+with just our `tcc0` executable. This can be done with
+
+```
+make musl
+```
+in this directory. Now you can run
+```
+./tcc0 -nostdinc -nostdlib -B ../tcc-boostrap -I ../musl-bootstrap/include tcc.c ../musl-bootstrap/lib/*.[oa] -o tcc1
+```
+to get a tcc executable that is fully independent of any libc installed on your system.
+We can do the same with gcc
+```
+./tcc0a -nostdinc -nostdlib -B ../tcc-boostrap -I ../musl-bootstrap/include tcc.c ../musl-bootstrap/lib/*.[oa] -o tcc1a
+```
+And once more the files `tcc1a` and `tcc1` differ. But with one more round:
+```
+./tcc1 -nostdinc -nostdlib -B ../tcc-boostrap -I ../musl-bootstrap/include tcc.c ../musl-bootstrap/lib/*.[oa] -o tcc2
+```
+we find that `tcc1a` and `tcc2` do not differ.
+So glibc has not betrayed us, and we now have a fully-functioning
+self-compiling compiler built from nothing but human-readable source code.
+
+But hardly anyone uses tcc to compile anything important.
+For all we know the hypothetical malicious code in gcc or glibc only replicates itself if the
+compiler is sufficiently advanced (e.g. gcc or clang).
+Ideally we would build up to a fully bootstrapped build of gcc. Unfortunately
+that turns out to be quite a challenge...
+
+### compiling glibc
 
 You should be able to use musl alongside tcc to build an old version of gcc. This also requires
 building several tools needed to compile gcc. You should then be able to build an old version of

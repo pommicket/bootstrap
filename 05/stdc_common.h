@@ -49,6 +49,9 @@ typedef long           ssize_t;
 #define USHRT_MAX UINT16_MAX
 #define UINT_MAX UINT32_MAX
 #define ULONG_MAX UINT64_MAX
+#define INTPTR_MIN INT64_MIN
+#define INTPTR_MAX INT64_MAX
+#define UINTPTR_MAX UINT64_MAX
 
 static unsigned char __syscall_data[] = {
 	// mov rax, [rsp+24]

@@ -27,12 +27,13 @@ $(TCCDIR)/lib/libtcc1.a: $(TCC0) $(TCCDIR)/lib/*.[cS]
 	$(TCC0) -c $(TCCDIR)/lib/va_list.c -o $(TCCDIR)/lib/va_list.o
 	$(TCC0) -c $(TCCDIR)/lib/libtcc1.c -o $(TCCDIR)/lib/libtcc1.o
 	$(TCC0) -ar $(TCCDIR)/lib/libtcc1.a $(TCCDIR)/lib/*.o
-install: $(TCCDIR)/lib/libtcc1.a $(TCCDIR)/include/*.h
+musl: tcc-files
+	$(MAKE) -C musl-0.6.0
+	$(MAKE) -C musl-0.6.0 install
+tcc-files: $(TCCDIR)/lib/libtcc1.a $(TCCDIR)/include/*.h
 	mkdir -p $(TCCINST)/include
 	cp -r $(TCCDIR)/include/*.h $(TCCINST)/include/
 	cp -r $(TCCDIR)/lib/libtcc1.a $(TCCINST)/
-	$(MAKE) -C musl-0.6.0
-	$(MAKE) -C musl-0.6.0 install
 $(TCC)1: $(TCC0) $(TCCINST)/libtcc1.a
 	cd $(TCCDIR) && ./tcc0 -nostdinc -nostdlib -B ../tcc-boostrap -L../musl-bootstrap/lib -lc -I ../musl-bootstrap/include tcc.c -o tcc1
 tcc: $(TCC)1
