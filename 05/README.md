@@ -379,17 +379,9 @@ the compiler which compiled it has an 80-bit long double type, and our compiler 
 - Forced tcc to use `R_X86_64_PC32` relocations, because its `plt` code doesn't seem to work for static
 executables.
 - Lastly, there's the `config.h` file, which is normally produced by tcc's `configure` script,
-but it's easy to write one manually:
-```
-#define TCC_VERSION "0.9.27"
-#define CONFIG_TCC_STATIC 1
-#define TCC_TARGET_X86_64 1
-#define ONE_SOURCE 1
-#define CONFIG_LDDIR "lib/x86_64-linux-gnu"
-#define CONFIG_TCCDIR "/usr/local/lib/tcc-bootstrap"
-#define inline
-```
+but it's easy to write one manually (see `tcc-0.9.27/config.h`)
 The last line causes the `inline` keyword (added in C99) to be ignored.
+- Some stuff was added to the bottom of tcc.c to deal with problems when compiling with musl.
 
 ## \*libc
 
@@ -417,6 +409,7 @@ make musl
 ```
 in this directory. Now you can run
 ```
+cd tcc-0.9.27
 ./tcc0 -nostdinc -nostdlib -B ../tcc-boostrap -I ../musl-bootstrap/include tcc.c ../musl-bootstrap/lib/*.[oa] -o tcc1
 ```
 to get a tcc executable that is fully independent of any libc installed on your system.
@@ -468,7 +461,7 @@ These scripts are basically impossible to use without already having
 most of these programs. So, I resorted to configuring the build with
 the ordinary binary versions of `sed`, etc. I had on my machine.
 This made broken Makefiles which I spent hours editing by hand
--- and is it really compiled from scratch if it's built from
+— and is it really compiled from scratch if it's built from
 computer-generated source files and Makefiles?
 And although the developers at GNU 
 refrain from declaring variables after statements,
