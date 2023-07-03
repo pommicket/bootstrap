@@ -15,7 +15,7 @@ We can now compile tcc with itself. But first, you'll need to install the header
 which are needed to compile (almost) any program with tcc:
 
 ```
-$ sudo make install-tcc0
+$ sudo make install
 ```
 
 The files will be installed to `/usr/local/lib/tcc-bootstrap`. If you want to change this, make sure to change
