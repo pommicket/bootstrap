@@ -371,3 +371,24 @@ redo:
         fclose(ppfp);
     return ret;
 }
+
+
+
+char **__environ;
+
+int __libc_start_main(
+	int (*main)(int, char **, char **), int argc, char **argv,
+	int (*init)(int, char **, char **), void (*fini)(void),
+	void (*ldso_fini)(void))
+{
+	/* Save the environment if it may be used by libc/application */
+	char **envp = argv+argc+1;
+	if (__environ != (void *)-1) __environ = envp;
+
+	/* Execute constructors (static) linked into the application */
+	if (init) init(argc, argv, envp);
+
+	/* Pass control to to application */
+	exit(main(argc, argv, envp));
+	return 0;
+}

@@ -170,6 +170,9 @@ extern long double strtold (const char *__nptr, char **__endptr);
 # endif
 #endif
 
+// causes too many problems with musl
+#undef TCC_IS_NATIVE
+
 #if defined TCC_IS_NATIVE && !defined CONFIG_TCCBOOT
 # define CONFIG_TCC_BACKTRACE
 # if (defined TCC_TARGET_I386 || defined TCC_TARGET_X86_64) \

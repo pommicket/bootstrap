@@ -20,9 +20,7 @@
 #define	_ELF_H 1
 
 #ifndef _WIN32
-#ifdef __GNUC__
 #include <inttypes.h>
-#endif
 #else
 #ifndef __int8_t_defined
 #define __int8_t_defined
